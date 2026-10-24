@@ -83,7 +83,7 @@ step_venv() {
         python3 -m venv "$SPLITSYS_VENV"
     fi
     "$SPLITSYS_VENV/bin/python" -m pip install --quiet -r "$HERE/requirements.txt"
-    log "venv: $("$SPLITSYS_VENV/bin/python" -c 'import cocotb,pytest;print("cocotb",cocotb.__version__,"pytest",pytest.__version__)')"
+    log "venv: $("$SPLITSYS_VENV/bin/python" -c 'import cocotb,pytest,matplotlib,numpy;print("cocotb",cocotb.__version__,"pytest",pytest.__version__,"matplotlib",matplotlib.__version__,"numpy",numpy.__version__)')"
 }
 
 if [ $# -eq 0 ]; then

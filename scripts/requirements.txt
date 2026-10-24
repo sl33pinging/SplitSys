@@ -3,9 +3,21 @@
 # cocotb 2.1.0 requires Verilator >= 5.036 (docs.cocotb.org/en/v2.1.0/simulator_support.html).
 cocotb==2.1.0
 pytest==9.1.1
+# plots (results/plots/make_plots.py, demo-storyteller)
+matplotlib==3.9.2
+numpy==2.5.4
+pillow==13.0.0
 # transitive pins
+contourpy==1.4.0
+cycler==0.12.1
 find_libpython==0.5.1
+fonttools==4.67.0
 iniconfig==2.3.1
+kiwisolver==1.5.1
 packaging==26.3
 pluggy==1.7.0
 Pygments==2.21.0
+pyparsing==3.3.3
+python-dateutil==3.0.0
+six==1.17.0
+tzdata==2026.5

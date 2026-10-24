@@ -71,6 +71,8 @@ check venv-python  3.10   required "$SPLITSYS_VENV/bin/python" --version
 check cocotb       2.1.0  required "$SPLITSYS_VENV/bin/python" -c 'import cocotb; print("cocotb", cocotb.__version__)'
 check pytest       8.0    required "$SPLITSYS_VENV/bin/python" -c 'import pytest; print("pytest", pytest.__version__)'
 check cocotb-config any   required cocotb-config --version
+check matplotlib   3.9.2  required "$SPLITSYS_VENV/bin/python" -c 'import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot; print("matplotlib", matplotlib.__version__)'
+check numpy        2.0    required "$SPLITSYS_VENV/bin/python" -c 'import numpy; print("numpy", numpy.__version__)'
 # Simulators
 check verilator    5.036  required verilator --version
 check iverilog     any    optional sh -c 'iverilog -V 2>&1 | head -1'

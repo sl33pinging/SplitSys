@@ -79,6 +79,7 @@ Recreate everything: `scripts/setup_env.sh` (steps `rust verilator venv`; each s
 | cocotb | 2.1.0 | `scripts/requirements.txt` |
 | cocotb's minimum Verilator | **5.036** ("cocotb supports Verilator 5.036+", https://docs.cocotb.org/en/v2.1.0/simulator_support.html) | enforced by `check_env.sh` |
 | pytest | 9.1.1 | `scripts/requirements.txt` |
+| matplotlib / numpy / pillow | 3.9.2 / 2.5.4 / 13.0.0 (installed by demo-storyteller for `results/plots/make_plots.py`; `check_env` requires matplotlib 3.9.2) | `scripts/requirements.txt` (a fresh venv from it gives an identical `pip freeze`) |
 | Python | 3.12.3 | system python3 (venv base) |
 | Vivado | **2025.2.1** (64-bit), batch mode verified | `SPLITSYS_VIVADO_VERSION` in `scripts/env.sh` |
 | iverilog | 12.0 (apt, optional) | |
