@@ -88,7 +88,7 @@ endif
 build: rtl_export
 	@mkdir -p $(OBJ)
 	@echo "== cosim build: $(TAG) -> $(BIN)"
-	@cd $(OBJ) && verilator $(VFLAGS) -Mdir $(OBJ) \
+	@cd $(OBJ) && flock $(OBJ).lock verilator $(VFLAGS) -Mdir $(OBJ) \
 	  $(RTL_DIR)/gen/splitsys_pkg.sv $(RTL_DIR)/*.sv \
 	  $(TB_ROOT)/cosim/harness.cpp > $(OBJ)/build.log 2>&1 || (tail -40 $(OBJ)/build.log; exit 1)
 	@echo "== cosim build ok: $(BIN)"

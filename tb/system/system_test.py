@@ -649,9 +649,17 @@ def main() -> int:
     ap.add_argument("--summary", default="")
     ap.add_argument("--only", default="", help="run only jobs whose name contains this (full/strip/directed)")
     ap.add_argument("--trace-dir", default="", help="FST per board (needs a WAVES=1 harness build)")
+    ap.add_argument("--meta", default="{}", help="provenance JSON (rtl/tb hashes, dirty inputs) for the summary")
     a = ap.parse_args()
-    log(f"system_test: SEED={a.seed} suites={a.suites} workers={a.workers} harness={a.harness}")
+    meta = json.loads(a.meta)
+    log(f"system_test: SEED={a.seed} suites={a.suites} workers={a.workers} harness={a.harness} meta={meta}")
     r = Runner(a)
+    p0 = r.preds([{"name": "latency_probe", "mode": "full", "M": 1, "K": 1, "N": 1, "requant": True}])[0]
+    meta["model_latencies"] = p0["latencies"]
+    meta["model_latencies_provisional"] = p0["latencies_provisional"]
+    meta["model_git_hash"] = p0["model"].get("model_git_hash")
+    log(f"  cycle model: latencies {p0['latencies']} provisional={p0['latencies_provisional']} "
+        f"model_git_hash={meta['model_git_hash']}")
     t0 = time.time()
     suites = [s for s in a.suites.split(",") if s]
     with ThreadPoolExecutor(len(suites)) as ex:
@@ -671,7 +679,7 @@ def main() -> int:
         log(f"   {s:11s} {p:4d} passed {f:4d} failed")
     fails = [x for x in r.results if not x["ok"]]
     if a.summary:
-        Path(a.summary).write_text(json.dumps({"seed": a.seed, "seconds": dt, "by_suite": by,
+        Path(a.summary).write_text(json.dumps({"seed": a.seed, "seconds": dt, "meta": meta, "by_suite": by,
                                                "results": r.results}, indent=1))
     if fails:
         log(f"== FAILED: {len(fails)} case(s); first: [{fails[0]['suite']}] {fails[0]['case']}: {fails[0]['error'][:600]}")
