@@ -52,7 +52,7 @@ The run was clean and eligible under the provenance rules (red-team S1 SEV-2 fix
 == sign-off eligible: YES
 ```
 
-**Command:** `scripts/wsl 'SPLITSYS_CACHE_TAG=<tag> make -C tb -j12 signoff'` passed **11/11 suites, 74/74 tests**, in 139 s wall.
+**Command:** `scripts/wsl 'SPLITSYS_CACHE_TAG=<tag> make -C tb -j12 signoff'` passed **11/11 suites, 64/64 tests**, in 139 s wall.
 The packet suite takes 124 s under `-j12` load and about 85 s alone.
 
 Logs are in `~/.cache/splitsys/tb/ve1/logs/20261024-102904-4395/`. Later commits that change only `tb/SIGNOFF.md` or
