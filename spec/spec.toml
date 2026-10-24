@@ -67,10 +67,39 @@ provisional = true
 doc = "Cycles from last WRITEBACK cycle to DONE (counters frozen), counted in cycles_total only"
 
 # ---------------------------------------------------------------- drain (SPEC §3.5, §4)
+# DRAIN state length per tile = drained rows x OBUF writes per row (D-004).
 [drain]
-t_drain_full = 8             # FULL: 8 rows drained, one per cycle
-t_drain_strip = 4            # STRIP: 4 rows drained, one per cycle
-int32_factor = 4             # int32 bypass: 4 OBUF writes per drained row
+t_drain_full = 8             # FULL int8: 8 rows x 1 write (8 lanes, byte enables)
+t_drain_strip = 4            # STRIP int8: 4 rows x 1 write (16 lanes)
+t_drain_full_int32 = 16      # FULL int32 bypass: 8 rows x 2 writes (8 int32 = 32 B)
+t_drain_strip_int32 = 16     # STRIP int32 bypass: 4 rows x 4 writes (16 int32 = 64 B)
+
+# ---------------------------------------------------------------- benchmarks (SPEC §1.1)
+# One list for golden (`vec bench`), cycle, and host. d_model = 64.
+[bench]
+m_sweep = [1, 2, 4, 8, 16, 32, 64]
+m_decode = 1
+m_prefill = 64
+
+[[bench.shapes]]
+name = "qkv"
+k = 64
+n = 192
+
+[[bench.shapes]]
+name = "attn_out"
+k = 64
+n = 64
+
+[[bench.shapes]]
+name = "ffn_up"
+k = 64
+n = 256
+
+[[bench.shapes]]
+name = "ffn_down"
+k = 256
+n = 64
 
 # ---------------------------------------------------------------- buffers (SPEC §3.4)
 # Byte address within a region = word_index * word_bytes + lane.

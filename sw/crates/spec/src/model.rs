@@ -37,6 +37,7 @@ pub struct Spec {
     pub modes: BTreeMap<String, i64>,
     pub latency: BTreeMap<String, Latency>,
     pub drain: Drain,
+    pub bench: Bench,
     pub buffers: BTreeMap<String, Buffer>,
     pub descriptor: Descriptor,
     pub requant: Requant,
@@ -78,7 +79,25 @@ pub struct Latency {
 pub struct Drain {
     pub t_drain_full: i64,
     pub t_drain_strip: i64,
-    pub int32_factor: i64,
+    pub t_drain_full_int32: i64,
+    pub t_drain_strip_int32: i64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Bench {
+    pub m_sweep: Vec<i64>,
+    pub m_decode: i64,
+    pub m_prefill: i64,
+    pub shapes: Vec<BenchShape>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BenchShape {
+    pub name: String,
+    pub k: i64,
+    pub n: i64,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -449,11 +468,23 @@ impl Spec {
             if rq.word_bytes != 4 {
                 e.push(format!("RQPARAM word must be 4 bytes ({{8'h0, shift, mult}}); got {}", rq.word_bytes));
             }
-            if o.word_bytes > 0 && self.drain.int32_factor * o.word_bytes != 2 * a.cols * 4 {
-                e.push(format!(
-                    "drain.int32_factor {} must equal (2*COLS int32 lanes * 4 B) / OBUF word bytes",
-                    self.drain.int32_factor
-                ));
+            if o.word_bytes > 0 && (a.cols * 4) % o.word_bytes == 0 {
+                let full = a.rows * (a.cols * 4 / o.word_bytes);
+                let strip = (a.rows / 2) * (2 * a.cols * 4 / o.word_bytes);
+                if self.drain.t_drain_full_int32 != full {
+                    e.push(format!(
+                        "drain.t_drain_full_int32 {} must equal ROWS * (COLS*4 B / OBUF word bytes) = {full}",
+                        self.drain.t_drain_full_int32
+                    ));
+                }
+                if self.drain.t_drain_strip_int32 != strip {
+                    e.push(format!(
+                        "drain.t_drain_strip_int32 {} must equal ROWS/2 * (2*COLS*4 B / OBUF word bytes) = {strip}",
+                        self.drain.t_drain_strip_int32
+                    ));
+                }
+            } else {
+                e.push("OBUF word bytes must divide COLS*4 (whole int32 writes per FULL row)".into());
             }
             let d = &self.descriptor;
             if d.m_max > 0 && d.k_max > 0 && d.n_max > 0 {
@@ -640,6 +671,30 @@ impl Spec {
             }
         }
 
+        // benchmarks (SPEC §1.1)
+        let bn = &self.bench;
+        let in_m = |m: i64| (d.m_min..=d.m_max).contains(&m);
+        if bn.m_sweep.is_empty() || !bn.m_sweep.windows(2).all(|w| w[0] < w[1]) {
+            e.push("bench.m_sweep must be non-empty and strictly increasing".into());
+        }
+        for &m in bn.m_sweep.iter().chain([bn.m_decode, bn.m_prefill].iter()) {
+            if !in_m(m) {
+                e.push(format!("bench M {m} outside M_MIN..M_MAX"));
+            }
+        }
+        if bn.shapes.is_empty() {
+            e.push("bench.shapes is empty".into());
+        }
+        let mut bnames = std::collections::BTreeSet::new();
+        for s in &bn.shapes {
+            if !is_ident(&s.name) || !bnames.insert(s.name.clone()) {
+                e.push(format!("bench shape name {:?} must be a unique lowercase identifier", s.name));
+            }
+            if !(d.k_min..=d.k_max).contains(&s.k) || !(d.n_min..=d.n_max).contains(&s.n) {
+                e.push(format!("bench shape {} (K={}, N={}) outside the descriptor ranges", s.name, s.k, s.n));
+            }
+        }
+
         // selftest reference values pin the Fletcher-32 definition
         let s = &self.selftest;
         if i64::from(fletcher32(b"abcde")) != s.fletcher32_check_abcde {
@@ -737,8 +792,21 @@ impl Spec {
         w!("// ---- drain (SPEC §3.5, §4)");
         w!("pub const T_DRAIN_FULL: u64 = {};", self.drain.t_drain_full);
         w!("pub const T_DRAIN_STRIP: u64 = {};", self.drain.t_drain_strip);
-        w!("/// int32 bypass multiplies T_DRAIN by this (4 OBUF writes per drained row).");
-        w!("pub const INT32_DRAIN_FACTOR: u64 = {};", self.drain.int32_factor);
+        w!("/// int32 bypass DRAIN length per tile: 8 rows x 2 writes (FULL), 4 rows x 4 writes (STRIP). D-004.");
+        w!("pub const T_DRAIN_FULL_INT32: u64 = {};", self.drain.t_drain_full_int32);
+        w!("pub const T_DRAIN_STRIP_INT32: u64 = {};", self.drain.t_drain_strip_int32);
+        let obw = self.buf("OBUF").word_bytes;
+        w!("/// OBUF writes per drained row in int32 bypass.");
+        w!("pub const INT32_WRITES_PER_ROW_FULL: u64 = {};", a.cols * 4 / obw);
+        w!("pub const INT32_WRITES_PER_ROW_STRIP: u64 = {};", 2 * a.cols * 4 / obw);
+        w!("/// int32 layout: OBUF words per output row of one 16-column block (SPEC §1.3).");
+        w!("pub const INT32_WORDS_PER_ROW: usize = {};", 2 * a.cols * 4 / obw);
+        w!("/// LEGACY, STRIP-only factor (T_DRAIN_STRIP_INT32 / T_DRAIN_STRIP). Wrong for FULL");
+        w!("/// (FULL int32 is x2). Kept only until splitsys-cycle migrates to T_DRAIN_*_INT32; will be removed.");
+        w!(
+            "pub const INT32_DRAIN_FACTOR: u64 = {};",
+            self.drain.t_drain_strip_int32 / self.drain.t_drain_strip.max(1)
+        );
         w!("");
         w!("// ---- buffers (SPEC §3.4). Byte address = word_index * WORD_BYTES + lane.");
         w!("pub const N_REGIONS: usize = {};", BUFFER_NAMES.len());
@@ -843,6 +911,25 @@ impl Spec {
         w!("// ---- self-test reference values (SPEC §3.9 Fletcher-32 definition)");
         w!("pub const FLETCHER32_CHECK_ABCDE: u32 = {:#010X};", self.selftest.fletcher32_check_abcde);
         w!("pub const FLETCHER32_CHECK_ABCDEF: u32 = {:#010X};", self.selftest.fletcher32_check_abcdef);
+        w!("");
+        w!("// ---- benchmark GEMMs (SPEC §1.1): one list for golden, cycle, and host");
+        w!("/// A benchmark GEMM shape; M comes from BENCH_M_SWEEP / BENCH_M_DECODE / BENCH_M_PREFILL.");
+        w!("#[derive(Debug, Clone, Copy, PartialEq, Eq)]");
+        w!("pub struct BenchShape {{");
+        w!("    pub name: &'static str,");
+        w!("    pub k: usize,");
+        w!("    pub n: usize,");
+        w!("}}");
+        w!("");
+        let bn = &self.bench;
+        w!("pub const BENCH_SHAPES: [BenchShape; {}] = [", bn.shapes.len());
+        for s in &bn.shapes {
+            w!("    BenchShape {{ name: \"{}\", k: {}, n: {} }},", s.name, s.k, s.n);
+        }
+        w!("];");
+        w!("pub const BENCH_M_SWEEP: [usize; {}] = {:?};", bn.m_sweep.len(), bn.m_sweep);
+        w!("pub const BENCH_M_DECODE: usize = {};", bn.m_decode);
+        w!("pub const BENCH_M_PREFILL: usize = {};", bn.m_prefill);
         o
     }
 
@@ -918,7 +1005,12 @@ impl Spec {
         w!("  // ---- drain (SPEC §3.5)");
         lp(&mut o, "T_DRAIN_FULL", self.drain.t_drain_full, "");
         lp(&mut o, "T_DRAIN_STRIP", self.drain.t_drain_strip, "");
-        lp(&mut o, "INT32_DRAIN_FACTOR", self.drain.int32_factor, "OBUF writes per drained row in int32 bypass");
+        lp(&mut o, "T_DRAIN_FULL_INT32", self.drain.t_drain_full_int32, "8 rows x 2 OBUF writes");
+        lp(&mut o, "T_DRAIN_STRIP_INT32", self.drain.t_drain_strip_int32, "4 rows x 4 OBUF writes");
+        let obw = self.buf("OBUF").word_bytes;
+        lp(&mut o, "INT32_WRITES_PER_ROW_FULL", a.cols * 4 / obw, "");
+        lp(&mut o, "INT32_WRITES_PER_ROW_STRIP", 2 * a.cols * 4 / obw, "");
+        lp(&mut o, "INT32_WORDS_PER_ROW", 2 * a.cols * 4 / obw, "int32 layout: OBUF words per row of a 16-col block");
         w!("");
         w!("  // ---- buffers (SPEC §3.4); byte address = word_index * WORD_BYTES + lane");
         let regions: Vec<(&str, i64)> = BUFFER_NAMES.iter().map(|nm| (*nm, self.buf(nm).region)).collect();

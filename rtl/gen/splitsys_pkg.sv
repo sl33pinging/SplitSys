@@ -48,7 +48,11 @@ package splitsys_pkg;
   // ---- drain (SPEC §3.5)
   localparam int unsigned T_DRAIN_FULL = 8;
   localparam int unsigned T_DRAIN_STRIP = 4;
-  localparam int unsigned INT32_DRAIN_FACTOR = 4;  // OBUF writes per drained row in int32 bypass
+  localparam int unsigned T_DRAIN_FULL_INT32 = 16;  // 8 rows x 2 OBUF writes
+  localparam int unsigned T_DRAIN_STRIP_INT32 = 16;  // 4 rows x 4 OBUF writes
+  localparam int unsigned INT32_WRITES_PER_ROW_FULL = 2;
+  localparam int unsigned INT32_WRITES_PER_ROW_STRIP = 4;
+  localparam int unsigned INT32_WORDS_PER_ROW = 4;  // int32 layout: OBUF words per row of a 16-col block
 
   // ---- buffers (SPEC §3.4); byte address = word_index * WORD_BYTES + lane
   typedef enum logic [7:0] {

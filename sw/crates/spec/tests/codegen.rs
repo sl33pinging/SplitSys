@@ -161,7 +161,7 @@ fn buffers_hold_the_largest_legal_job() {
         assert!(ss::N_MAX.div_ceil(ss::W_LANES) * M_PAD <= ss::OBUF_WORDS);
         assert!(ss::N_MAX <= ss::RQ_ENTRIES);
         // int32 bypass at max shape does NOT fit: it is range-checked (DECISIONS D-005).
-        assert!(ss::N_MAX.div_ceil(ss::W_LANES) * M_PAD * ss::INT32_DRAIN_FACTOR as usize > ss::OBUF_WORDS);
+        assert!(ss::N_MAX.div_ceil(ss::W_LANES) * M_PAD * ss::INT32_WORDS_PER_ROW > ss::OBUF_WORDS);
     }
 }
 
@@ -383,10 +383,10 @@ fn rejects_wrong_mode_encoding() {
 fn rejects_wrong_drain_lengths() {
     let errs = errors_after(|t| {
         set(t, &["drain"], "t_drain_strip", 8);
-        set(t, &["drain"], "int32_factor", 2);
+        set(t, &["drain"], "t_drain_full_int32", 32);
     });
     assert_rejects(&errs, "t_drain_strip 8 must equal ROWS/2");
-    assert_rejects(&errs, "int32_factor 2 must equal");
+    assert_rejects(&errs, "t_drain_full_int32 32 must equal");
 }
 
 #[test]
@@ -408,4 +408,38 @@ fn reports_all_problems_at_once() {
         set(t, &["buffers", "WBUF"], "word_bytes", 8);
     });
     assert!(errs.len() >= 3, "{errs:#?}");
+}
+
+#[test]
+fn drain_lengths_per_mode_and_format() {
+    // D-004: FULL int32 drains 8 rows x 2 writes, STRIP int32 4 rows x 4 writes.
+    assert_eq!((ss::T_DRAIN_FULL, ss::T_DRAIN_STRIP), (8, 4));
+    assert_eq!((ss::T_DRAIN_FULL_INT32, ss::T_DRAIN_STRIP_INT32), (16, 16));
+    assert_eq!((ss::INT32_WRITES_PER_ROW_FULL, ss::INT32_WRITES_PER_ROW_STRIP), (2, 4));
+    assert_eq!(ss::T_DRAIN_FULL_INT32, ss::FULL_TILE_M as u64 * ss::INT32_WRITES_PER_ROW_FULL);
+    assert_eq!(ss::T_DRAIN_STRIP_INT32, ss::STRIP_TILE_M as u64 * ss::INT32_WRITES_PER_ROW_STRIP);
+    assert_eq!(ss::INT32_WORDS_PER_ROW, 4);
+    assert_eq!((ss::FLAGS_INT8, ss::FLAGS_INT32), (ss::FLAG_REQUANT_EN, ss::FLAG_OUT_INT32));
+}
+
+#[test]
+fn bench_shapes_match_spec_section_1_1() {
+    let got: Vec<(&str, usize, usize)> = ss::BENCH_SHAPES.iter().map(|s| (s.name, s.k, s.n)).collect();
+    assert_eq!(got, [("qkv", 64, 192), ("attn_out", 64, 64), ("ffn_up", 64, 256), ("ffn_down", 256, 64)]);
+    assert_eq!(ss::BENCH_M_SWEEP, [1, 2, 4, 8, 16, 32, 64]);
+    assert_eq!((ss::BENCH_M_DECODE, ss::BENCH_M_PREFILL), (1, 64));
+}
+
+#[test]
+fn rejects_bench_shape_out_of_range_or_duplicate() {
+    let errs = errors_after(|t| {
+        let mut shapes = t["bench"]["shapes"].as_array().unwrap().clone();
+        shapes[0].as_table_mut().unwrap().insert("k".into(), 300.into());
+        shapes[1].as_table_mut().unwrap().insert("name".into(), "ffn_up".into());
+        tbl(t, &["bench"]).insert("shapes".into(), toml::Value::Array(shapes));
+        set(t, &["bench"], "m_prefill", 128);
+    });
+    assert_rejects(&errs, "bench shape qkv (K=300");
+    assert_rejects(&errs, "\"ffn_up\" must be a unique");
+    assert_rejects(&errs, "bench M 128 outside");
 }

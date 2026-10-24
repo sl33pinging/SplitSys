@@ -78,7 +78,16 @@ pub const LATENCIES: [LatencyInfo; 7] = [
 // ---- drain (SPEC §3.5, §4)
 pub const T_DRAIN_FULL: u64 = 8;
 pub const T_DRAIN_STRIP: u64 = 4;
-/// int32 bypass multiplies T_DRAIN by this (4 OBUF writes per drained row).
+/// int32 bypass DRAIN length per tile: 8 rows x 2 writes (FULL), 4 rows x 4 writes (STRIP). D-004.
+pub const T_DRAIN_FULL_INT32: u64 = 16;
+pub const T_DRAIN_STRIP_INT32: u64 = 16;
+/// OBUF writes per drained row in int32 bypass.
+pub const INT32_WRITES_PER_ROW_FULL: u64 = 2;
+pub const INT32_WRITES_PER_ROW_STRIP: u64 = 4;
+/// int32 layout: OBUF words per output row of one 16-column block (SPEC §1.3).
+pub const INT32_WORDS_PER_ROW: usize = 4;
+/// LEGACY, STRIP-only factor (T_DRAIN_STRIP_INT32 / T_DRAIN_STRIP). Wrong for FULL
+/// (FULL int32 is x2). Kept only until splitsys-cycle migrates to T_DRAIN_*_INT32; will be removed.
 pub const INT32_DRAIN_FACTOR: u64 = 4;
 
 // ---- buffers (SPEC §3.4). Byte address = word_index * WORD_BYTES + lane.
@@ -238,3 +247,22 @@ pub const CTR_TILES: usize = 11;
 // ---- self-test reference values (SPEC §3.9 Fletcher-32 definition)
 pub const FLETCHER32_CHECK_ABCDE: u32 = 0xF04FC729;
 pub const FLETCHER32_CHECK_ABCDEF: u32 = 0x56502D2A;
+
+// ---- benchmark GEMMs (SPEC §1.1): one list for golden, cycle, and host
+/// A benchmark GEMM shape; M comes from BENCH_M_SWEEP / BENCH_M_DECODE / BENCH_M_PREFILL.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BenchShape {
+    pub name: &'static str,
+    pub k: usize,
+    pub n: usize,
+}
+
+pub const BENCH_SHAPES: [BenchShape; 4] = [
+    BenchShape { name: "qkv", k: 64, n: 192 },
+    BenchShape { name: "attn_out", k: 64, n: 64 },
+    BenchShape { name: "ffn_up", k: 64, n: 256 },
+    BenchShape { name: "ffn_down", k: 256, n: 64 },
+];
+pub const BENCH_M_SWEEP: [usize; 7] = [1, 2, 4, 8, 16, 32, 64];
+pub const BENCH_M_DECODE: usize = 1;
+pub const BENCH_M_PREFILL: usize = 64;
