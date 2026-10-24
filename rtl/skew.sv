@@ -1,17 +1,20 @@
 // =============================================================================
 // skew.sv -- per-lane delay line for systolic operand skew (SPEC sec. 3.3)
 // -----------------------------------------------------------------------------
-// Lane j is delayed by exactly  D(j) = BASE[j] + j  clock cycles. Data, vld and
+// Lane j is delayed by exactly  D(j) = BASE[j] + (j mod SLAB)  clock cycles
+// (SPEC v1.1 sec. 3.3, D-008: base plus the lane's column within its 8-wide slab). Data, vld and
 // first of a lane travel through the same registers, so they stay together.
 //
 // Parameters
 //   LANES   number of lanes
 //   WIDTH   data bits per lane
 //   BASE    per-lane extra delay, packed 8 bits per lane: BASE[8*j +: 8].
-//           A skew:                        BASE = 0 per lane  (D = r)
-//           W skew, top edge  (W lanes 0-7):  BASE = 0 per lane  (D = c)
-//           W skew, row-4 entry (W lanes 8-15, STRIP only; a separate
-//             8-lane instance, so j = c there): BASE = 4 per lane (D = 4 + c)
+//   SLAB    slab width for the (j mod SLAB) term, default splitsys_pkg::COLS.
+//           A skew (8 lanes):            BASE = 0             (D = r)
+//           W skew, 16 lanes, STRIP:     BASE = W_SKEW_BASE_STRIP
+//                                        (lane c: D = c; lane 8+c: D = 4 + c)
+//           array.sv uses two 8-lane W instances (top edge BASE 0, row-4
+//           entry BASE 4); with LANES <= SLAB, (j mod SLAB) = j.
 //   FLAGS   1: carry vld/first per lane. 0: no flag registers are built and
 //           out_vld/out_first are tied to 0 (used for the W path, whose
 //           validity travels with the activations, SPEC sec. 3.1).
@@ -28,7 +31,8 @@ module skew #(
     parameter int                 LANES = 8,
     parameter int                 WIDTH = 8,
     parameter logic [8*LANES-1:0] BASE  = '0,
-    parameter bit                 FLAGS = 1'b1
+    parameter bit                 FLAGS = 1'b1,
+    parameter int                 SLAB  = splitsys_pkg::COLS
 ) (
     input  logic                        clk,
     input  logic                        rst,
@@ -47,7 +51,7 @@ module skew #(
     end
 
     for (genvar j = 0; j < LANES; j++) begin : g_lane
-        localparam int D = int'(BASE[8*j +: 8]) + j;
+        localparam int D = int'(BASE[8*j +: 8]) + (j % SLAB);
 
         if (D == 0) begin : g_wire
             assign out_data[j] = in_data[j];

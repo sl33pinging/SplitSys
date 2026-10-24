@@ -150,8 +150,10 @@ module array #(
     // column c at the edge where the lane enters:
     //   u_wskew_top : W lanes 0..C-1   -> top edge,        delay c      (BASE 0)
     //   u_wskew_mid : W lanes C..2C-1  -> row-H boundary,  delay H + c  (BASE H)
-    // (A single 16-lane instance with BASE[j]+j would delay lane C+c by
-    // H + C + c, which is NOT the SPEC sec. 3.2 alignment.)
+    // Each instance has 8 lanes, so (j mod COLS) = j = c and the W lanes 8..15
+    // get exactly H + c (SPEC sec. 3.2 / 3.3, D-008), never H + 8 + c. Two
+    // instances (rather than one 16-lane instance with W_SKEW_BASE_STRIP) let
+    // ENABLE_STRIP = 0 drop the row-4 lanes entirely.
     logic [C-1:0][7:0] w_sk_top;      // enters PE(0, c)
     /* verilator lint_off UNUSEDSIGNAL */
     logic [C-1:0][7:0] w_sk_mid;      // enters PE(H, c) in STRIP (unused if !ENABLE_STRIP)
