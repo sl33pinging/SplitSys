@@ -29,6 +29,10 @@
 //   ROM_FILE                   self-test ROM image for $readmemh.
 //   DEB_CYC, HB_HALF_CYC, ACT_CYC, SCAN_CYC, BTN_ACTIVE_LOW, SEG_ACTIVE_LOW,
 //   AN_ACTIVE_LOW, LEFT_IS_D1, AN0_IS_RIGHT   passed to board_io.
+//   Board facts HARDWARE-CONFIRMED in Phase H step H-1 (Sat 2026-10-24, build
+//   52a66216; heartbeat bitstream showed "6.126 6A25" for 0x52A66216): D0 is
+//   the left display (LEFT_IS_D1 = 0), AN[0] is the leftmost digit of each
+//   display (AN0_IS_RIGHT = 0), buttons and LEDs active high (BTN_ACTIVE_LOW = 0).
 //   BTN[3:2] are unused.
 // =============================================================================
 module top #(
@@ -44,8 +48,8 @@ module top #(
   parameter bit          BTN_ACTIVE_LOW    = 1'b0,
   parameter bit          SEG_ACTIVE_LOW    = 1'b1,
   parameter bit          AN_ACTIVE_LOW     = 1'b1,
-  parameter bit          LEFT_IS_D1        = 1'b1,
-  parameter bit          AN0_IS_RIGHT      = 1'b1
+  parameter bit          LEFT_IS_D1        = 1'b0,   // H-1 confirmed
+  parameter bit          AN0_IS_RIGHT      = 1'b0    // H-1 confirmed
 ) (
   input  logic        CLK_100MHZ,
   input  logic [3:0]  BTN,

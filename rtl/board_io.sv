@@ -6,10 +6,14 @@
 //     D*_AN[3:0] ("Active LOW") and segments D*_SEG[7:0] = {DP, G, F, E, D, C, B, A}
 //     (SEG[0] = CA ... SEG[6] = CG, SEG[7] = CDP, all "Active LOW").
 //   * BTN[3:0] (LVCMOS25), LED[15:0] (LVCMOS33).
-//   NOT in the XDC, so parameters here (defaults are assumptions to confirm in
-//   Phase H): which display is physically on the left (LEFT_IS_D1), whether
-//   AN[0] is the rightmost digit of its display (AN0_IS_RIGHT), and the button
-//   polarity (BTN_ACTIVE_LOW). Segment/anode polarity defaults follow the XDC.
+//   NOT in the XDC, so they are parameters here: which display is physically on
+//   the left (LEFT_IS_D1), whether AN[0] is the rightmost digit of its display
+//   (AN0_IS_RIGHT), and the button polarity (BTN_ACTIVE_LOW). The defaults are
+//   HARDWARE-CONFIRMED (Phase H step H-1, Sat 2026-10-24, build 52a66216): the
+//   heartbeat bitstream showed "6.126 6A25" for BUILD_ID 0x52A66216, so D0 is
+//   the LEFT display (LEFT_IS_D1 = 0) and AN[0] is the LEFTMOST digit of each
+//   display (AN0_IS_RIGHT = 0); buttons and LEDs are active high
+//   (BTN_ACTIVE_LOW = 0). Segment/anode polarity defaults follow the XDC.
 //
 // Reset (this module is the reset root of the design)
 //   rst = registered OR of: power-on reset (POR_CYC cycles after configuration),
@@ -69,11 +73,11 @@ module board_io
   parameter int unsigned ACT_CYC        = CLK_HZ / 20,    // 50 ms UART-activity stretch
   parameter int unsigned SCAN_CYC       = CLK_HZ / 1000,  // 1 ms per digit slot
   parameter int unsigned POR_CYC        = 16,             // power-on reset length
-  parameter bit          BTN_ACTIVE_LOW = 1'b0,           // ASSUMPTION: confirm on board
+  parameter bit          BTN_ACTIVE_LOW = 1'b0,           // H-1 confirmed: buttons active high
   parameter bit          SEG_ACTIVE_LOW = 1'b1,           // XDC: "Active LOW"
   parameter bit          AN_ACTIVE_LOW  = 1'b1,           // XDC: "Active LOW"
-  parameter bit          LEFT_IS_D1     = 1'b1,           // ASSUMPTION: D1 is the left display
-  parameter bit          AN0_IS_RIGHT   = 1'b1            // ASSUMPTION: AN[0] is the rightmost digit
+  parameter bit          LEFT_IS_D1     = 1'b0,           // H-1 confirmed: D0 is the left display
+  parameter bit          AN0_IS_RIGHT   = 1'b0            // H-1 confirmed: AN[0] is the leftmost digit
 ) (
   input  logic        clk,
   input  logic [1:0]  btn,
