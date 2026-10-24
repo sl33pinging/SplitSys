@@ -1,0 +1,497 @@
+//! JSON / Markdown report builders for `results/model/` (all `source: "model"`).
+//!
+//! Output records follow `docs/DEMO.md` §4: each point carries a `gemm`
+//! block, a `model` block (the §3.7 counters + `model_git_hash`, exactly the
+//! DEMO.md field set) and a `derived` block.
+
+use crate::{
+    arithmetic_intensity, choose_mode, mapping_ceiling, operand_bytes_streamed, predict, spec,
+    Counters, Descriptor, Latencies, Mode,
+};
+use serde::Serialize;
+use std::fmt::Write as _;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+/// Benchmark GEMMs of SPEC §1.1: `(name, K, N)`.
+pub const BENCHMARKS: [(&str, u64, u64); 4] = [
+    ("qkv", 64, 192),
+    ("attn_out", 64, 64),
+    ("ffn_up", 64, 256),
+    ("ffn_down", 256, 64),
+];
+
+/// M values of the utilization-vs-M sweep (SPEC §1.1).
+pub const SWEEP_M: [u64; 7] = [1, 2, 4, 8, 16, 32, 64];
+
+/// Paths whose state defines the model. A dirty file under any of them marks
+/// `model_git_hash` with `-dirty` (other agents' unrelated edits do not).
+pub const MODEL_PATHS: [&str; 3] = ["sw/crates/cycle", "sw/crates/spec", "spec"];
+
+/// Repository root (this crate lives at `<root>/sw/crates/cycle`).
+pub fn repo_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..")
+}
+
+/// Default directory for model results.
+pub fn results_dir() -> PathBuf {
+    repo_root().join("results/model")
+}
+
+/// `git rev-parse --short HEAD`, with `-dirty` appended when any of
+/// [`MODEL_PATHS`] has uncommitted changes. `SPLITSYS_MODEL_GIT_HASH`
+/// overrides (for reproducing a frozen run). `"unknown"` if git fails.
+pub fn model_git_hash() -> String {
+    if let Ok(h) = std::env::var("SPLITSYS_MODEL_GIT_HASH") {
+        return h;
+    }
+    let root = repo_root();
+    let git = |args: &[&str]| -> Option<String> {
+        let out = Command::new("git")
+            .arg("-C")
+            .arg(&root)
+            .args(args)
+            .output()
+            .ok()?;
+        out.status
+            .success()
+            .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
+    };
+    let Some(hash) = git(&["rev-parse", "--short", "HEAD"]) else {
+        return "unknown".to_string();
+    };
+    let mut args = vec!["status", "--porcelain", "--"];
+    args.extend(MODEL_PATHS);
+    match git(&args) {
+        Some(s) if s.is_empty() => hash,
+        _ => format!("{hash}-dirty"),
+    }
+}
+
+/// The `gemm` block of a run record.
+#[derive(Clone, Debug, Serialize)]
+pub struct GemmBlock {
+    pub name: String,
+    #[serde(rename = "M")]
+    pub m: u64,
+    #[serde(rename = "K")]
+    pub k: u64,
+    #[serde(rename = "N")]
+    pub n: u64,
+    pub mode: Mode,
+    pub requant: bool,
+    pub flags: u8,
+}
+
+impl GemmBlock {
+    pub fn new(name: &str, d: &Descriptor) -> Self {
+        GemmBlock {
+            name: name.to_string(),
+            m: d.m,
+            k: d.k,
+            n: d.n,
+            mode: d.mode,
+            requant: d.flags & spec::FLAG_REQUANT_EN != 0,
+            flags: d.flags,
+        }
+    }
+}
+
+/// The DEMO.md §4 `model` block: every counter plus `model_git_hash`.
+#[derive(Clone, Debug, Serialize)]
+pub struct ModelBlock {
+    #[serde(flatten)]
+    pub counters: Counters,
+    pub model_git_hash: String,
+}
+
+/// Model-derived metrics for one descriptor.
+#[derive(Clone, Debug, Serialize)]
+pub struct Derived {
+    /// mac_useful / (64 · cycles_total).
+    pub util_model: f64,
+    /// M·N / (64 · tiles): ceiling from the mapping alone (SPEC §4 table).
+    pub mapping_ceiling: f64,
+    /// mac_useful / cycles_total.
+    pub macs_per_cycle: f64,
+    /// A + W bytes read per STREAM cycle (16 FULL, 20 STRIP).
+    pub operand_bytes_per_cycle: u64,
+    /// tiles · K · operand_bytes_per_cycle.
+    pub operand_bytes_streamed: u64,
+    /// mac_useful / operand_bytes_streamed (MACs per operand byte).
+    pub arithmetic_intensity: f64,
+}
+
+/// One modeled run: `gemm` + `model` + `derived`.
+#[derive(Clone, Debug, Serialize)]
+pub struct ModelRecord {
+    pub source: &'static str,
+    pub gemm: GemmBlock,
+    pub model: ModelBlock,
+    pub derived: Derived,
+}
+
+pub fn model_record(name: &str, d: &Descriptor, lat: &Latencies, hash: &str) -> ModelRecord {
+    let c = predict(d, lat).unwrap_or_else(|e| panic!("{name}: {e}"));
+    ModelRecord {
+        source: "model",
+        gemm: GemmBlock::new(name, d),
+        model: ModelBlock {
+            counters: c,
+            model_git_hash: hash.to_string(),
+        },
+        derived: Derived {
+            util_model: c.utilization(),
+            mapping_ceiling: mapping_ceiling(d),
+            macs_per_cycle: c.macs_per_cycle(),
+            operand_bytes_per_cycle: d.mode.operand_bytes_per_cycle(),
+            operand_bytes_streamed: operand_bytes_streamed(d, &c),
+            arithmetic_intensity: arithmetic_intensity(d, &c),
+        },
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ArrayInfo {
+    pub rows: u64,
+    pub cols: u64,
+    pub peak_macs_per_cycle: u64,
+}
+
+fn array_info() -> ArrayInfo {
+    ArrayInfo {
+        rows: spec::ROWS,
+        cols: spec::COLS,
+        peak_macs_per_cycle: spec::PEAK_MACS_PER_CYCLE,
+    }
+}
+
+/// Definitions shipped inside every results file so the numbers are self-describing.
+#[derive(Clone, Debug, Serialize)]
+pub struct Definitions {
+    pub t_tile: &'static str,
+    pub tiles: &'static str,
+    pub cycles_total: &'static str,
+    pub util_model: &'static str,
+    pub mapping_ceiling: &'static str,
+    pub operand_bytes_per_cycle: &'static str,
+    pub arithmetic_intensity: &'static str,
+}
+
+fn definitions() -> Definitions {
+    Definitions {
+        t_tile: "L_SETUP + (L_RD + K) + ((R-1) + (C-1) + L_PE) + T_DRAIN + L_RQ + L_WB; R = C = 8; \
+                 T_DRAIN = 8 FULL / 4 STRIP, x4 when flags.out_int32",
+        tiles: "FULL ceil(M/8)*ceil(N/8); STRIP ceil(M/4)*ceil(N/16)",
+        cycles_total: "L_ACCEPT + tiles * T_tile + L_DONE",
+        util_model: "mac_useful / (64 * cycles_total)",
+        mapping_ceiling: "M*N / (64 * tiles): utilization if only the K MAC cycles of each tile counted",
+        operand_bytes_per_cycle: "A + W bytes read per STREAM cycle: FULL 8 A + 8 W = 16; STRIP 4 A + 16 W = 20",
+        arithmetic_intensity: "mac_useful / (tiles * K * operand_bytes_per_cycle): useful MACs per operand \
+                               byte actually streamed from ABUF + WBUF (zero-padded lanes included; requant \
+                               params and outputs excluded)",
+    }
+}
+
+/// Which mode `choose_mode` picks for a sweep shape.
+#[derive(Clone, Debug, Serialize)]
+pub struct ModeChoice {
+    pub name: String,
+    #[serde(rename = "M")]
+    pub m: u64,
+    pub chosen: Mode,
+    pub cycles_total_full: u64,
+    pub cycles_total_strip: u64,
+    /// cycles_total(FULL) / cycles_total(STRIP).
+    pub strip_speedup: f64,
+}
+
+/// Mapping-only ceilings for N a multiple of 16 (SPEC §4 table).
+#[derive(Clone, Debug, Serialize)]
+pub struct CeilingRow {
+    #[serde(rename = "M")]
+    pub m: u64,
+    pub full: f64,
+    pub strip: f64,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct Sweep {
+    pub source: &'static str,
+    pub kind: &'static str,
+    pub model_git_hash: String,
+    pub latencies_provisional: bool,
+    pub latencies: Latencies,
+    pub array: ArrayInfo,
+    pub definitions: Definitions,
+    pub m_values: Vec<u64>,
+    pub points: Vec<ModelRecord>,
+    pub mode_choice: Vec<ModeChoice>,
+    pub ceilings_n_multiple_of_16: Vec<CeilingRow>,
+}
+
+/// Default flags for benchmark runs: requant on, int8 output.
+pub fn bench_flags() -> u8 {
+    spec::FLAG_REQUANT_EN
+}
+
+pub fn sweep(lat: &Latencies, provisional: bool, hash: &str) -> Sweep {
+    let flags = bench_flags();
+    let mut points = Vec::new();
+    let mut mode_choice = Vec::new();
+    for (name, k, n) in BENCHMARKS {
+        for m in SWEEP_M {
+            for mode in Mode::ALL {
+                points.push(model_record(
+                    name,
+                    &Descriptor::new(mode, flags, m, k, n),
+                    lat,
+                    hash,
+                ));
+            }
+            let total =
+                |mode| predict(&Descriptor::new(mode, flags, m, k, n), lat).map(|c| c.cycles_total);
+            let (f, s) = (
+                total(Mode::Full).expect("range"),
+                total(Mode::Strip).expect("range"),
+            );
+            mode_choice.push(ModeChoice {
+                name: name.to_string(),
+                m,
+                chosen: choose_mode(m, k, n, flags, lat),
+                cycles_total_full: f,
+                cycles_total_strip: s,
+                strip_speedup: f as f64 / s as f64,
+            });
+        }
+    }
+    let ceilings = SWEEP_M
+        .iter()
+        .map(|&m| {
+            let ceil = |mode| mapping_ceiling(&Descriptor::new(mode, flags, m, 1, 2 * spec::COLS));
+            CeilingRow {
+                m,
+                full: ceil(Mode::Full),
+                strip: ceil(Mode::Strip),
+            }
+        })
+        .collect();
+    Sweep {
+        source: "model",
+        kind: "utilization_vs_M",
+        model_git_hash: hash.to_string(),
+        latencies_provisional: provisional,
+        latencies: *lat,
+        array: array_info(),
+        definitions: definitions(),
+        m_values: SWEEP_M.to_vec(),
+        points,
+        mode_choice,
+        ceilings_n_multiple_of_16: ceilings,
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct BandwidthRoof {
+    pub mode: Mode,
+    pub bytes_per_cycle: u64,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct Roofs {
+    pub compute_macs_per_cycle: u64,
+    pub bandwidth: Vec<BandwidthRoof>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct RooflinePoint {
+    pub name: String,
+    #[serde(rename = "M")]
+    pub m: u64,
+    #[serde(rename = "K")]
+    pub k: u64,
+    #[serde(rename = "N")]
+    pub n: u64,
+    pub mode: Mode,
+    /// x: MACs per operand byte streamed.
+    pub arithmetic_intensity: f64,
+    /// y: achieved MACs per cycle over the whole job (mac_useful / cycles_total).
+    pub macs_per_cycle: f64,
+    /// min(64, arithmetic_intensity · bytes_per_cycle(mode)).
+    pub roof_macs_per_cycle: f64,
+    pub util_model: f64,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct Roofline {
+    pub source: &'static str,
+    pub kind: &'static str,
+    pub model_git_hash: String,
+    pub latencies_provisional: bool,
+    pub latencies: Latencies,
+    pub x: &'static str,
+    pub y: &'static str,
+    pub definitions: Definitions,
+    pub roofs: Roofs,
+    pub points: Vec<RooflinePoint>,
+}
+
+pub fn roofline(lat: &Latencies, provisional: bool, hash: &str) -> Roofline {
+    let flags = bench_flags();
+    let peak = spec::PEAK_MACS_PER_CYCLE as f64;
+    let mut points = Vec::new();
+    for (name, k, n) in BENCHMARKS {
+        for m in SWEEP_M {
+            for mode in Mode::ALL {
+                let d = Descriptor::new(mode, flags, m, k, n);
+                let r = model_record(name, &d, lat, hash);
+                let ai = r.derived.arithmetic_intensity;
+                points.push(RooflinePoint {
+                    name: name.to_string(),
+                    m,
+                    k,
+                    n,
+                    mode,
+                    arithmetic_intensity: ai,
+                    macs_per_cycle: r.derived.macs_per_cycle,
+                    roof_macs_per_cycle: peak.min(ai * mode.operand_bytes_per_cycle() as f64),
+                    util_model: r.derived.util_model,
+                });
+            }
+        }
+    }
+    Roofline {
+        source: "model",
+        kind: "roofline",
+        model_git_hash: hash.to_string(),
+        latencies_provisional: provisional,
+        latencies: *lat,
+        x: "arithmetic_intensity (MACs per operand byte streamed)",
+        y: "macs_per_cycle (mac_useful / cycles_total)",
+        definitions: definitions(),
+        roofs: Roofs {
+            compute_macs_per_cycle: spec::PEAK_MACS_PER_CYCLE,
+            bandwidth: Mode::ALL
+                .iter()
+                .map(|&mode| BandwidthRoof {
+                    mode,
+                    bytes_per_cycle: mode.operand_bytes_per_cycle(),
+                })
+                .collect(),
+        },
+        points,
+    }
+}
+
+fn pct(x: f64) -> String {
+    format!("{:.1}%", 100.0 * x)
+}
+
+fn find<'a>(s: &'a Sweep, name: &str, m: u64, mode: Mode) -> &'a ModelRecord {
+    s.points
+        .iter()
+        .find(|p| p.gemm.name == name && p.gemm.m == m && p.gemm.mode == mode)
+        .expect("point in sweep")
+}
+
+/// Plain-English explanation for demo-storyteller, with numbers taken from
+/// the sweep this run computed.
+pub fn explain(s: &Sweep) -> String {
+    let lat = &s.latencies;
+    let full1 = find(s, "ffn_up", 1, Mode::Full);
+    let strip1 = find(s, "ffn_up", 1, Mode::Strip);
+    let full64 = find(s, "ffn_up", 64, Mode::Full);
+    let strip64 = find(s, "ffn_up", 64, Mode::Strip);
+    let ratio = |a: &ModelRecord, b: &ModelRecord| b.derived.util_model / a.derived.util_model;
+    let t_tile = |mode: Mode, k: u64| -> u64 {
+        lat.phase_lengths(&Descriptor::new(mode, bench_flags(), 1, k, 1))
+            .iter()
+            .sum()
+    };
+    let prov = if s.latencies_provisional {
+        " (PROVISIONAL latencies, not yet confirmed against RTL)"
+    } else {
+        ""
+    };
+
+    let mut o = String::new();
+    let _ = writeln!(o, "# SplitSys cycle model — results (source: model)\n");
+    let _ = writeln!(
+        o,
+        "Generated by `cargo run -p splitsys-cycle -- explain` at model_git_hash `{}`{}. \
+         Every number below comes from `sweep.json` in this directory; do not edit by hand.\n",
+        s.model_git_hash, prov
+    );
+    let _ = writeln!(
+        o,
+        "Latencies used: L_ACCEPT={}, L_SETUP={}, L_RD={}, L_PE={}, L_RQ={}, L_WB={}, L_DONE={}.\n",
+        lat.l_accept, lat.l_setup, lat.l_rd, lat.l_pe, lat.l_rq, lat.l_wb, lat.l_done
+    );
+    let _ = writeln!(
+        o,
+        "## Why STRIP wins at small M and both modes converge at large M\n"
+    );
+    let _ = writeln!(
+        o,
+        "The array always has 64 multipliers, but an output tile can only use as many PE rows as the \
+         matmul has rows. In FULL mode a tile is 8 rows × 8 columns, so a decode-shaped matmul with M = 1 \
+         keeps 1 of 8 rows busy: at most 1/8 = 12.5% of the PEs ever do useful work. STRIP rewires the same \
+         64 PEs into a 4 × 16 tile, so M = 1 keeps 1 of 4 rows busy (at most 25%), and each tile covers twice \
+         as many output columns, so the job needs half as many tiles. Each tile costs the same fixed time \
+         whether its rows are useful or not, `T_tile = L_SETUP + (L_RD + K) + (14 + L_PE) + T_DRAIN + L_RQ + L_WB` \
+         (T_DRAIN = 8 cycles FULL, 4 STRIP), so \
+         `utilization = M·N·K / (64 · (L_ACCEPT + ceil(M/Rt)·ceil(N/Ct)·T_tile + L_DONE))` with (Rt, Ct) = (8, 8) \
+         for FULL and (4, 16) for STRIP. For `ffn_up` (K = 64, N = 256) at M = 1 the model gives FULL {} \
+         ({} tiles × {} cycles) versus STRIP {} ({} tiles × {} cycles), {:.2}× higher. STRIP already fills every PE \
+         at M = 4; once M reaches 8, both modes fill all 64 PEs on every tile and need the same number of tiles \
+         (M·N/64), so both approach K / T_tile, held below 100% only by the fixed per-tile setup, fill/flush and \
+         drain cycles: at M = 64 FULL reaches {} and STRIP {} ({:.3}×); the only remaining difference is that \
+         STRIP drains 4 rows per tile instead of 8. The price of the split is operand bandwidth: STRIP reads \
+         4 A + 16 W = 20 bytes per stream cycle instead of 8 + 8 = 16, which is 25% more.\n",
+        pct(full1.derived.util_model),
+        full1.model.counters.tiles,
+        t_tile(Mode::Full, 64),
+        pct(strip1.derived.util_model),
+        strip1.model.counters.tiles,
+        t_tile(Mode::Strip, 64),
+        ratio(full1, strip1),
+        pct(full64.derived.util_model),
+        pct(strip64.derived.util_model),
+        ratio(full64, strip64),
+    );
+    let _ = writeln!(o, "## Modeled utilization (requant on)\n");
+    let _ = write!(o, "| GEMM | mode |");
+    for m in &s.m_values {
+        let _ = write!(o, " M={m} |");
+    }
+    let _ = writeln!(o);
+    let _ = write!(o, "| --- | --- |");
+    for _ in &s.m_values {
+        let _ = write!(o, " ---: |");
+    }
+    let _ = writeln!(o);
+    for (name, _, _) in BENCHMARKS {
+        for mode in Mode::ALL {
+            let _ = write!(o, "| {name} | {mode} |");
+            for &m in &s.m_values {
+                let _ = write!(o, " {} |", pct(find(s, name, m, mode).derived.util_model));
+            }
+            let _ = writeln!(o);
+        }
+    }
+    let _ = writeln!(
+        o,
+        "\n## Mapping-only ceilings (N a multiple of 16, before any overhead)\n"
+    );
+    let _ = writeln!(o, "| M | FULL | STRIP |\n| ---: | ---: | ---: |");
+    for c in &s.ceilings_n_multiple_of_16 {
+        let _ = writeln!(o, "| {} | {} | {} |", c.m, pct(c.full), pct(c.strip));
+    }
+    let _ = writeln!(
+        o,
+        "\nFiles: `sweep.json` (every counter for every point, DEMO.md §4 `model` blocks), `roofline.json` \
+         (x = MACs per operand byte streamed, y = MACs/cycle; roofs: 64 MAC/cycle compute, 16 B/cycle FULL, \
+         20 B/cycle STRIP). Regenerate: `cd sw && cargo run -p splitsys-cycle -- all`."
+    );
+    o
+}
