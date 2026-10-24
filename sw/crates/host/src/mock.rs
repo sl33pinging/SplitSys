@@ -31,6 +31,8 @@ pub struct MockConfig {
     pub fail_rx_crc: u32,
     /// The CRC byte of the next N responses is corrupted.
     pub corrupt_tx: u32,
+    /// Flip one data bit in the next N READ_MEM responses (valid CRC: a memory fault).
+    pub flip_read_byte: u32,
 }
 
 impl Default for MockConfig {
@@ -39,6 +41,7 @@ impl Default for MockConfig {
             busy_polls: 1,
             fail_rx_crc: 0,
             corrupt_tx: 0,
+            flip_read_byte: 0,
         }
     }
 }
@@ -201,7 +204,14 @@ impl MockBoard {
                     return range;
                 }
                 match self.mem.get(usize::from(region)) {
-                    Some(m) if addr + len <= m.len() => (spec::ST_ACK, m[addr..addr + len].to_vec()),
+                    Some(m) if addr + len <= m.len() => {
+                        let mut d = m[addr..addr + len].to_vec();
+                        if self.cfg.flip_read_byte > 0 {
+                            self.cfg.flip_read_byte -= 1;
+                            d[len / 2] ^= 0x10;
+                        }
+                        (spec::ST_ACK, d)
+                    }
                     _ => range,
                 }
             }

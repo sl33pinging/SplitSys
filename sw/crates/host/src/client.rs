@@ -10,9 +10,8 @@ use std::time::{Duration, Instant};
 
 /// Retries after NACK_CRC (or a corrupted / missing response) before failing loudly.
 pub const MAX_RETRIES: u32 = 3;
-/// WRITE_MEM data bytes per frame: MAX_PAYLOAD minus region u8 + addr u32, rounded
-/// down to a whole 16-byte word.
-pub const WRITE_CHUNK: usize = (spec::MAX_PAYLOAD - 5) / 16 * 16;
+/// WRITE_MEM data bytes per frame: MAX_PAYLOAD minus region u8 + addr u32 (1019).
+pub const WRITE_CHUNK: usize = spec::MAX_PAYLOAD - 5;
 /// READ_MEM bytes per frame.
 pub const READ_CHUNK: usize = spec::MAX_PAYLOAD;
 
@@ -400,7 +399,7 @@ mod tests {
             // unaligned partial access
             assert_eq!(b.read_mem(region, 3, 1500.min(len - 3)).unwrap(), data[3..3 + 1500.min(len - 3)]);
         }
-        const { assert!(WRITE_CHUNK <= spec::MAX_PAYLOAD - 5 && WRITE_CHUNK.is_multiple_of(16)) };
+        const { assert!(WRITE_CHUNK == 1019) };
     }
 
     #[test]

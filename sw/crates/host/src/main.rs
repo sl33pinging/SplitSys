@@ -85,6 +85,14 @@ enum Cmd {
         #[arg(long, default_value_t = 1000)]
         bytes: usize,
     },
+    /// Random WRITE_MEM/READ_MEM round trips over all regions (checklist H-3).
+    Memtest {
+        #[arg(long, default_value_t = 1000)]
+        frames: u64,
+        /// RNG seed (default: from the clock; always printed).
+        #[arg(long)]
+        seed: Option<u64>,
+    },
     /// Validate run-record JSON files against the DEMO.md §4 schema.
     CheckJson { files: Vec<PathBuf> },
     /// Serve the mock board over TCP, like the co-sim bridge (for testing tcp:).
@@ -180,6 +188,39 @@ fn real_main(cli: &Cli) -> Result<ExitCode, String> {
             let (sent, bad, ms) = echo(b.transport(), *bytes)?;
             println!("ECHO {sent} bytes, {bad} mismatched, {ms:.1} ms");
             Ok(if bad == 0 { ExitCode::SUCCESS } else { ExitCode::FAILURE })
+        }
+        Cmd::Memtest { frames, seed } => {
+            let frames = *frames;
+            let seed = seed.unwrap_or_else(|| now_unix() as u64);
+            let mut b = open_board(cli)?;
+            println!(
+                "memtest: {frames} frames, seed {seed}, via {} (source {})",
+                b.describe(),
+                b.source().as_str()
+            );
+            let step = (frames / 10).max(1);
+            let r = splitsys_host::memtest::memtest(&mut b, frames, seed, |i, r| {
+                if (i + 1) % step == 0 || i + 1 == frames {
+                    println!(
+                        "  {:>7}/{frames} frames  {:>9} bytes  bad frames {}  errors {}",
+                        i + 1,
+                        r.bytes,
+                        r.bad_frames,
+                        r.errors
+                    );
+                }
+            });
+            let l = r.link;
+            println!(
+                "MEMTEST {}: seed {} frames {} bytes {} bad_frames {} bad_bytes {} errors {} | NACK_CRC {} bad_rsp_crc {} timeouts {} busy {} retries {}",
+                if r.ok() { "PASS" } else { "FAIL" },
+                r.seed, r.frames, r.bytes, r.bad_frames, r.bad_bytes, r.errors,
+                l.nack_crc, l.bad_rsp_crc, l.timeouts, l.busy, l.retries
+            );
+            if let Some(e) = &r.first_error {
+                println!("first error: {e}");
+            }
+            Ok(if r.ok() { ExitCode::SUCCESS } else { ExitCode::FAILURE })
         }
         Cmd::CheckJson { files } => {
             let mut ok = true;

@@ -7,6 +7,7 @@
 
 pub mod client;
 pub mod frame;
+pub mod memtest;
 pub mod mock;
 pub mod record;
 pub mod runner;
