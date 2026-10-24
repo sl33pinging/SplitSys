@@ -30,3 +30,11 @@ fpga/build/
 # misc
 *.zip
 .DS_Store
+# Vivado droppings at repo root / anywhere
+clockInfo.txt
+dfx_runtime.txt
+webtalk*
+usage_statistics*
+*.backup.jou
+*.backup.log
+vivado_pid*.str
