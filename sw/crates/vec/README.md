@@ -15,8 +15,11 @@ cargo run -p splitsys-vec -- all                            # everything, defaul
 ```
 
 Same seed + same generator commit gives byte-identical files. Every file records the
-seed, the generator's git hash, `git_dirty` (uncommitted changes in golden, vec, or spec),
-the command line, and the spec version (`meta` in JSON, a `//` header in `.mem`).
+seed, `git_hash`, `git_dirty`, the command line, and the spec version (`meta` in JSON,
+a `//` header in `.mem`). `git_hash` is the last commit that touched a generator input
+(`sw/crates/golden`, `sw/crates/vec/src`, `sw/crates/vec/Cargo.toml`, `sw/crates/spec`,
+`spec/`), so commits elsewhere in the repo do not change the output. `git_dirty` means one
+of those inputs had uncommitted changes.
 
 **Committed** (canonical, small): `out/selftest_rom.mem`, `out/selftest_expected.json`,
 `out/directed.json`. **Regenerated** (gitignored): `out/unit/`, `out/gemm/`, `out/bench/`.
