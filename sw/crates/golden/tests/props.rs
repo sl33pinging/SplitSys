@@ -292,15 +292,8 @@ fn pack_unpack_identity_and_zero_padding() {
 
         let params: Vec<(u16, u8)> = (0..n).map(|_| rand_params(&mut r)).collect();
         let rqi = pack_rqparams(&params);
-        assert_eq!(rqi.len(), n.div_ceil(16) * 16 * 4);
+        assert_eq!(rqi.len(), n * 4); // exactly N entries (SPEC §1.3 v1.1)
         assert_eq!(unpack_rqparams(&rqi, n), params);
-        for pad in unpack_rqparams(&rqi, n.div_ceil(16) * 16)
-            .into_iter()
-            .skip(n)
-        {
-            assert_eq!(pad, RQ_PAD_PARAM);
-            assert_eq!(requant(0, pad.0, pad.1), 0);
-        }
     }
 }
 
@@ -387,7 +380,90 @@ fn descriptor_validation() {
     assert!(Descriptor { n: 257, ..ok }.validate().is_err());
     assert!(Descriptor { out_base: 1, ..ok }.validate().is_err()); // OBUF exactly full
     assert!(Descriptor { a_base: 1, ..ok }.validate().is_err()); // ABUF exactly full
-    assert!(Descriptor { flags: 0, ..ok }.validate().is_err());
+    for bad_flags in [0u8, 3, 4, 0x81, 0xFF] {
+        assert!(Descriptor {
+            flags: bad_flags,
+            ..ok
+        }
+        .validate()
+        .is_err());
+    }
+    assert_eq!(
+        Descriptor {
+            flags: FLAGS_INT8,
+            ..ok
+        }
+        .validate(),
+        Ok(())
+    );
+    // rq_base + N <= RQ_ENTRIES (D-005 check 7), for both flags values.
+    let small = Descriptor {
+        m: 8,
+        k: 8,
+        n: 3,
+        ..ok
+    };
+    assert_eq!(
+        Descriptor {
+            rq_base: (RQ_ENTRIES - 3) as u16,
+            ..small
+        }
+        .validate(),
+        Ok(())
+    );
+    assert!(Descriptor {
+        rq_base: (RQ_ENTRIES - 2) as u16,
+        ..small
+    }
+    .validate()
+    .is_err());
+    let small32 = Descriptor {
+        flags: FLAGS_INT32,
+        ..small
+    };
+    assert_eq!(
+        Descriptor {
+            rq_base: (RQ_ENTRIES - 3) as u16,
+            ..small32
+        }
+        .validate(),
+        Ok(())
+    );
+    assert!(Descriptor {
+        rq_base: (RQ_ENTRIES - 2) as u16,
+        ..small32
+    }
+    .validate()
+    .is_err());
+    // int32 extent: out_base + NB*M_pad*4 <= OBUF_WORDS. M=64, N=64 -> 4*64*4 = 1024.
+    let b32 = Descriptor {
+        flags: FLAGS_INT32,
+        m: 64,
+        n: 64,
+        ..ok
+    };
+    assert_eq!(b32.validate(), Ok(()));
+    assert!(Descriptor { out_base: 1, ..b32 }.validate().is_err());
+    assert!(Descriptor { n: 65, ..b32 }.validate().is_err());
+    // Bases are u32: no wraparound.
+    assert!(Descriptor {
+        a_base: u32::MAX,
+        ..small
+    }
+    .validate()
+    .is_err());
+    assert!(Descriptor {
+        w_base: u32::MAX,
+        ..small
+    }
+    .validate()
+    .is_err());
+    assert!(Descriptor {
+        out_base: u32::MAX,
+        ..small
+    }
+    .validate()
+    .is_err());
     assert!(Descriptor { reserved: 1, ..ok }.validate().is_err());
     // int32 bypass of the max shape does not fit OBUF.
     assert!(Descriptor {
@@ -435,34 +511,45 @@ fn mode_changes_schedule_not_layout_or_expected_c() {
         fb[DESC_OFF_MODE] = 0;
         sb[DESC_OFF_MODE] = 0;
         assert_eq!(fb, sb);
-        // Both modes write every logical output byte; unwritten bytes are padding (zero).
-        for job in [&full, &strip] {
-            let int32 = job.c.is_none();
-            for i in 0..m {
-                for j in 0..n {
-                    if int32 {
-                        let o = c_i32_offset(m, i, j);
-                        assert!(job.written[o..o + 4].iter().all(|&b| b));
-                    } else {
-                        assert!(job.written[c_i8_offset(m, i, j)]);
-                    }
+        assert_eq!(full.compare, strip.compare);
+        // `compare` is exactly the in-bounds bytes of every logical C[m, n].
+        let int32 = full.c.is_none();
+        let mut want = vec![false; full.obuf_image.len()];
+        for i in 0..m {
+            for j in 0..n {
+                if int32 {
+                    let o = c_i32_offset(m, i, j);
+                    want[o..o + 4].iter_mut().for_each(|b| *b = true);
+                } else {
+                    want[c_i8_offset(m, i, j)] = true;
                 }
             }
-            for (i, (&wr, &v)) in job.written.iter().zip(&job.obuf_image).enumerate() {
-                if !wr {
-                    assert_eq!(v, 0, "unwritten byte {i} is not padding");
-                }
-            }
-            assert_eq!(job.check_obuf(&job.obuf_image), Ok(()));
         }
+        assert_eq!(full.compare, want);
+        for (i, (&cmp, &v)) in full.compare.iter().zip(&full.obuf_image).enumerate() {
+            if !cmp {
+                assert_eq!(v, 0, "padding byte {i} not shown as 0");
+            }
+        }
+        // Garbage in out-of-bounds bytes must not fail a check; a wrong in-bounds byte must.
+        let mut rb: Vec<u8> = full
+            .obuf_image
+            .iter()
+            .zip(&full.compare)
+            .map(|(&v, &c)| if c { v } else { 0xA5 })
+            .collect();
+        assert_eq!(full.check_obuf(&rb), Ok(()));
+        let first = full.compare.iter().position(|&c| c).unwrap();
+        rb[first] ^= 1;
+        assert_eq!(full.check_obuf(&rb), Err(first));
     }
 }
 
 #[test]
-fn written_mask_examples() {
-    let mk = |mode, m, n| {
+fn compare_mask_examples() {
+    let mk = |m, n| {
         Job::new(
-            mode,
+            MODE_FULL,
             MatI8::zeros(m, 4),
             MatI8::zeros(4, n),
             Some(vec![(1, 1); n]),
@@ -470,14 +557,12 @@ fn written_mask_examples() {
         )
         .unwrap()
     };
-    assert!(mk(MODE_FULL, 8, 16).writes_whole_region());
-    assert!(mk(MODE_FULL, 3, 16).writes_whole_region()); // FULL drains all 8 rows
-    assert!(!mk(MODE_FULL, 8, 8).writes_whole_region()); // lanes 8..15 untouched
-    assert!(mk(MODE_STRIP, 8, 3).writes_whole_region()); // STRIP writes all 16 lanes
-    assert!(mk(MODE_STRIP, 6, 16).writes_whole_region()); // two 4-row tiles = M_pad
-    let s4 = mk(MODE_STRIP, 4, 16);
-    assert!(!s4.writes_whole_region()); // rows 4..7 of the block untouched
-    assert_eq!(s4.written_ranges(), vec![(0, 64)]);
+    assert!(mk(8, 16).extent_fully_defined());
+    assert!(mk(16, 32).extent_fully_defined());
+    assert!(!mk(3, 16).extent_fully_defined()); // rows 3..7 are padding
+    assert!(!mk(8, 8).extent_fully_defined()); // lanes 8..15 are padding
+    assert_eq!(mk(4, 16).compare_ranges(), vec![(0, 64)]);
+    assert_eq!(mk(2, 3).compare_ranges(), vec![(0, 3), (16, 3)]);
 }
 
 #[test]

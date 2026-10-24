@@ -24,14 +24,14 @@
 //! Procedure: perform every load (copy `len/4` ROM words to the region, word k going to
 //! byte address `dst + 4k`, little-endian), then for each job in order: run it, compute
 //! Fletcher-32 over OBUF bytes `[out_base*16, (out_base + CHECK_WORDS)*16)` in address
-//! order, pass iff equal to the stored value. Each job writes every byte it checks, so
-//! the result does not depend on prior OBUF contents.
+//! order, pass iff equal to the stored value. Self-test shapes have M % 8 == 0 and
+//! N % 16 == 0 (D-001), so every summed byte is a defined output.
 
 use crate::jobs::{job_json, mode_name};
 use crate::{Meta, OutFile};
 use serde_json::json;
 use splitsys_golden::consts::*;
-use splitsys_golden::pack::{a_words, c_words, rq_entries, w_words};
+use splitsys_golden::pack::{a_words, c_words, w_words};
 use splitsys_golden::rng::Rng;
 use splitsys_golden::{choose_rq_param, fletcher32, gemm_i32, requant_is_tie, Bases, Job, MatI8};
 
@@ -44,11 +44,19 @@ pub const ROM_LOAD_WORDS: usize = 4;
 /// ≤ 4 BRAM36 (4 × 4 KiB data) per SPEC §3.4.
 pub const ROM_MAX_WORDS: usize = 4096;
 
-/// Self-test job shapes: (mode, M, K, N). STRIP uses M = 6 so that its two 4-row
-/// tiles cover the whole M_pad = 8 block (every checked byte is written) while still
-/// exercising a partial STRIP tile and zero padding rows.
+/// Self-test job shapes: (mode, M, K, N). SPEC §3.9 / D-001 require M % 8 == 0,
+/// N % 16 == 0 and int8 flags, so every summed OBUF byte is a defined output.
+/// STRIP M = 8 runs two 4-row STRIP tiles.
 pub const SELFTEST_SHAPES: [(u8, usize, usize, usize); 2] =
-    [(MODE_FULL, 8, 32, 16), (MODE_STRIP, 6, 32, 16)];
+    [(MODE_FULL, 8, 32, 16), (MODE_STRIP, 8, 32, 16)];
+
+const _: () = {
+    let mut i = 0;
+    while i < SELFTEST_SHAPES.len() {
+        assert!(SELFTEST_SHAPES[i].1.is_multiple_of(8) && SELFTEST_SHAPES[i].3.is_multiple_of(16));
+        i += 1;
+    }
+};
 
 /// One load record.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -129,7 +137,12 @@ fn candidate(seed: u64, mode: u8, m: usize, k: usize, n: usize, bases: Bases) ->
 fn good(job: &Job) -> bool {
     let s = stats(job);
     let total = job.desc.m as usize * job.desc.n as usize;
-    job.writes_whole_region() && s.sat_pos > 0 && s.sat_neg > 0 && s.ties > 0 && s.mid * 4 >= total
+    job.extent_fully_defined()
+        && job.desc.flags == FLAGS_INT8
+        && s.sat_pos > 0
+        && s.sat_neg > 0
+        && s.ties > 0
+        && s.mid * 4 >= total
 }
 
 /// Build the ROM. Deterministic: each job's data comes from the first seed at or
@@ -154,7 +167,7 @@ pub fn build_rom() -> SelftestRom {
             a: bases.a + a_words(m, k) as u32,
             w: bases.w + w_words(k, n) as u32,
             out: bases.out + c_words(m, n, false) as u32,
-            rq: bases.rq + rq_entries(n) as u16,
+            rq: bases.rq + n as u16,
         };
         jobs.push(job);
         job_seeds.push(s);
@@ -357,10 +370,12 @@ mod tests {
             let rq = unpack_rqparams(&mem[3][usize::from(d.rq_base) * 4..], n);
             let img = pack_c_i8_blocks16(&requant_mat(&gemm_i32(&a, &wm), &rq));
             let out = d.out_base as usize * 16;
-            // Write only the bytes this mode writes (the rest of OBUF stays garbage).
-            let mask = splitsys_golden::obuf_written_mask(&d);
-            for (i, (&b, &wr)) in img.iter().zip(&mask).enumerate() {
-                if wr {
+            // Write only in-bounds bytes (the rest of OBUF stays garbage); for
+            // self-test shapes that is the whole extent.
+            let mask = splitsys_golden::in_bounds_mask(&d);
+            assert!(mask.iter().all(|&b| b));
+            for (i, (&b, &cmp)) in img.iter().zip(&mask).enumerate() {
+                if cmp {
                     mem[2][out + i] = b;
                 }
             }

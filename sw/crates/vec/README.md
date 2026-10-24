@@ -36,26 +36,26 @@ Use `cargo run -p splitsys-vec -- all` to regenerate everything.
   "rq": [[mult, shift], ...],                       // empty for int32 bypass
   "load": [ {"region", "region_name", "byte_addr", "len", "hex"}, ... ],   // WRITE_MEM list
   "expected": { "obuf_byte_addr", "obuf_len", "obuf_hex",
-                "written_ranges": [[offset, len], ...],                  // relative to obuf_byte_addr
+                "compare_ranges": [[offset, len], ...],                  // relative to obuf_byte_addr
                 "c": [[i8]] | null, "acc": [[i32]] } }
 ```
 
 To check a job: perform every `load` (region codes per SPEC §3.8: 0 WBUF, 1 ABUF, 2 OBUF,
 3 RQPARAM), run `desc_hex`, read OBUF from `obuf_byte_addr` for `obuf_len` bytes, and
-compare **only the bytes in `written_ranges`** with `obuf_hex`. Bytes outside these ranges
-are not written by the job in that mode (e.g. FULL with N = 8 leaves lanes 8..15 of each
-row untouched; STRIP with M = 4 leaves rows 4..7 of the 8-row block untouched) and keep
-their previous contents. Every written padding byte is 0.
+compare **only the bytes in `compare_ranges`** with `obuf_hex`. These are the in-bounds
+bytes of every `C[m, n]` with m < M and n < N. All other bytes of the C extent (padding rows
+`M..M_pad-1`, padding columns `N..16*ceil(N/16)-1`) are **unspecified** (SPEC §1.3, D-006):
+they may be untouched or hold any value. `obuf_hex` shows them as 0.
 
-The memory images and `obuf_hex` do not depend on the mode; only `desc.mode` and
-`written_ranges` do (tested in `golden`: `mode_changes_schedule_not_layout_or_expected_c`).
+The memory images, `obuf_hex`, and `compare_ranges` do not depend on the mode. Only
+`desc.mode` does (tested in `golden`: `mode_changes_schedule_not_layout_or_expected_c`).
 
-**RQPARAM padding.** RQPARAM is written for `ceil(N/16)*16` columns. Padding columns
-use `(mult, shift) = (1, 1)`, not zero: zero is out of range per SPEC §1.2. With
-`acc = 0`, a padding column requantizes to exactly 0.
+**RQPARAM** holds exactly N entries, `rq_base .. rq_base+N-1` (SPEC §1.3 v1.1). There are no
+padding entries.
 
-**Flags.** Jobs use `flags = 0x01` (requant, int8 output) or `flags = 0x02` (int32
-bypass). The other combinations are not generated.
+**Flags.** Jobs use only the two legal values (D-003): `0x01` (int8, requant) or `0x02`
+(int32 bypass). `Descriptor::validate` implements the SPEC §3.5 RUN_GEMM checks 1–8
+exactly, so `Err` means NACK_RANGE.
 
 ## directed.json
 
@@ -82,7 +82,7 @@ bypass). The other combinations are not generated.
 | `pe_stim.mem` / `pe_acc.mem` | The same data for `$readmemh`: `{first, vld, a[7:0], w[7:0]}` (5 hex digits) and `acc` (8 hex digits), one line per cycle. |
 | `requant.json` / `requant.mem` | Named directed cases first (`n_directed`), then random ones. Fields: `acc, mult, shift, y, tie, sat`. The `.mem` line is `{acc[31:0], mult[15:0], shift[7:0], y[7:0]}`. |
 | `skew_a.json`, `skew_w_full.json`, `skew_w_strip.json` | Per-lane `delays`. `out_*[lane][t] = in_*[lane][t − delay]`, and 0 before that. Arrays are indexed [lane][cycle]. The W STRIP delays are `W_SKEW_BASE_STRIP[j] + (j % COLS)`, so lanes 8–15 are delayed 4..11. |
-| `packet.json` | CRC-8 known answers, good request and response frames, `bad_crc`, `truncated` (expect a timeout reset), a corrupted length byte (`nack_crc_or_timeout`), an unknown opcode, and a `back_to_back` byte stream. |
+| `packet.json` | CRC-8 known answers, and frames of these kinds: good requests and responses, max payload, `oversize` (len = 1025), `truncated` (at every header byte, then at random points), `bad_crc`, `corrupt_len`, and an unknown opcode, plus a `back_to_back` stream. Each item lists `events`, the parser-level outcomes from `golden::packet::rx_reference` when the bytes are sent back to back and followed by idle ≥ RX_TIMEOUT. The events are `frame`, `bad_crc` (→ NACK_CRC), `oversize` (→ NACK_RANGE after the timeout), and `timeout` (silent reset). |
 
 ## Self-test ROM (`out/selftest_rom.mem`)
 
@@ -116,12 +116,12 @@ ROM byte address `4i + b` maps to bits `[8b+7:8b]` of word i (little-endian).
    result equals the stored value. The SELFTEST response returns `pass_full`,
    `pass_strip`, and the two computed checksums.
 
-The current image has 464 words (1 BRAM36). It contains:
-- **FULL job:** M = 8, K = 32, N = 16, all bases 0.
-- **STRIP job:** M = 6, K = 32, N = 16, with a_base = 32, w_base = 32, out_base = 8,
-  rq_base = 16. M = 6 means two 4-row STRIP tiles, one of them partial, with zero
-  padding rows. Those tiles cover the whole M_pad = 8 block, so the job writes every
-  byte it checks.
+The current image is 464 words (1 BRAM36). Both jobs are M = 8, K = 32, N = 16,
+int8: SPEC §3.9 / D-001 require M % 8 = 0, N % 16 = 0, and int8 flags, so every summed
+byte is a defined output.
+- **FULL job:** all bases are 0.
+- **STRIP job** (two 4-row STRIP tiles): a_base = 32, w_base = 32, out_base = 8,
+  rq_base = 16.
 
 Each job is guaranteed positive saturation, negative saturation, at least one exact
 rounding tie, and at least 25% mid-range outputs. `selftest_expected.json` lists
@@ -144,6 +144,7 @@ seed `BENCH_SEED`. The data are synthetic but realistically scaled:
 - activations: symmetric int8 per tensor, with about 1% outliers
 - requant parameters: calibrated per column on the M = 64 activations
 
-Each entry has the FULL job plus `desc_strip_hex` and `written_ranges_strip`. Both modes
-use the same images and the same expected bytes. Smaller M use the first M rows of the
+Shapes and the M sweep come from `splitsys_spec::BENCH_SHAPES` and `BENCH_M_SWEEP`
+(spec.toml `[bench]`, D-009). Each entry has the FULL job plus `desc_strip_hex`. Both
+modes use the same images, the same expected bytes, and the same `compare_ranges`. Smaller M use the first M rows of the
 M = 64 activation matrix.

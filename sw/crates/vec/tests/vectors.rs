@@ -85,7 +85,7 @@ fn check_job_json(j: &Value) {
         d.out_base as usize * 16
     );
     assert_eq!(unhex(e["obuf_hex"].as_str().unwrap()), img, "{name}");
-    let ranges = e["written_ranges"].as_array().unwrap();
+    let ranges = e["compare_ranges"].as_array().unwrap();
     assert!(!ranges.is_empty(), "{name}");
 }
 
@@ -113,7 +113,10 @@ fn job_json_round_trips_through_golden() {
     }
     let b = parse(&bench::bench(&m)[0]);
     let entries = b["entries"].as_array().unwrap();
-    assert_eq!(entries.len(), 4 * 7);
+    assert_eq!(
+        entries.len(),
+        splitsys_spec::BENCH_SHAPES.len() * splitsys_spec::BENCH_M_SWEEP.len()
+    );
     for e in entries {
         check_job_json(&e["job"]);
     }

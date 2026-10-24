@@ -3,7 +3,7 @@
 use crate::{hex, unit, Meta, OutFile};
 use serde_json::{json, Value};
 use splitsys_golden::consts::*;
-use splitsys_golden::pack::{a_words, c_words, rq_entries, w_words};
+use splitsys_golden::pack::{a_words, c_words, w_words};
 use splitsys_golden::rng::Rng;
 use splitsys_golden::{choose_rq_param, gemm_i32, Bases, Job, MatI8};
 
@@ -29,7 +29,8 @@ fn region_json(region: u8, name: &str, byte_addr: usize, bytes: &[u8]) -> Value 
 
 /// JSON for one job. `load` lists WRITE_MEM operations (region, byte address, bytes);
 /// `expected.obuf_hex` is the OBUF image from `expected.obuf_byte_addr`; compare only
-/// `expected.written_ranges` (offset, len relative to obuf_byte_addr).
+/// `expected.compare_ranges` (offset, len relative to obuf_byte_addr): the in-bounds
+/// bytes. Everything else in the C extent is unspecified (SPEC §1.3, D-006).
 pub fn job_json(name: &str, job: &Job) -> Value {
     let d = &job.desc;
     let mut load = vec![
@@ -61,7 +62,7 @@ pub fn job_json(name: &str, job: &Job) -> Value {
             "obuf_byte_addr": job.out_byte_addr(),
             "obuf_len": job.obuf_image.len(),
             "obuf_hex": hex(&job.obuf_image),
-            "written_ranges": job.written_ranges(),
+            "compare_ranges": job.compare_ranges(),
             "c": job.c.as_ref().map(|c| c.to_rows()),
             "acc": job.acc.to_rows(),
         },
@@ -123,7 +124,7 @@ fn rand_bases(r: &mut Rng, m: usize, k: usize, n: usize, int32: bool) -> Bases {
         a: pick(r, a_words(m, k), ABUF_WORDS),
         w: pick(r, w_words(k, n), WBUF_WORDS),
         out: pick(r, c_words(m, n, int32), OBUF_WORDS),
-        rq: pick(r, rq_entries(n), RQ_ENTRIES) as u16,
+        rq: pick(r, n, RQ_ENTRIES) as u16,
     }
 }
 
@@ -408,7 +409,7 @@ pub fn directed(meta: &Meta) -> Vec<OutFile> {
     let doc = json!({
         "meta": meta.json(DIRECTED_SEED, "directed"),
         "description": "SPEC §6 directed cases. Each job: write `load` regions, RUN_GEMM with desc_hex, \
-    then compare OBUF from expected.obuf_byte_addr on expected.written_ranges against expected.obuf_hex. \
+    then compare OBUF from expected.obuf_byte_addr on expected.compare_ranges (in-bounds bytes only) against expected.obuf_hex. \
     `sequences` lists jobs to run back to back with no reset (mode switching).",
         "jobs": jobs,
         "sequences": [{"name": "mode_switch_full_strip_full", "jobs": seq_names}],

@@ -1,22 +1,22 @@
 //! A complete GEMM job: operands, memory images, descriptor, expected output.
 //!
-//! The mode (FULL / STRIP) changes only the RTL schedule. The memory layout and the
-//! expected OBUF image are mode-independent; only the set of OBUF bytes the job
-//! actually writes (`written`) depends on the mode (SPEC §3.5 tile shapes).
+//! The mode (FULL / STRIP) changes only the RTL schedule. The memory images, the
+//! expected OBUF image, and the set of compared bytes are mode-independent.
+//!
+//! SPEC §1.3 / D-006: OBUF bytes that are not an in-bounds `C[m, n]` (padding rows
+//! `M..M_pad-1`, padding columns `N..16*ceil(N/16)-1`) are unspecified after a run.
+//! `compare` marks exactly the in-bounds bytes; only those are checked.
 
-use crate::consts::{
-    tile_shape, ABUF_WORD_BYTES, MODE_FULL, MODE_STRIP, OBUF_WORD_BYTES, RQ_WORD_BYTES,
-    WBUF_WORD_BYTES,
-};
+use crate::consts::{ABUF_WORD_BYTES, OBUF_WORD_BYTES, RQ_WORD_BYTES, WBUF_WORD_BYTES};
 use crate::descriptor::{DescError, Descriptor};
 use crate::mat::{MatI32, MatI8};
 use crate::numerics::{gemm_i32, requant_mat};
 use crate::pack::{
-    c_i32_offset, c_i8_offset, c_words, m_pad, pack_a_blocks8, pack_c_i32, pack_c_i8_blocks16,
+    c_i32_offset, c_i8_offset, c_words, pack_a_blocks8, pack_c_i32, pack_c_i8_blocks16,
     pack_rqparams, pack_w_blocks16,
 };
 
-/// Word bases for the four regions.
+/// Word bases for the four regions (word indices; `rq` is an RQPARAM entry index).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Bases {
     pub a: u32,
@@ -41,13 +41,13 @@ pub struct Job {
     pub a_image: Vec<u8>,
     /// WBUF image, at byte address `w_base * 16`.
     pub w_image: Vec<u8>,
-    /// RQPARAM image, at byte address `rq_base * 4` (empty for bypass jobs).
+    /// RQPARAM image (exactly N entries), at byte address `rq_base * 4`; empty for bypass.
     pub rq_image: Vec<u8>,
-    /// Expected OBUF contents from byte address `out_base * 16`, zero padding included.
+    /// Expected OBUF contents of the C extent, from byte address `out_base * 16`.
+    /// Out-of-bounds bytes are shown as 0 but are unspecified (see `compare`).
     pub obuf_image: Vec<u8>,
-    /// Which bytes of `obuf_image` this job writes in its mode. Bytes not written keep
-    /// their old value in OBUF and must not be compared.
-    pub written: Vec<bool>,
+    /// In-bounds bytes of `obuf_image` (the only bytes a check may compare).
+    pub compare: Vec<bool>,
 }
 
 impl Job {
@@ -61,9 +61,8 @@ impl Job {
     ) -> Result<Self, DescError> {
         assert_eq!(a.cols(), w.rows(), "Job::new: A cols != W rows");
         let (m, k, n) = (a.rows(), a.cols(), w.cols());
-        let fits = |v: usize| u16::try_from(v).ok();
         let dim = |field: &'static str, v: usize| {
-            fits(v).ok_or(DescError::DimOutOfRange {
+            u16::try_from(v).map_err(|_| DescError::DimOutOfRange {
                 field,
                 value: u16::MAX,
             })
@@ -93,7 +92,7 @@ impl Job {
             }
             None => (None, pack_c_i32(&acc), Vec::new()),
         };
-        let written = obuf_written_mask(&desc);
+        let compare = in_bounds_mask(&desc);
         Ok(Self {
             a_image: pack_a_blocks8(&a),
             w_image: pack_w_blocks16(&w),
@@ -105,16 +104,15 @@ impl Job {
             c,
             rq_image,
             obuf_image,
-            written,
+            compare,
         })
     }
 
-    /// The same job in another mode (only `desc.mode` and `written` change).
+    /// The same job in another mode (only `desc.mode` changes).
     pub fn with_mode(&self, mode: u8) -> Self {
         let mut j = self.clone();
         j.desc.mode = mode;
         j.desc.validate().expect("with_mode: invalid mode");
-        j.written = obuf_written_mask(&j.desc);
         j
     }
 
@@ -131,22 +129,22 @@ impl Job {
         usize::from(self.desc.rq_base) * RQ_WORD_BYTES
     }
 
-    /// `written` as merged `(offset, len)` byte ranges relative to `out_byte_addr()`.
-    pub fn written_ranges(&self) -> Vec<(usize, usize)> {
-        mask_to_ranges(&self.written)
+    /// `compare` as merged `(offset, len)` byte ranges relative to `out_byte_addr()`.
+    pub fn compare_ranges(&self) -> Vec<(usize, usize)> {
+        mask_to_ranges(&self.compare)
     }
 
-    /// True if the job writes every byte of its OBUF region (so a checksum over the
-    /// whole region does not depend on the previous OBUF contents).
-    pub fn writes_whole_region(&self) -> bool {
-        self.written.iter().all(|&b| b)
+    /// True if every byte of the C extent is a defined (in-bounds) output, so a
+    /// checksum over the whole extent is well defined (self-test requirement, D-001).
+    pub fn extent_fully_defined(&self) -> bool {
+        self.compare.iter().all(|&b| b)
     }
 
-    /// Compare a read-back OBUF region (from `out_byte_addr()`) against the expected
-    /// image on written bytes only. Returns the first mismatching byte offset.
+    /// Compare a read-back OBUF region (from `out_byte_addr()`) with the expected
+    /// image on in-bounds bytes only. Returns the first mismatching byte offset.
     pub fn check_obuf(&self, readback: &[u8]) -> Result<(), usize> {
-        for (i, (&want, &wr)) in self.obuf_image.iter().zip(&self.written).enumerate() {
-            if wr && readback.get(i) != Some(&want) {
+        for (i, (&want, &cmp)) in self.obuf_image.iter().zip(&self.compare).enumerate() {
+            if cmp && readback.get(i) != Some(&want) {
                 return Err(i);
             }
         }
@@ -169,32 +167,19 @@ pub fn mask_to_ranges(mask: &[bool]) -> Vec<(usize, usize)> {
     out
 }
 
-/// Which bytes of the OBUF region (relative to `out_base`) a job writes, per SPEC
-/// §3.5: tiles are `tile_shape(mode)`; every tile drains all of its rows (padding
-/// rows included) and writes its columns' lanes (FULL: 8 lanes with byte enables).
-pub fn obuf_written_mask(desc: &Descriptor) -> Vec<bool> {
+/// In-bounds bytes of the C extent (relative to `out_base`): the bytes of every
+/// logical `C[m, n]`, m < M, n < N, in the int8 or int32 layout chosen by `flags`.
+pub fn in_bounds_mask(desc: &Descriptor) -> Vec<bool> {
     let (m, _k, n) = desc.dims();
     let int32 = desc.out_int32();
-    assert!(
-        desc.mode == MODE_FULL || desc.mode == MODE_STRIP,
-        "unsupported mode"
-    );
-    let (tr, tc) = tile_shape(desc.mode);
     let mut mask = vec![false; c_words(m, n, int32) * OBUF_WORD_BYTES];
-    let row_tiles = m.div_ceil(tr);
-    let col_tiles = n.div_ceil(tc);
-    debug_assert!(row_tiles * tr <= m_pad(m));
-    for rt in 0..row_tiles {
-        for ct in 0..col_tiles {
-            for row in rt * tr..(rt + 1) * tr {
-                for col in ct * tc..(ct + 1) * tc {
-                    if int32 {
-                        let off = c_i32_offset(m, row, col);
-                        mask[off..off + 4].iter_mut().for_each(|b| *b = true);
-                    } else {
-                        mask[c_i8_offset(m, row, col)] = true;
-                    }
-                }
+    for row in 0..m {
+        for col in 0..n {
+            if int32 {
+                let off = c_i32_offset(m, row, col);
+                mask[off..off + 4].iter_mut().for_each(|b| *b = true);
+            } else {
+                mask[c_i8_offset(m, row, col)] = true;
             }
         }
     }

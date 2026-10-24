@@ -83,6 +83,60 @@ pub fn parse_frame(bytes: &[u8], sync: u8) -> Result<(Frame, usize), FrameError>
     ))
 }
 
+/// Parser-level outcome of a byte stream (reference for the RTL frame parser).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RxEvent {
+    /// A complete frame with a good CRC (opcode/status validation happens above this).
+    Frame { code: u8, payload: Vec<u8> },
+    /// A complete frame with a bad CRC: respond NACK_CRC (len 0), payload ignored.
+    BadCrc { code: u8, len: usize },
+    /// `len > max_payload`: the frame is dropped, the parser waits for RX_TIMEOUT of
+    /// idle, then responds NACK_RANGE (SPEC §3.8 v1.1, D-010).
+    Oversize { code: u8, len: usize },
+    /// The stream ended inside a frame: after RX_TIMEOUT of idle the parser resets and
+    /// hunts for sync again. No response.
+    Timeout,
+}
+
+/// Reference parser (SPEC §3.8, D-010). `stream` is sent back to back (no idle gaps)
+/// and is followed by at least RX_TIMEOUT cycles of idle. Bytes outside a frame that
+/// are not `sync` are skipped while hunting.
+pub fn rx_reference(stream: &[u8], sync: u8, max_payload: usize) -> Vec<RxEvent> {
+    let mut ev = Vec::new();
+    let mut i = 0;
+    while i < stream.len() {
+        if stream[i] != sync {
+            i += 1;
+            continue;
+        }
+        if i + 4 > stream.len() {
+            ev.push(RxEvent::Timeout);
+            break;
+        }
+        let code = stream[i + 1];
+        let len = usize::from(u16::from_le_bytes([stream[i + 2], stream[i + 3]]));
+        if len > max_payload {
+            ev.push(RxEvent::Oversize { code, len });
+            break; // everything up to the idle gap is dropped
+        }
+        let end = i + 4 + len; // index of the crc byte
+        if end >= stream.len() {
+            ev.push(RxEvent::Timeout);
+            break;
+        }
+        if crc8(&stream[i + 1..end]) == stream[end] {
+            ev.push(RxEvent::Frame {
+                code,
+                payload: stream[i + 4..end].to_vec(),
+            });
+        } else {
+            ev.push(RxEvent::BadCrc { code, len });
+        }
+        i = end + 1;
+    }
+    ev
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -107,5 +161,48 @@ mod tests {
             Err(FrameError::Truncated)
         );
         assert_eq!(parse_frame(&f, SYNC_RSP), Err(FrameError::BadSync));
+    }
+
+    #[test]
+    fn rx_reference_events() {
+        let f = request_frame(0x10, &[1, 2, 3]);
+        let mut two = f.clone();
+        two.extend_from_slice(&request_frame(0x01, &[]));
+        assert_eq!(
+            rx_reference(&two, SYNC_REQ, 1024),
+            vec![
+                RxEvent::Frame {
+                    code: 0x10,
+                    payload: vec![1, 2, 3]
+                },
+                RxEvent::Frame {
+                    code: 0x01,
+                    payload: vec![]
+                },
+            ]
+        );
+        let mut bad = f.clone();
+        bad[5] ^= 0x40;
+        assert_eq!(
+            rx_reference(&bad, SYNC_REQ, 1024),
+            vec![RxEvent::BadCrc { code: 0x10, len: 3 }]
+        );
+        assert_eq!(
+            rx_reference(&f[..6], SYNC_REQ, 1024),
+            vec![RxEvent::Timeout]
+        );
+        assert_eq!(
+            rx_reference(&f[..2], SYNC_REQ, 1024),
+            vec![RxEvent::Timeout]
+        );
+        let big = [SYNC_REQ, 0x10, 0x01, 0x04, 0, 0];
+        assert_eq!(
+            rx_reference(&big, SYNC_REQ, 1024),
+            vec![RxEvent::Oversize {
+                code: 0x10,
+                len: 1025
+            }]
+        );
+        assert_eq!(rx_reference(&[0, 1, 2], SYNC_REQ, 1024), vec![]);
     }
 }

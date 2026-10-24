@@ -9,19 +9,13 @@
 use crate::jobs::job_json;
 use crate::{hex, Meta, OutFile};
 use serde_json::json;
-use splitsys_golden::consts::{MODE_FULL, MODE_STRIP, M_MAX};
+use splitsys_golden::consts::{MODE_FULL, MODE_STRIP};
 use splitsys_golden::rng::Rng;
 use splitsys_golden::{choose_rq_param, gemm_i32, Bases, Job, MatI8};
 
 pub const BENCH_SEED: u64 = 0xBE7C_2026;
-/// (name, K, N), SPEC §1.1.
-pub const LAYERS: [(&str, usize, usize); 4] = [
-    ("qkv", 64, 192),
-    ("attn_out", 64, 64),
-    ("ffn_up", 64, 256),
-    ("ffn_down", 256, 64),
-];
-pub const MS: [usize; 7] = [1, 2, 4, 8, 16, 32, 64];
+/// Calibration / largest M: the prefill M from spec.toml `[bench]`.
+const M_CAL: usize = splitsys_spec::BENCH_M_PREFILL;
 
 /// Round-to-nearest signed division (ties away from zero), integer only.
 fn round_div(x: i64, d: i64) -> i64 {
@@ -58,7 +52,8 @@ pub fn bench(meta: &Meta) -> Vec<OutFile> {
     let mut r = Rng::new(BENCH_SEED);
     let mut layers = Vec::new();
     let mut entries = Vec::new();
-    for (name, k, n) in LAYERS {
+    for shape in splitsys_spec::BENCH_SHAPES {
+        let (name, k, n) = (shape.name, shape.k, shape.n);
         // Weights ~ N(0, 1000) per element, with per-column scale variation.
         let col_scale: Vec<i64> = (0..n).map(|_| r.range_i64(500, 1500)).collect();
         let w_raw: Vec<Vec<i64>> = (0..k)
@@ -66,7 +61,7 @@ pub fn bench(meta: &Meta) -> Vec<OutFile> {
             .collect();
         let w = quantize(&w_raw, true);
         // Activations ~ N(0, 1000) with ~1% outliers at 6x.
-        let a_raw: Vec<Vec<i64>> = (0..M_MAX)
+        let a_raw: Vec<Vec<i64>> = (0..M_CAL)
             .map(|_| {
                 (0..k)
                     .map(|_| {
@@ -84,7 +79,7 @@ pub fn bench(meta: &Meta) -> Vec<OutFile> {
         let acc64 = gemm_i32(&a64, &w);
         let rq: Vec<(u16, u8)> = (0..n)
             .map(|j| {
-                let max_abs = (0..M_MAX)
+                let max_abs = (0..M_CAL)
                     .map(|i| acc64.get(i, j).unsigned_abs())
                     .max()
                     .unwrap_or(0);
@@ -97,7 +92,7 @@ pub fn bench(meta: &Meta) -> Vec<OutFile> {
             "a64_rowmajor_hex": hex(&a64.data().iter().map(|&v| v as u8).collect::<Vec<_>>()),
             "rq": rq.iter().map(|(m, s)| json!([m, s])).collect::<Vec<_>>(),
         }));
-        for m in MS {
+        for m in splitsys_spec::BENCH_M_SWEEP {
             let a = a64.top_rows(m);
             let full = Job::new(MODE_FULL, a, w.clone(), Some(rq.clone()), Bases::default())
                 .expect("bench job valid");
@@ -108,18 +103,15 @@ pub fn bench(meta: &Meta) -> Vec<OutFile> {
                 "c_rowmajor_hex": hex(&c.data().iter().map(|&v| v as u8).collect::<Vec<_>>()),
                 "desc_full_hex": hex(&full.desc.to_bytes()),
                 "desc_strip_hex": hex(&strip.desc.to_bytes()),
-                "written_ranges_full": full.written_ranges(),
-                "written_ranges_strip": strip.written_ranges(),
                 "job": job_json(&format!("bench_{name}_m{m}"), &full),
             }));
         }
     }
     let doc = json!({
         "meta": meta.json(BENCH_SEED, "bench"),
-        "description": "SPEC §1.1 benchmark suite. Each entry's `job` is the FULL-mode job (load list, \
-    descriptor, expected OBUF image); for STRIP use desc_strip_hex and written_ranges_strip (same images, \
-    same expected bytes). Bases are 0; load each job before running it.",
-        "ms": MS,
+        "description": "SPEC §1.1 benchmark suite. Each entry's `job` is the FULL-mode job (load list, descriptor, \
+    expected OBUF image, compare_ranges); for STRIP use desc_strip_hex (same images, same expected bytes, same compare_ranges). Bases are 0; load each job before running it.",
+        "ms": splitsys_spec::BENCH_M_SWEEP,
         "layers": layers,
         "entries": entries,
     });

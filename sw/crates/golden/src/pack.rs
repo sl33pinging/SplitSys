@@ -1,10 +1,10 @@
 //! Memory images, SPEC §1.3. Every function returns or reads the exact byte image
 //! of a buffer region in address order (little-endian), ready for WRITE_MEM.
-//! All packers zero-pad out-of-range rows and columns.
+//! A/W/C packers zero-pad out-of-range rows and columns (A/W padding must be zero;
+//! C padding is unspecified on hardware, D-006).
 
 use crate::consts::{
-    A_BLOCK_ROWS, C_I32_PER_WORD, C_I32_WORDS_PER_ROW, OBUF_WORD_BYTES, RQ_MULT_MIN, RQ_SHIFT_MIN,
-    RQ_WORD_BYTES, W_BLOCK_COLS,
+    A_BLOCK_ROWS, C_I32_PER_WORD, C_I32_WORDS_PER_ROW, OBUF_WORD_BYTES, RQ_WORD_BYTES, W_BLOCK_COLS,
 };
 use crate::mat::{MatI32, MatI8};
 use crate::numerics::check_rq_params;
@@ -38,18 +38,6 @@ pub fn w_words(k: usize, n: usize) -> usize {
 pub fn c_words(m: usize, n: usize, int32: bool) -> usize {
     n_blocks(n) * m_pad(m) * if int32 { C_I32_WORDS_PER_ROW } else { 1 }
 }
-
-/// RQPARAM entries written for N columns (padded to a whole 16-column block).
-pub fn rq_entries(n: usize) -> usize {
-    n_blocks(n) * W_BLOCK_COLS
-}
-
-/// The parameter written into RQPARAM entries for padding columns (n ≥ N).
-///
-/// RQPARAM cannot be zero-padded: mult = 0 / shift = 0 are outside SPEC §1.2.
-/// We pad with the smallest legal pair, so a padded column whose accumulator is 0
-/// requantizes to exactly 0 (`(0*1 + 1) >> 1 = 0`).
-pub const RQ_PAD_PARAM: (u16, u8) = (RQ_MULT_MIN, RQ_SHIFT_MIN);
 
 /// A image: word64 index `mb*K + k` holds `A[8*mb + r, k]` in byte lane r.
 pub fn pack_a_blocks8(a: &MatI8) -> Vec<u8> {
@@ -175,12 +163,12 @@ pub fn rq_word(mult: u16, shift: u8) -> [u8; 4] {
     w.to_le_bytes()
 }
 
-/// RQPARAM image for N columns, padded to `rq_entries(N)` with [`RQ_PAD_PARAM`].
+/// RQPARAM image: exactly N entries (columns `rq_base .. rq_base+N-1`, SPEC §1.3).
+/// No padding entries: padding-column outputs are unspecified (D-006), and writing
+/// past `rq_base+N` could exceed RQ_ENTRIES.
 pub fn pack_rqparams(params: &[(u16, u8)]) -> Vec<u8> {
-    let entries = rq_entries(params.len());
-    let mut out = Vec::with_capacity(entries * RQ_WORD_BYTES);
-    for i in 0..entries {
-        let (m, s) = params.get(i).copied().unwrap_or(RQ_PAD_PARAM);
+    let mut out = Vec::with_capacity(params.len() * RQ_WORD_BYTES);
+    for &(m, s) in params {
         check_rq_params(m, s);
         out.extend_from_slice(&rq_word(m, s));
     }

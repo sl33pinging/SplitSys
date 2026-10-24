@@ -14,7 +14,7 @@ pub mod rng;
 
 pub use checksum::{crc8, fletcher32};
 pub use descriptor::{DescError, Descriptor};
-pub use job::{mask_to_ranges, obuf_written_mask, Bases, Job};
+pub use job::{in_bounds_mask, mask_to_ranges, Bases, Job};
 pub use mat::{Mat, MatI32, MatI8};
 pub use numerics::{gemm_i32, gemm_q, requant, requant_is_tie, requant_mat, rq_params_valid};
 pub use pack::{

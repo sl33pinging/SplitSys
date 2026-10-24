@@ -26,6 +26,10 @@ pub const DESC_OFF_RESERVED: usize = s::DESC_OFF_RESERVED as usize;
 
 pub const FLAG_REQUANT_EN: u8 = s::FLAG_REQUANT_EN as u8;
 pub const FLAG_OUT_INT32: u8 = s::FLAG_OUT_INT32 as u8;
+/// The only two legal descriptor flags values (D-003).
+pub const FLAGS_INT8: u8 = s::FLAGS_INT8 as u8;
+pub const FLAGS_INT32: u8 = s::FLAGS_INT32 as u8;
+pub const ENABLE_STRIP: bool = s::ENABLE_STRIP;
 
 pub const M_MIN: usize = s::M_MIN as usize;
 pub const M_MAX: usize = s::M_MAX as usize;
@@ -83,4 +87,5 @@ const _: () = assert!(A_BLOCK_ROWS == ROWS);
 const _: () = assert!(W_BLOCK_COLS == 2 * COLS);
 const _: () = assert!(OBUF_WORD_BYTES == W_BLOCK_COLS);
 const _: () = assert!(RQ_WORD_BYTES == 4);
+const _: () = assert!(C_I32_WORDS_PER_ROW == s::INT32_WORDS_PER_ROW as usize);
 const _: () = assert!(OBUF_WORD_BYTES.is_multiple_of(4));

@@ -1,7 +1,7 @@
 //! GEMM descriptor, SPEC §3.5. Byte offsets come from the generated field map.
 
 use crate::consts::*;
-use crate::pack::{a_words, c_words, rq_entries, w_words};
+use crate::pack::{a_words, c_words, w_words};
 
 /// The 24-byte RUN_GEMM descriptor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -101,18 +101,17 @@ impl Descriptor {
         self.flags & FLAG_REQUANT_EN != 0
     }
 
-    /// Output is the int32 bypass layout. SPEC §1.2: bypass iff `requant_en = 0`.
+    /// Output is the int32 bypass layout (flags = FLAGS_INT32).
     pub fn out_int32(&self) -> bool {
-        !self.requant_en()
+        self.flags == FLAGS_INT32
     }
 
-    /// Canonical flags for a job: requant (`requant_en=1, out_int32=0`) or bypass
-    /// (`requant_en=0, out_int32=1`). Other combinations are not generated.
+    /// The legal flags value for a job (D-003): FLAGS_INT8 (requant) or FLAGS_INT32.
     pub fn flags_for(requant: bool) -> u8 {
         if requant {
-            FLAG_REQUANT_EN
+            FLAGS_INT8
         } else {
-            FLAG_OUT_INT32
+            FLAGS_INT32
         }
     }
 
@@ -124,12 +123,13 @@ impl Descriptor {
         )
     }
 
-    /// Check the job against SPEC §3.5 ranges and buffer capacities.
+    /// SPEC §3.5 RUN_GEMM validation (D-005), checks 1-8 exactly; `Err` = NACK_RANGE.
+    /// (The payload-length check is `from_bytes`.)
     pub fn validate(&self) -> Result<(), DescError> {
-        if self.mode != MODE_FULL && self.mode != MODE_STRIP {
+        if !(self.mode == MODE_FULL || (self.mode == MODE_STRIP && ENABLE_STRIP)) {
             return Err(DescError::BadMode(self.mode));
         }
-        if self.flags != Self::flags_for(true) && self.flags != Self::flags_for(false) {
+        if self.flags != FLAGS_INT8 && self.flags != FLAGS_INT32 {
             return Err(DescError::BadFlags(self.flags));
         }
         for (field, v, lo, hi) in [
@@ -153,11 +153,7 @@ impl Descriptor {
                 self.out_base as usize + c_words(m, n, self.out_int32()),
                 OBUF_WORDS,
             ),
-            (
-                "RQPARAM",
-                usize::from(self.rq_base) + rq_entries(n),
-                RQ_ENTRIES,
-            ),
+            ("RQPARAM", usize::from(self.rq_base) + n, RQ_ENTRIES),
         ];
         for (buffer, end, size) in checks {
             if end > size {

@@ -4,7 +4,9 @@ use crate::{hex, Meta, OutFile};
 use serde_json::{json, Value};
 use splitsys_golden::consts::{RQ_MULT_MAX, RQ_MULT_MIN, RQ_SHIFT_MAX, RQ_SHIFT_MIN};
 use splitsys_golden::numerics::requant_unclamped;
-use splitsys_golden::packet::{request_frame, response_frame};
+use splitsys_golden::packet::{
+    request_frame, response_frame, rx_reference, RxEvent, SYNC_REQ, SYNC_RSP,
+};
 use splitsys_golden::rng::Rng;
 use splitsys_golden::{crc8, requant, requant_is_tie};
 
@@ -522,8 +524,28 @@ delayed 4 + c (SPEC §3.2)",
 
 // --------------------------------------------------------------------- packet
 
+fn events_json(ev: &[RxEvent]) -> Vec<Value> {
+    ev.iter()
+        .map(|e| match e {
+            RxEvent::Frame { code, payload } => {
+                json!({"event": "frame", "code": code, "payload_hex": hex(payload)})
+            }
+            RxEvent::BadCrc { code, len } => {
+                json!({"event": "bad_crc", "code": code, "len": len, "response": "NACK_CRC"})
+            }
+            RxEvent::Oversize { code, len } => json!({
+                "event": "oversize", "code": code, "len": len,
+                "response": "NACK_RANGE after RX_TIMEOUT idle"
+            }),
+            RxEvent::Timeout => json!({"event": "timeout", "response": "none; parser resets"}),
+        })
+        .collect()
+}
+
 /// Packet-layer vectors: CRC-8 known answers, good request/response frames, bad CRC,
-/// truncated frames, and a back-to-back stream.
+/// corrupted length, oversize length, truncated frames, and a back-to-back stream.
+/// `events` is the parser-level outcome from `splitsys_golden::packet::rx_reference`
+/// when `bytes_hex` is sent back to back and followed by line idle ≥ RX_TIMEOUT.
 pub fn packet(seed: u64, n: usize, meta: &Meta) -> Vec<OutFile> {
     let mut r = Rng::new(seed);
     let opcodes: Vec<u8> = splitsys_spec::OPCODES.iter().map(|(_, c)| *c).collect();
@@ -536,40 +558,68 @@ pub fn packet(seed: u64, n: usize, meta: &Meta) -> Vec<OutFile> {
         };
         (0..len).map(|_| r.next_u64() as u8).collect()
     };
-    let frame_json =
-        |kind: &str, dir: &str, code: u8, payload: &[u8], bytes: &[u8], expect: &str| {
-            json!({
-                "kind": kind, "dir": dir, "code": code, "len": payload.len(),
-                "payload_hex": hex(payload), "crc": crc8(&{
-                    let mut v = vec![code];
-                    v.extend_from_slice(&(payload.len() as u16).to_le_bytes());
-                    v.extend_from_slice(payload);
-                    v
-                }),
-                "bytes_hex": hex(bytes), "expect": expect,
-            })
-        };
+    let frame_json = |kind: &str, dir: &str, code: u8, payload: &[u8], bytes: &[u8]| {
+        let sync = if dir == "req" { SYNC_REQ } else { SYNC_RSP };
+        json!({
+            "kind": kind, "dir": dir, "code": code, "len": payload.len(),
+            "payload_hex": hex(payload),
+            "bytes_hex": hex(bytes),
+            "events": events_json(&rx_reference(bytes, sync, max_payload)),
+        })
+    };
     let mut frames: Vec<Value> = Vec::new();
-    // Directed: every opcode, empty and small payloads; plus an unknown opcode.
+    // Directed: every opcode with empty and small payloads (payload bytes that look
+    // like sync bytes included), an unknown opcode, response frames, max payload,
+    // an oversize length, and truncation at every header position.
     for &op in &opcodes {
         for p in [vec![], vec![0x00], vec![0xFF, 0x00, 0xA5, 0x5A]] {
             let f = request_frame(op, &p);
-            frames.push(frame_json("good", "req", op, &p, &f, "parse_ok"));
+            frames.push(frame_json("good", "req", op, &p, &f));
         }
     }
     let unk = request_frame(0x7F, &[1, 2]);
     frames.push(frame_json(
-        "good",
+        "good_unknown_opcode",
         "req",
         0x7F,
         &[1, 2],
         &unk,
-        "parse_ok_unknown_opcode_nack_opcode",
     ));
     for &st in &[0u8, 1, 2, 3, 4] {
         let p = vec![st; 3];
         let f = response_frame(st, &p);
-        frames.push(frame_json("good", "rsp", st, &p, &f, "parse_ok"));
+        frames.push(frame_json("good", "rsp", st, &p, &f));
+    }
+    let pmax: Vec<u8> = (0..max_payload).map(|i| i as u8).collect();
+    let fmax = request_frame(splitsys_spec::OP_WRITE_MEM, &pmax);
+    frames.push(frame_json(
+        "good_max_payload",
+        "req",
+        splitsys_spec::OP_WRITE_MEM,
+        &pmax,
+        &fmax,
+    ));
+    let over = (max_payload + 1) as u16;
+    let mut fo = vec![SYNC_REQ, splitsys_spec::OP_WRITE_MEM];
+    fo.extend_from_slice(&over.to_le_bytes());
+    fo.extend((0..=max_payload).map(|i| i as u8));
+    fo.push(0);
+    frames.push(frame_json(
+        "oversize",
+        "req",
+        splitsys_spec::OP_WRITE_MEM,
+        &[],
+        &fo,
+    ));
+    let small = request_frame(splitsys_spec::OP_PING, &[]);
+    for cut in 1..small.len() {
+        frames.push(frame_json(
+            "truncated",
+            "req",
+            splitsys_spec::OP_PING,
+            &[],
+            &small[..cut],
+        ));
     }
     // Random.
     for _ in 0..n {
@@ -581,55 +631,41 @@ pub fn packet(seed: u64, n: usize, meta: &Meta) -> Vec<OutFile> {
                 let mut bad = good.clone();
                 let pos = r.range_usize(1, bad.len() - 1); // any byte after sync
                 bad[pos] ^= 1 << r.below(8);
-                // A flipped len byte can also make the frame look longer -> may time out.
                 let kind = if pos == 2 || pos == 3 {
-                    "bad_len_or_crc"
+                    "corrupt_len"
                 } else {
                     "bad_crc"
                 };
-                let expect = if pos == 2 || pos == 3 {
-                    "nack_crc_or_timeout"
-                } else {
-                    "nack_crc"
-                };
-                frames.push(frame_json(kind, "req", op, &p, &bad, expect));
+                frames.push(frame_json(kind, "req", op, &p, &bad));
             }
             1 => {
                 let cut = r.range_usize(1, good.len() - 1);
-                frames.push(frame_json(
-                    "truncated",
-                    "req",
-                    op,
-                    &p,
-                    &good[..cut],
-                    "timeout_reset",
-                ));
+                frames.push(frame_json("truncated", "req", op, &p, &good[..cut]));
             }
-            _ => frames.push(frame_json("good", "req", op, &p, &good, "parse_ok")),
+            _ => frames.push(frame_json("good", "req", op, &p, &good)),
         }
     }
     // Back-to-back: 8 good frames concatenated without idle time.
     let mut b2b = Vec::new();
-    let mut parts = Vec::new();
     for _ in 0..8 {
         let op = *r.pick(&opcodes);
         let p = rand_payload(&mut r, 64);
-        let f = request_frame(op, &p);
-        parts.push(json!({"code": op, "payload_hex": hex(&p)}));
-        b2b.extend_from_slice(&f);
+        b2b.extend_from_slice(&request_frame(op, &p));
     }
     let doc = json!({
         "meta": meta.json(seed, "unit/packet"),
-        "description": "SPEC §3.8 frames: sync | code | len u16 LE | payload | crc8. CRC-8 poly 0x07, init 0, \
-    over every byte after sync through the payload. expect: parse_ok, nack_crc, timeout_reset (truncated: \
-    parser must reset after RX_TIMEOUT idle cycles), nack_crc_or_timeout (corrupted len byte).",
+        "description": "SPEC §3.8 / D-010 frames: sync | code | len u16 LE | payload | crc8 (CRC-8/SMBUS, poly 0x07, init 0, over code, len, payload). Send bytes_hex back to back, then idle >= RX_TIMEOUT; `events` are the parser-level outcomes in order (frame | bad_crc -> NACK_CRC | oversize -> NACK_RANGE after timeout | timeout -> silent reset). Opcode/length/range validation of good frames happens above the parser (D-010 precedence).",
+        "max_payload": max_payload,
         "crc8_known_answers": [
             {"data_hex": hex(b"123456789"), "crc": crc8(b"123456789")},
             {"data_hex": "", "crc": 0},
             {"data_hex": "01", "crc": crc8(&[1])},
         ],
         "frames": frames,
-        "back_to_back": {"bytes_hex": hex(&b2b), "frames": parts},
+        "back_to_back": {
+            "bytes_hex": hex(&b2b),
+            "events": events_json(&rx_reference(&b2b, SYNC_REQ, max_payload)),
+        },
     });
     vec![OutFile::json_compact("unit/packet.json", &doc)]
 }
