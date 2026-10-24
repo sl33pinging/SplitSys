@@ -1,25 +1,25 @@
 {
   "source": "hw-build",
   "full_only": {
-    "lut": 5181,
-    "ff": 6255,
+    "lut": 5149,
+    "ff": 6346,
     "dsp": 80,
     "bram": 26,
-    "fmax_mhz": 122.5,
-    "wns_ns": 1.834
+    "fmax_mhz": 132.3,
+    "wns_ns": 2.441
   },
   "split": {
-    "lut": 7378,
-    "ff": 7778,
+    "lut": 7388,
+    "ff": 7936,
     "dsp": 96,
     "bram": 26,
-    "fmax_mhz": 105.6,
-    "wns_ns": 0.526
+    "fmax_mhz": 112.9,
+    "wns_ns": 1.143
   },
-  "git_hash": "35fb363f",
+  "git_hash": "8bbd7ba6",
   "build_id": {
-    "split": "0x35FB363F",
-    "full_only": "0x35FB363F"
+    "split": "0x8BBD7BA6",
+    "full_only": "0x8BBD7BA6"
   },
   "part": "xc7s50csga324-2",
   "vivado": "2025.2.1",
@@ -27,53 +27,53 @@
   "fmax_note": "fmax_mhz = 1000/(10 ns - WNS) from the post-route timing at the 100 MHz constraint; an estimate, not a swept Fmax. Check worst_path before attributing the Fmax delta to splitting: a routing-dominated control net (reset, mux select) is placement, not STRIP logic",
   "worst_path": {
     "split": {
-      "slack_ns": 0.526,
-      "source": "u_board/rst_r_reg/C",
-      "destination": "u_selftest/ret_reg[1]/R",
-      "logic_levels": 0,
-      "route_pct": 95.219
+      "slack_ns": 1.143,
+      "source": "u_core/u_seq/int32_q_reg_rep__0/C",
+      "destination": "u_core/u_seq/ob_wdata_reg[14]/D",
+      "logic_levels": 2,
+      "route_pct": 92.702
     },
     "full_only": {
-      "slack_ns": 1.834,
-      "source": "u_selftest/busy_reg_rep__0/C",
-      "destination": "u_core/u_wbuf/mem_reg_2/ADDRBWRADDR[13]",
-      "logic_levels": 1,
-      "route_pct": 93.598
+      "slack_ns": 2.441,
+      "source": "u_core/u_seq/int32_q_reg/C",
+      "destination": "u_core/u_rq/g_lane[1].prod_e3_reg/A[2]",
+      "logic_levels": 2,
+      "route_pct": 89.0
     }
   },
   "breakdown": {
     "split": {
       "array": {
-        "lut": 1101,
+        "lut": 1102,
         "ff": 1488,
         "dsp": 64,
         "bram36": 0,
         "bram18": 0
       },
       "requant": {
-        "lut": 3154,
+        "lut": 3171,
         "ff": 2434,
         "dsp": 32,
         "bram36": 0,
         "bram18": 0
       },
       "sequencer": {
-        "lut": 670,
+        "lut": 671,
         "ff": 479,
         "dsp": 0,
         "bram36": 0,
         "bram18": 0
       },
       "core": {
-        "lut": 5225,
+        "lut": 5220,
         "ff": 4409,
         "dsp": 96,
         "bram36": 25,
         "bram18": 0
       },
       "total": {
-        "lut": 7378,
-        "ff": 7778,
+        "lut": 7388,
+        "ff": 7936,
         "dsp": 96,
         "bram36": 25,
         "bram18": 2
@@ -81,36 +81,36 @@
     },
     "full_only": {
       "array": {
-        "lut": 727,
+        "lut": 726,
         "ff": 1224,
         "dsp": 64,
         "bram36": 0,
         "bram18": 0
       },
       "requant": {
-        "lut": 1666,
+        "lut": 1668,
         "ff": 1218,
         "dsp": 16,
         "bram36": 0,
         "bram18": 0
       },
       "sequencer": {
-        "lut": 381,
+        "lut": 384,
         "ff": 409,
         "dsp": 0,
         "bram36": 0,
         "bram18": 0
       },
       "core": {
-        "lut": 2974,
+        "lut": 2983,
         "ff": 2860,
         "dsp": 80,
         "bram36": 25,
         "bram18": 0
       },
       "total": {
-        "lut": 5181,
-        "ff": 6255,
+        "lut": 5149,
+        "ff": 6346,
         "dsp": 80,
         "bram36": 25,
         "bram18": 2
@@ -118,28 +118,28 @@
     },
     "delta": {
       "array": {
-        "lut": 374,
+        "lut": 376,
         "ff": 264,
         "dsp": 0
       },
       "requant": {
-        "lut": 1488,
+        "lut": 1503,
         "ff": 1216,
         "dsp": 16
       },
       "sequencer": {
-        "lut": 289,
+        "lut": 287,
         "ff": 70,
         "dsp": 0
       },
       "core": {
-        "lut": 2251,
+        "lut": 2237,
         "ff": 1549,
         "dsp": 16
       },
       "total": {
-        "lut": 2197,
-        "ff": 1523,
+        "lut": 2239,
+        "ff": 1590,
         "dsp": 16
       }
     }
