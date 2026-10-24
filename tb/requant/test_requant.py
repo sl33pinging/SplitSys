@@ -7,7 +7,7 @@ Expected values:
   * int32 bypass: out == acc (identity).
 Port contract (requant.sv header): params load one lane per cycle and take effect
 for data entering in the NEXT cycle; params are captured per beat; latency is
-port to port, must equal splitsys_pkg::L_RQ.
+port to port, must equal splitsys_pkg::L_RQ - 1 (D-016).
 """
 
 from __future__ import annotations
@@ -128,18 +128,20 @@ def schedule_cases(cases, rng, bypass_every=0):
 
 @cocotb.test()
 async def test_latency_equals_L_RQ(dut):
-    """One beat in, out_vld exactly L_RQ cycles later (both int8 and bypass)."""
+    """One beat in, out_vld exactly L_RQ - 1 cycles later (both int8 and bypass).
+    D-016: L_RQ is sequencer-level (1 registered array drain-read mux + requant
+    stages); the standalone requant.sv latency is defined as L_RQ - 1."""
     await setup(dut)
-    lat = pkg_const("L_RQ")
+    lat = pkg_const("L_RQ") - 1   # D-016
     cycles = [{"prm": (j, 1, 1)} for j in range(LANES)] + [{}] * 3 + \
              [{"beat": (0, [2 * j + 1 for j in range(LANES)])}] + [{}] * 12 + \
              [{"beat": (1, [-j for j in range(LANES)])}] + [{}] * 12
     outs = await run(dut, cycles)
     beat_cycles = [c for c, cyc in enumerate(cycles) if cyc.get("beat")]
     measured = sorted({oc - bc for (oc, _), bc in zip(outs, beat_cycles)})
-    dut._log.info(f"measured requant latency {measured}, splitsys_pkg::L_RQ = {lat}")
+    dut._log.info(f"measured requant latency {measured}, splitsys_pkg::L_RQ - 1 = {lat} (D-016)")
     check(len(outs) == 2, "out_vld count", got=len(outs))
-    check(measured == [lat], "requant latency != splitsys_pkg::L_RQ", measured=measured, L_RQ=lat)
+    check(measured == [lat], "requant latency != splitsys_pkg::L_RQ - 1 (D-016)", measured=measured, L_RQ_minus_1=lat)
 
 
 @cocotb.test()

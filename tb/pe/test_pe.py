@@ -232,3 +232,13 @@ async def test_random_streams(dut):
             k -= 1
     dut._log.info(f"{n_streams} streams, {len(stim)} cycles")
     await run_and_check(dut, stim, "random")
+
+
+@cocotb.test()
+async def test_directed_first_without_vld(dut):
+    """first=1 with vld=0 is a bubble (pe.sv: first matters only with a valid MAC):
+    the next valid MAC without first must ACCUMULATE onto the held value."""
+    await setup(dut)
+    s = [(9, 9, 1, 1), (4, 4, 1, 0), (-128, -128, 0, 1), (100, -7, 0, 1), (2, 3, 1, 0),
+         (0, 0, 0, 1), (5, -5, 1, 0)]
+    await run_and_check(dut, s, "first with vld=0")
