@@ -15,6 +15,11 @@
 #          ENABLE_STRIP=0, FOO=32'h1). BUILD_ID is always set from git and may
 #          not be overridden. Any *DIV_OVERRIDE* generic other than 0 is refused
 #          (it is a simulation-only UART speed-up).
+#          Full top only: ENABLE_STRIP defaults to 1, and ROM_FILE (the self-test
+#          ROM image for $readmemh) defaults to sw/crates/vec/out/selftest_rom.mem;
+#          a repo-relative ROM_FILE=<path> may be given. It is passed to synthesis
+#          as an absolute path, must exist, counts toward git_dirty, and a
+#          $readmemh file that cannot be opened (Synth 8-4445) is an error.
 #
 # Sources
 #   Bring-up top (fpga/bringup/<top>/ exists): the repo-relative files listed in
@@ -24,7 +29,7 @@
 #
 # Outputs
 #   fpga/reports/<tag>/ utilization.rpt timing_summary.rpt drc.rpt power.rpt
-#                       summary.json (one line)
+#                       io.rpt post_synth_utilization.rpt summary.json (one line)
 #   fpga/build/<tag>/   top.bit, post_route.dcp      (gitignored)
 #
 # Exit status: 0 only if WNS >= 0, WHS >= 0, no DRC errors, no latches, and
@@ -37,6 +42,8 @@ set CLK_NAME  clk_100
 set MIN_DSP_FULL 64
 
 set ROOT [file normalize [file join [file dirname [info script]] .. ..]]
+cd $ROOT   ;# relative paths inside RTL (e.g. $readmemh defaults) resolve from the repo root
+set DEFAULT_ROM_FILE sw/crates/vec/out/selftest_rom.mem
 
 proc die {msg} { puts "BUILD_ERROR: $msg"; exit 2 }
 
@@ -110,8 +117,18 @@ set build_id_hex [string toupper $git_hash]
 # ------------------------------------------------------------------- generics
 set generics [list BUILD_ID "32'h$git_hash"]
 set gen_dict [dict create BUILD_ID "32'h$git_hash"]
-if {$is_full_top && ![dict exists $user_generics ENABLE_STRIP]} {
-    lappend user_generics ENABLE_STRIP 1
+set rom_file ""
+if {$is_full_top} {
+    if {![dict exists $user_generics ENABLE_STRIP]} { lappend user_generics ENABLE_STRIP 1 }
+    if {[dict exists $user_generics ROM_FILE]} {
+        set rom_rel [string trim [dict get $user_generics ROM_FILE] "\""]
+        set user_generics [dict remove $user_generics ROM_FILE]
+    } else {
+        set rom_rel $DEFAULT_ROM_FILE
+    }
+    set rom_file [file normalize [file join $ROOT $rom_rel]]
+    if {![file isfile $rom_file]} { die "self-test ROM image not found: $rom_file" }
+    lappend user_generics ROM_FILE "\"$rom_file\""
 }
 foreach {k v} $user_generics {
     if {$k eq "BUILD_ID"} { die "BUILD_ID comes from git and cannot be overridden" }
@@ -146,7 +163,9 @@ if {[file isdirectory $top_bringup]} {
 }
 if {[llength $xdcs] == 0} { set xdcs [list [file join $ROOT fpga xdc urbana_splitsys.xdc]] }
 foreach f [concat $srcs $xdcs] { if {![file exists $f]} { die "missing source $f" } }
-set dirty [git_dirty $ROOT [concat $srcs $xdcs [list [file normalize [info script]]]]]
+set dirty_files [concat $srcs $xdcs [list [file normalize [info script]]]]
+if {$rom_file ne ""} { lappend dirty_files $rom_file }
+set dirty [git_dirty $ROOT $dirty_files]
 
 set rpt_dir [file join $ROOT fpga reports $tag]
 set out_dir [file join $ROOT fpga build $tag]
@@ -163,6 +182,8 @@ foreach f $xdcs { read_xdc $f }
 
 set gen_args [list]
 foreach {k v} $generics { lappend gen_args -generic "$k=$v" }
+# A $readmemh image that cannot be opened must fail the build, not give a zero ROM.
+set_msg_config -id {Synth 8-4445} -new_severity ERROR
 synth_design -top $top -part $PART {*}$gen_args
 
 # latch check right after synthesis (the netlist primitives are LDCE/LDPE)
@@ -179,6 +200,7 @@ report_utilization      -file [file join $rpt_dir utilization.rpt]
 report_timing_summary   -max_paths 10 -report_unconstrained -file [file join $rpt_dir timing_summary.rpt]
 report_drc              -file [file join $rpt_dir drc.rpt]
 report_power            -file [file join $rpt_dir power.rpt]
+report_io               -file [file join $rpt_dir io.rpt]
 write_checkpoint -force [file join $out_dir post_route.dcp]
 
 # ------------------------------------------------------------------- metrics
@@ -240,7 +262,7 @@ dict for {k v} $gen_dict { lappend gj "[jstr $k]:[jstr $v]" }
 set fj [list]
 foreach f $failures { lappend fj [jstr $f] }
 set es [expr {$enable_strip eq "null" ? "null" : [jstr $enable_strip]}]
-set json "\{\"tag\":[jstr $tag],\"top\":[jstr $top],\"part\":[jstr $PART],\"build_id\":[jstr 0x$build_id_hex],\"git_hash\":[jstr $git_hash],\"git_dirty\":[jstr $dirty],\"vivado\":[jstr [version -short]],\"clk_period_ns\":[jnum $period],\"wns_ns\":[jnum $wns],\"whs_ns\":[jnum $whs],\"lut\":$lut,\"ff\":$ff,\"dsp\":$dsp,\"bram\":$bram,\"fmax_est_mhz\":[jnum $fmax],\"enable_strip\":$es,\"min_dsp\":$min_dsp,\"latches\":$n_latch,\"drc_errors\":$n_drc_err,\"generics\":\{[join $gj ,]\},\"bitfile\":[jstr $bitfile],\"pass\":[expr {$pass ? "true" : "false"}],\"failures\":\[[join $fj ,]\]\}"
+set json "\{\"tag\":[jstr $tag],\"top\":[jstr $top],\"part\":[jstr $PART],\"build_id\":[jstr 0x$build_id_hex],\"git_hash\":[jstr $git_hash],\"git_dirty\":[jstr $dirty],\"vivado\":[jstr [version -short]],\"clk_period_ns\":[jnum $period],\"wns_ns\":[jnum $wns],\"whs_ns\":[jnum $whs],\"lut\":$lut,\"ff\":$ff,\"dsp\":$dsp,\"bram\":$bram,\"fmax_est_mhz\":[jnum $fmax],\"enable_strip\":$es,\"rom_file\":[jstr [expr {$rom_file eq "" ? "" : [string map [list "$ROOT/" ""] $rom_file]}]],\"min_dsp\":$min_dsp,\"latches\":$n_latch,\"drc_errors\":$n_drc_err,\"generics\":\{[join $gj ,]\},\"bitfile\":[jstr $bitfile],\"pass\":[expr {$pass ? "true" : "false"}],\"failures\":\[[join $fj ,]\]\}"
 set fh [open [file join $rpt_dir summary.json] w]
 puts $fh $json
 close $fh
