@@ -8,13 +8,14 @@
 //!   reqframe OPCODE HEX        -> HEX                   = golden::packet::request_frame
 //!   rspframe STATUS HEX        -> HEX                   = golden::packet::response_frame
 //!   descvalid HEX STRIP_EN     -> "1 ok" / "0 <DescError>" = golden Descriptor::from_bytes + validate
+//!   job MODE M K N RQ AB WB OB RB a.. w.. [mult shift]..  -> golden Job::new images + expected OBUF
 //! HEX is a contiguous lowercase/uppercase hex string ("-" for empty).
 //! Any malformed request aborts with a non-zero exit (never a guessed value).
 
 use splitsys_golden::numerics::requant_unclamped;
 use splitsys_golden::packet::{request_frame, response_frame};
 use splitsys_golden::consts::MODE_STRIP;
-use splitsys_golden::{crc8, fletcher32, gemm_i32, requant, requant_is_tie, DescError, Descriptor, MatI8};
+use splitsys_golden::{crc8, fletcher32, gemm_i32, requant, requant_is_tie, Bases, DescError, Descriptor, Job, MatI8};
 use std::io::{self, BufRead, BufWriter, Write};
 
 fn hex_decode(s: &str) -> Vec<u8> {
@@ -81,6 +82,51 @@ fn main() {
             "rspframe" => {
                 let st: u8 = num(it.next());
                 hex_encode(&response_frame(st, &hex_decode(it.next().expect("hex"))))
+            }
+            "job" => {
+                // job MODE M K N RQ ABASE WBASE OBASE RQBASE a[M*K] w[K*N] (mult shift)*N if RQ=1
+                // -> golden Job::new: "desc_hex a_addr a_hex w_addr w_hex rq_addr rq_hex
+                //    out_addr obuf_hex ranges" (ranges = off:len,... relative to out_addr)
+                let mode: u8 = num(it.next());
+                let m: usize = num(it.next());
+                let k: usize = num(it.next());
+                let n: usize = num(it.next());
+                let rqf: u8 = num(it.next());
+                let bases = Bases {
+                    a: num(it.next()),
+                    w: num(it.next()),
+                    out: num(it.next()),
+                    rq: num(it.next()),
+                };
+                let a: Vec<i8> = (0..m * k).map(|_| num(it.next())).collect();
+                let w: Vec<i8> = (0..k * n).map(|_| num(it.next())).collect();
+                let rq = (rqf == 1).then(|| {
+                    (0..n)
+                        .map(|_| (num::<u16>(it.next()), num::<u8>(it.next())))
+                        .collect::<Vec<_>>()
+                });
+                assert!(it.next().is_none(), "trailing fields in job");
+                let j = Job::new(mode, MatI8::from_vec(m, k, a), MatI8::from_vec(k, n, w), rq, bases)
+                    .expect("job: descriptor invalid");
+                let ranges: Vec<String> = j
+                    .compare_ranges()
+                    .iter()
+                    .map(|(o, l)| format!("{o}:{l}"))
+                    .collect();
+                let h = |v: &[u8]| if v.is_empty() { "-".to_string() } else { hex_encode(v) };
+                format!(
+                    "{} {} {} {} {} {} {} {} {} {}",
+                    hex_encode(&j.desc.to_bytes()),
+                    j.a_byte_addr(),
+                    h(&j.a_image),
+                    j.w_byte_addr(),
+                    h(&j.w_image),
+                    j.rq_byte_addr(),
+                    h(&j.rq_image),
+                    j.out_byte_addr(),
+                    h(&j.obuf_image),
+                    ranges.join(",")
+                )
             }
             "descvalid" => {
                 // payload HEX (any length) + bitstream ENABLE_STRIP (0/1).

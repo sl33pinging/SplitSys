@@ -172,3 +172,57 @@ __all__ = [
     "pkg", "pkg_const", "seed_rng", "scaled", "rand_i8", "oracle", "golden_gemm", "gemm_req",
     "start_clock", "reset", "sval", "uval", "check", "CycleFail", "RisingEdge", "FallingEdge",
 ]
+
+
+# ----------------------------------------------------------------- cycle model
+def cycle_predict(mode: str, m: int, k: int, n: int, flags: int) -> dict:
+    """splitsys-cycle predict (sw/crates/cycle) for one descriptor; returns the JSON."""
+    import json
+    import tempfile
+    b = os.environ.get("SPLITSYS_CYCLE_BIN")
+    if not b or not os.path.exists(b):
+        raise AssertionError(f"SPLITSYS_CYCLE_BIN not built: {b} (run through make -C tb ...)")
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+        json.dump({"mode": mode, "M": m, "K": k, "N": n, "flags": flags}, f)
+        path = f.name
+    try:
+        p = subprocess.run([b, "predict", path], capture_output=True, text=True, check=False)
+    finally:
+        os.unlink(path)
+    if p.returncode != 0:
+        raise AssertionError(f"splitsys-cycle predict failed: {p.stderr[-1000:]}")
+    return json.loads(p.stdout)
+
+
+COUNTER_NAMES = ["cycles_total", "cycles_setup", "cycles_stream", "cycles_flush", "cycles_drain",
+                 "cycles_stall", "mac_useful", "mac_useful_q0", "mac_useful_q1", "mac_useful_q2",
+                 "mac_useful_q3", "tiles"]
+
+
+def model_counter_values(pred: dict) -> list[int]:
+    md = pred["model"]
+    q = md["mac_useful_q"]
+    return [md["cycles_total"], md["cycles_setup"], md["cycles_stream"], md["cycles_flush"],
+            md["cycles_drain"], md["cycles_stall"], md["mac_useful"], q[0], q[1], q[2], q[3],
+            md["tiles"]]
+
+
+_PRED_CACHE: dict = {}
+
+
+def cycle_predict_many(keys, workers: int = 16) -> None:
+    """Prefetch splitsys-cycle predictions for (mode, M, K, N, flags) keys in parallel
+    (each CLI call costs ~1 s on this machine); results land in the cache used by
+    cycle_predict_cached."""
+    from concurrent.futures import ThreadPoolExecutor
+    todo = sorted({k for k in keys if k not in _PRED_CACHE})
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        for k, r in zip(todo, ex.map(lambda k: cycle_predict(*k), todo)):
+            _PRED_CACHE[k] = r
+
+
+def cycle_predict_cached(mode: str, m: int, k: int, n: int, flags: int) -> dict:
+    key = (mode, m, k, n, flags)
+    if key not in _PRED_CACHE:
+        _PRED_CACHE[key] = cycle_predict(*key)
+    return _PRED_CACHE[key]
