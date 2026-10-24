@@ -63,6 +63,7 @@ Last result: `ALL REQUIRED OK`, exit 0. Optional WARNs: socat, ccache, mold (wai
 | help2man 1.49.3 | same | `~/.local/bin/help2man` |
 | **Verilator 5.052** (tag `v5.052`, 2026-09-05, the latest stable tag on GitHub at setup time) | `scripts/setup_env.sh verilator`: git clone, checkout tag, `autoconf && ./configure --prefix=$HOME/.local && make -j24 && make install`. Build log: `~/.cache/splitsys/verilator_build.log` | `~/.local/bin/verilator`, `~/.local/share/verilator`; source `~/src/verilator` |
 | Python venv (python 3.12.3) with cocotb 2.1.0, pytest 9.1.1 | `scripts/setup_env.sh venv` (`pip install -r scripts/requirements.txt`) | `~/.cache/splitsys/venv` |
+| rust-std for `x86_64-pc-windows-msvc` (WSL-side rustup target, 23.6 MB) | `rustup target add x86_64-pc-windows-msvc`. Lets WSL type-check the host for Windows (`cargo check --target x86_64-pc-windows-msvc`). It cannot link Windows binaries. | `~/.rustup` |
 
 **Venv decision:** the venv is at `~/.cache/splitsys/venv` (ext4), not `.venv/` on `/mnt/c`, for import and build speed. `env.sh` activates it. `.venv/` is unused (and gitignored).
 
@@ -160,8 +161,47 @@ scripts/screenshot http://127.0.0.1:8080/ results/plots/scene1.png 1920,1080
 ## USB strategy
 
 **Default: (b), pending the human's confirmation in Phase H.** Build and run `splitsys-host` natively on Windows against the board's COM port. Windows Vivado programs over JTAG. Nothing moves between WSL and Windows during the demo.
-- Windows-side Rust is **not installed** (`where.exe cargo rustup` finds nothing). **Pre-Phase-H checklist item (human, Windows approval):** install rustup-init.exe (stable, MSVC host). That also needs the MSVC build tools / Windows SDK if they are absent; check `where.exe link` then. Then run `cargo build --release -p splitsys-host` from `C:\Users\danie\FPGA_Projects\Calhack2026\sw` in a Windows shell. Do not use the WSL `CARGO_TARGET_DIR` for this.
+- Windows-side Rust is **not installed**. The steps are in the next section.
 - Strategy (a) fallback: usbipd-win 5.3.0 is installed (`usbipd.exe` present), so `usbipd attach --wsl` is available if (b) fails.
+
+## Windows host build (USB strategy b)
+
+### What the Windows side already has (read-only check, 2026-10-24)
+- **Rust: absent.** No `cargo`, `rustup`, or `rustc` on PATH, and no `%USERPROFILE%\.cargo` or `%USERPROFILE%\.rustup`.
+- **MSVC: present.** `vswhere.exe` reports **Visual Studio Build Tools 2026** (18.2.11415.280) at `C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools`. It has the workload `Microsoft.VisualStudio.Workload.VCTools` ("Desktop development with C++") and the component `VC.Tools.x86.x64`. `link.exe` is at `...\BuildTools\VC\Tools\MSVC\14.50.35717\bin\Hostx64\x64\link.exe`. `cl`/`link` are not on the normal PATH, which is expected: rustc finds them through the VS installer.
+- **Windows SDK: present.** Component `Windows11SDK.26100`, and `C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\{um,ucrt}\x64\{kernel32,ucrt}.lib` exist.
+- No MinGW gcc. C: has 150 GB free.
+
+### Toolchain choice: MSVC (`1.99.1-x86_64-pc-windows-msvc`)
+The C++ build tools and the SDK are already installed, so the MSVC toolchain needs **no** Visual Studio download. Only rustup and Rust itself are needed. The GNU toolchain would not save anything: its rustc archive alone is 103 MB against 77 MB for MSVC, and it is the less common Windows target. It stays a fallback (below). The version is pinned to **1.99.1**, the same as WSL, because CLAUDE.md forbids upgrading toolchains mid-event. `splitsys-host`'s dependency tree (serde, serde_json, clap, serialport with default features off, windows-sys) has **no C code** (`cc` is not in `Cargo.lock`), so only the linker matters.
+
+Verified from WSL: `cargo check --locked --release -p splitsys-host --target x86_64-pc-windows-msvc` passes. The Windows code paths, including serialport's, type-check. Linking was **not** verified; it needs Windows Rust.
+
+### Steps for the human (one time, before Phase H)
+1. Download `https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe` (12.7 MB).
+2. In PowerShell, from the download folder:
+   `.\rustup-init.exe -y --profile minimal --default-toolchain 1.99.1-x86_64-pc-windows-msvc`
+   It downloads about **111 MB** (measured archive sizes: rustc 77.1 MB, rust-std 23.6 MB, cargo 9.9 MB), so about **124 MB** in total with rustup-init. That takes well under a minute on a fast link and a few minutes on venue Wi-Fi. Unpacking adds roughly 1–3 minutes (Defender scanning; an estimate, not measured), and it uses several hundred MB of disk. rustup adds `%USERPROFILE%\.cargo\bin` to the user PATH; that is its only system change.
+3. Open a **new** PowerShell window (to get the new PATH) and run:
+   `powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\danie\FPGA_Projects\Calhack2026\scripts\win_build_host.ps1`
+   This runs `cargo build --release --locked -p splitsys-host` in `C:\Users\danie\FPGA_Projects\Calhack2026\sw` with `CARGO_TARGET_DIR=sw\target`. It fetches 43 crates (7.8 MB, measured with `cargo fetch --target x86_64-pc-windows-msvc`). It then checks that `sw\target\release\splitsys-host.exe --help` and `--version` run, and prints the COM ports it sees. Expected: a cold release build in roughly 1–3 minutes. That is an estimate; the WSL `cargo check` of the same tree took 17 s. It ends with `OK: ...splitsys-host.exe`.
+   - **CARGO_TARGET_DIR = `sw\target`** on purpose. It is NTFS and native for Windows, it is gitignored, and it is exactly where `demo\start_demo.ps1` looks for the binary. The WSL side builds into `~/.cache/splitsys/target`, so the two never share build artifacts.
+   - If cargo is missing, the script exits 2 and prints the install steps. If linking fails with `link.exe not found`, the VS C++ workload is broken: in the VS Installer, *Modify* Build Tools 2026, then *Desktop development with C++*. That should not be needed; it is installed.
+   - GNU fallback, only if MSVC linking fails: `rustup toolchain install 1.99.1-x86_64-pc-windows-gnu --profile minimal` (about 150 MB), then `cd sw; cargo +1.99.1-x86_64-pc-windows-gnu build --release --locked -p splitsys-host`. It ships its own MinGW linker parts (`rust-mingw`).
+4. Optional board check once the board is plugged in: `scripts\win_build_host.ps1 -Ping`, or `-Ping -Transport serial:COM5`.
+
+### Finding the COM port
+- `splitsys-host --transport serial:auto ping` uses the port if exactly one exists. With zero or several, it fails and prints every port as `COMn (USB vid:pid product)`.
+- Device Manager → *Ports (COM & LPT)* → "USB Serial Port (COMn)". PowerShell: `[System.IO.Ports.SerialPort]::GetPortNames()`, or `Get-CimInstance Win32_PnPEntity | Where-Object Name -match 'COM\d+' | Select-Object Name, DeviceID`.
+- The Urbana's FT2232H has two channels. Per the schematic, channel A is JTAG and **channel B is the UART**. If Windows shows **two** COM ports for the board, `serial:auto` refuses. Pick channel B: its FTDI `DeviceID` usually ends in `B` (for example `FTDIBUS\VID_0403+PID_6010+...B\0000`). VID/PID 0403:6010 and the A/B suffix convention come from memory of FTDI's drivers and are **not verified**. If Vivado's JTAG driver claims channel A, only one COM port appears. Record what the board actually shows at H-2.
+- Close PuTTY or any other program holding the port before running the host. Only one program can open a COM port at a time.
+
+### Running the demo (`demo\start_demo.ps1`, owner host-dashboard)
+`powershell -NoProfile -ExecutionPolicy Bypass -File demo\start_demo.ps1 [-Transport serial:COM5] [-Port 8080] [-Replay results\hw] [-Attract] [-NoBrowser]`, or double-click `demo\start_demo.bat`, which takes an optional `serial:COM5` argument. What it does:
+1. Uses `$env:SPLITSYS_HOST` if set, else `sw\target\release\splitsys-host.exe`, else `sw\target\debug\...`. It does not build: build first with step 3.
+2. Runs `ping` on the transport (default `serial:auto`). A failure is only a warning, which suggests the COM port or `-Replay results\hw`.
+3. Starts `splitsys-host --transport <T> --results results serve --port <P>` minimized, and waits up to 15 s for `http://127.0.0.1:<P>/api/state`.
+4. Opens Edge in kiosk mode (`--kiosk`, profile `%TEMP%\splitsys_kiosk`). Alt+F4 closes it. The server process keeps running until it is closed.
 
 ## Sudo request (one command, optional)
 
@@ -178,5 +218,5 @@ It provides: `socat` (handy for cosim debugging; `check_env` marks it OPTIONAL),
 - A cocotb+Verilator smoke run takes about 30 s, mostly Verilator's C++ compile. ccache will help once installed.
 - Vivado batch startup is about 30 s per launch. Batch several steps into one Tcl run.
 - cmd.exe prints `UNC paths are not supported` if a Windows program is started from a WSL-only cwd. `scripts/vivado` and `scripts/screenshot` avoid this by using a `C:` cwd.
-- Twice, early in setup, stdout from a `scripts/wsl` call was missing from the agent tool output when that call was chained with other Windows commands in the same Bash invocation. It did not reproduce in isolation (10+ reruns). If output looks truncated, rerun the `scripts/wsl` call alone and trust its exit code.
+- Twice, early in setup, stdout from a `scripts/wsl` call was missing from the agent tool output when that call was chained with other Windows commands in the same Bash invocation. It did not reproduce in isolation (10+ reruns). If output looks truncated, rerun the `scripts/wsl` call alone and trust its exit code. Related: the agents' Bash tool appears to show **only stderr** when a command's overall exit status is non-zero. This was seen again with a failing heredoc. End diagnostic chains with `; true`, or print `rc=$?`, if you need the stdout.
 - `C:` has 160 GB free. Vivado runs under `fpga/build/` are fine, but do not keep many full runs.
