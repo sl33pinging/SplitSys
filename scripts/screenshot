@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Headless screenshot through Windows-side Microsoft Edge (no Linux browser deps).
+# Works from WSL and Git Bash. WSL services on 127.0.0.1 are reachable from
+# Windows via WSL2 localhost forwarding.
+#
+#   scripts/screenshot http://127.0.0.1:8080/ results/plots/scene1.png [1920,1080]
+#
+# The output path must be on a Windows drive (the repo is on C:, so any repo
+# path works). Exit 0 only if the PNG was written.
+# Owner: toolchain-engineer. See docs/ENV.md "Dashboard screenshots".
+set -u
+if [ $# -lt 2 ]; then
+    echo "usage: scripts/screenshot <url> <out.png> [W,H]" >&2; exit 2
+fi
+url="$1"; out="$2"; size="${3:-1920,1080}"
+case "$out" in /*) ;; *) out="$PWD/$out" ;; esac
+mkdir -p "$(dirname "$out")"
+out="$(cd "$(dirname "$out")" && pwd)/$(basename "$out")"
+
+if grep -qi microsoft /proc/version 2>/dev/null; then
+    re='^/mnt/([a-zA-Z])(/.*)$'
+    edge="/mnt/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
+    tmpw="$(cd /mnt/c && cmd.exe /d /c echo %TEMP% 2>/dev/null | tr -d '\r')"
+else
+    re='^/([a-zA-Z])(/.*)$'
+    edge="/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
+    tmpw="$(cygpath -w "${TEMP:-/tmp}")"
+fi
+if ! [[ "$out" =~ $re ]]; then
+    echo "scripts/screenshot: output '$out' must be on a Windows drive (e.g. inside the repo)" >&2; exit 2
+fi
+outw="$(printf '%s' "${BASH_REMATCH[1]}" | tr 'a-z' 'A-Z'):${BASH_REMATCH[2]}"
+outw="${outw//\//\\}"
+[ -x "$edge" ] || { echo "scripts/screenshot: Edge not found at $edge" >&2; exit 1; }
+
+rm -f "$out"
+profile="$tmpw\\splitsys_edge_headless"
+MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' "$edge" --headless=new --disable-gpu --hide-scrollbars \
+    --no-first-run --no-default-browser-check --user-data-dir="$profile" \
+    --window-size="$size" --virtual-time-budget=5000 --screenshot="$outw" "$url" >/dev/null 2>&1
+# msedge.exe may return before the file is flushed; wait up to 30 s.
+for _ in $(seq 1 60); do
+    [ -s "$out" ] && { echo "wrote $out"; exit 0; }
+    sleep 0.5
+done
+echo "scripts/screenshot: no screenshot written to $out" >&2
+exit 1
