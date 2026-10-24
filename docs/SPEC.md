@@ -2,7 +2,7 @@
 
 This document is the contract between RTL, the Rust models, the host, and the dashboard. `spec-steward` owns it. Values marked **[spec.toml]** must be defined in `spec/spec.toml` and consumed through codegen, never hard-coded twice.
 
-**Codegen.** `cd sw && cargo run -p splitsys-spec --bin gen` validates `spec/spec.toml` and writes `rtl/gen/splitsys_pkg.sv` (SystemVerilog `package splitsys_pkg`) and `sw/crates/spec/src/generated.rs` (re-exported as `splitsys_spec::*`). `--check` verifies both are current without writing. Names are identical on both sides (`ROWS`, `L_PE`, `OP_RUN_GEMM`, `ST_NACK_RANGE`, `CTR_TILES`, ...); SV opcodes, status codes, poll states, modes, and regions are `typedef enum logic [7:0]` (`opcode_e`, `status_e`, `poll_e`, `mode_e`, `region_e`). v1.1 resolves the ambiguities listed in `docs/DECISIONS.md` (D-001 to D-015; later entries follow).
+**Codegen.** `cd sw && cargo run -p splitsys-spec --bin gen` validates `spec/spec.toml` and writes `rtl/gen/splitsys_pkg.sv` (SystemVerilog `package splitsys_pkg`) and `sw/crates/spec/src/generated.rs` (re-exported as `splitsys_spec::*`). `--check` verifies both are current without writing. Names are identical on both sides (`ROWS`, `L_PE`, `WBUF_AW`, `PING_MAGIC_LE`, `OP_RUN_GEMM`, `ST_NACK_RANGE`, `CTR_TILES`, ...; a test enforces this, and the only exceptions are the Rust-only tables listed in D-018); SV opcodes, status codes, poll states, modes, and regions are `typedef enum logic [7:0]` (`opcode_e`, `status_e`, `poll_e`, `mode_e`, `region_e`). v1.1 resolves the ambiguities listed in `docs/DECISIONS.md` (D-001 to D-015; later entries follow).
 
 ---
 
@@ -97,7 +97,7 @@ One clock domain. No DDR3 (out of scope).
 - **Ports:** `clk, rst, a_in[7:0] signed, a_vld_in, a_first_in, w_in[7:0] signed, a_out, a_vld_out, a_first_out, w_out, acc_out[31:0] signed`.
 - **Behavior:** when `a_vld_in` is set, `acc <= a_first_in ? a*w : acc + a*w`. Operands are forwarded one register stage per PE in each direction.
 - `first` and `vld` travel **with the activation**. Because A and W meet in lockstep, this is sufficient.
-- **Implementation:** infer one DSP48E1 (`(* use_dsp = "yes" *)`) with input, multiply, and P registers. The PE pipeline latency `L_PE` **[spec.toml]** is the cycles from operand entry to `acc` updated (expected 3).
+- **Implementation:** infer one DSP48E1 (`(* use_dsp = "yes" *)`) with input, multiply, and P registers. The PE pipeline latency `L_PE` **[spec.toml]** is the cycles from operand entry to `acc` updated = 3, confirmed by RTL (D-016).
 - **Acceptance:** 64 DSPs in the synthesized array; no LUT multipliers.
 
 ### 3.2 Array and modes (`rtl/array.sv`)
@@ -181,7 +181,8 @@ All sums are evaluated without wraparound (the bases are u32; RTL may first requ
 
 - **Tile order:** column-block outer, row-block inner. FULL tiles are 8×8; STRIP tiles are 4×16.
 - **TILE_SETUP** loads the 16 (or 8) requant parameters for the tile's columns. It takes `L_SETUP` cycles **[spec.toml]**, in both modes and for both flags values (the length does not depend on mode, so the model has one constant).
-- **STREAM** issues K reads per buffer; the state lasts `L_RD + K` cycles so the last read's data has left the BRAM. The address generator selects the half-word lanes per mode and tile parity.
+- **STREAM** issues K reads per buffer, read k in cycle `s + k`, where s is the first STREAM cycle. The state lasts `L_RD + K` cycles. The address generator selects the half-word lanes per mode and tile parity.
+- **Operand arrival (normative, D-019).** Read k's BRAM data appears in cycle `s + k + L_RD` and passes exactly **one** register (the lane-select register) before the array. So word k is at the array input port in cycle `s + OPERAND_PORT_OFFSET + k`, with `OPERAND_PORT_OFFSET = L_RD + 1` = 3 **[spec.toml, derived]**. It is at the port of PE(r, c) in `s + L_RD + 1 + k + r + c`, and PE(4+i, c) in STRIP also at `+ 4 + i + c` (§3.2). The **last word (k = K-1) reaches the array port in the first FLUSH cycle** `f0 = s + L_RD + K`. PE(r, c)'s accumulator is final from `f0 + r + c + L_PE`, so PE(7,7) is final exactly at the first DRAIN cycle `f0 + 14 + L_PE`: FLUSH has zero slack for PE(7,7) by construction. Drain reads row slots in order, so PE(7,·) is read last: FULL has ≥ 7 cycles of margin and STRIP ≥ 3 (rtl/sequencer.sv 3786ad1, `operand_port_offset` in splitsys-cycle). Changing the register count between BRAM and array changes `OPERAND_PORT_OFFSET`, and then the FLUSH length must change in spec.toml with it.
 - **FLUSH** waits `(R-1)+(C-1)+L_PE` cycles for the last products to land.
 - **DRAIN** reads results row by row, one OBUF write per cycle: FULL int8 reads 8 rows × 8 lanes (8 cycles), STRIP int8 reads 4 rows × 16 lanes (4 cycles). int32 bypass: FULL 8 rows × 2 writes = 16 cycles, STRIP 4 rows × 4 writes = 16 cycles (D-004).
 - **WRITEBACK** waits `L_RQ + L_WB` cycles for the requant pipeline and the last OBUF write to complete.
@@ -222,7 +223,7 @@ While a job runs, READ_COUNTERS returns live (not frozen) values.
 
 ### 3.8 Host link (`rtl/uart_rx.sv`, `uart_tx.sv`, `packet.sv`)
 
-- **UART:** 8N1, 16× oversampling, `BAUD` **[spec.toml]**. Start at 115200; raise only after the loopback test passes 10,000 packets with zero errors (try 921600, then higher if the bridge allows).
+- **UART:** 8N1, 16× oversampling, `BAUD` **[spec.toml]** (115200, `BAUD_DIV = 54`). Raise it only after the loopback test passes 10,000 packets with zero errors, and only to a baud the integer 16× divider hits within 2% at 100 MHz. **921600 is not allowed:** the divider rounds to 7, a 3.1% error, and codegen rejects it (D-014). Candidates: 1,562,500 (divider 4, exact) or 3,125,000 (divider 2, exact), if the USB-UART bridge supports them. Otherwise add a fractional (accumulator) baud generator first.
 - **Request frame:** `0xA5 | opcode u8 | len u16 | payload[len] | crc8`.
 - **Response frame:** `0x5A | status u8 | len u16 | payload[len] | crc8`.
 - **CRC-8:** polynomial 0x07, init 0x00, computed over every byte after the sync byte, up to and including the payload.
@@ -240,13 +241,14 @@ While a job runs, READ_COUNTERS returns live (not frozen) values.
 | 0x40 | SELFTEST | — | pass_full u8, pass_strip u8, fletcher32 u32 ×2 |
 | 0x50 | SET_DISPLAY | util_permille u16, mode u8 | — (drives the 7-segment display) |
 
-**Regions:** 0 WBUF, 1 ABUF, 2 OBUF, 3 RQPARAM. A timeout of `RX_TIMEOUT` cycles between bytes resets the frame parser.
+**Regions:** 0 WBUF, 1 ABUF, 2 OBUF, 3 RQPARAM. An inter-byte gap longer than `RX_TIMEOUT` cycles resets the frame parser; the exact rule is in the protocol details below.
 
 `build_id` is a 32-bit generic set at synthesis from the short git hash. The host and dashboard display it.
 
 **Protocol details (v1.1, D-010).** All multi-byte fields little-endian, including `len`.
 - **CRC-8** is CRC-8/SMBUS: MSB-first, no reflection, no final XOR; check value of ASCII `"123456789"` = 0xF4 (`CRC8_CHECK`). Request CRC covers `opcode, len(2), payload`; response CRC covers `status, len(2), payload`.
-- **`RX_TIMEOUT` = 1,000,000 cycles (10 ms at 100 MHz)** of line idle inside a frame resets the parser to hunt for `0xA5`. Rationale: ≈ 115 byte times at 115200 baud (tolerates USB-UART scheduling gaps between host packets), still invisible to a human, and ≥ 2 byte times at any baud we might use. Testbenches may override it through the receiving module's parameter (default = package value) to keep truncated-frame tests short.
+- **Strictly request/response (D-019).** The device parses one request, executes it, and sends its complete response before it parses the next request. **Bytes that arrive while a command executes or while its response is being sent are discarded** (they are not queued). The host must wait for each response, or for its own response timeout, before it sends the next request. A byte other than `0xA5` while the parser is hunting for a frame is ignored.
+- **`RX_TIMEOUT` = 1,000,000 cycles (10 ms at 100 MHz), exact boundary (D-019).** Gaps are measured in core clock cycles between the `rx_valid` strobes of consecutive received bytes of one frame (`uart_rx` raises one single-cycle strobe per byte, at mid-stop-bit), starting from the sync byte. If a frame byte's strobe is in cycle t, the frame continues when the next strobe is in cycle t + g with **g ≤ RX_TIMEOUT**. If no strobe occurs in cycles t+1 .. t+RX_TIMEOUT, then at the end of cycle t + RX_TIMEOUT the parser drops the frame silently and hunts for `0xA5` again from cycle t + RX_TIMEOUT + 1. An oversize frame being dropped answers NACK_RANGE at that point. Note that g includes the next byte's own character time (10 bit times, 8,681 cycles at 115200 baud), so the true line-idle tolerance is `RX_TIMEOUT` minus one character time. This is what `rtl/packet.sv` implements: `to_cnt` clears on each strobe and the frame is reset when `to_cnt == RX_TIMEOUT-1` with no strobe in that cycle. Rationale for the value: about 115 byte times at 115200 baud, which tolerates USB-UART scheduling gaps between host USB packets and is still invisible to a human. Codegen enforces ≥ 2 byte times. Testbenches may override the `RX_TIMEOUT_CYC` module parameter (default = the package value) to keep truncated-frame tests short.
 - **Error precedence:** bad CRC → NACK_CRC (payload ignored); unknown opcode → NACK_OPCODE; then BUSY; then payload-length or range errors → NACK_RANGE. Error responses have `len = 0`. A frame with `len > MAX_PAYLOAD` is not buffered: the parser drops it, waits for `RX_TIMEOUT` of idle, and sends NACK_RANGE.
 - **BUSY:** while a RUN_GEMM job or self-test runs, `RUN_GEMM`, `SELFTEST`, `WRITE_MEM`, and `READ_MEM` get BUSY. `PING`, `POLL`, `READ_COUNTERS`, and `SET_DISPLAY` are always served.
 - **PING** (request len 0): response `"SPLT"` (bytes 0x53 0x50 0x4C 0x54, `PING_MAGIC`), `PROTO_VERSION` u8 (= 1), `build_id` u32; len 9.

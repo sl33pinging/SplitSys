@@ -85,3 +85,27 @@ Append-only. Owner: `spec-steward`. Each entry: date, decision, reason, affected
 **Reason.** rtl-designer A's report (Vivado OOC + smoke tests), relayed by the lead.
 **Note.** `L_RQ` is a **sequencer-level** latency (drain mux + requant). The standalone `requant.sv` module latency is `L_RQ - 1 = 6`. A unit test of `requant.sv` alone must expect 6, not `L_RQ`. See tb BUG-001, which compared 6 against the old L_RQ = 4.
 **Affects.** spec.toml `[latency.*]`; rtl/gen; generated.rs; cycle (results must be regenerated); tb requant latency test; rtl sequencer.
+
+### D-017 — All seven latencies confirmed by RTL (2026-10-24)
+**Decision.** `L_SETUP = 16`, `L_RQ = 7`, `L_WB = 1`, `L_ACCEPT = 1`, `L_DONE = 1` are now `provisional = false`, joining `L_PE = 3` and `L_RD = 2` (D-016). Every `*_PROVISIONAL` const is false. They are now also emitted in SV as `localparam bit L_*_PROVISIONAL`.
+**Reason.** rtl-designer's sequencer.sv and core.sv (3786ad1) implement exactly these values. Its Verilator smoke `tb_core` ran 283 golden jobs (FULL and STRIP, int8 and int32, edge shapes, K = 1 and 256, drain boundary) and found the OBUF bit-exact and **every counter equal to `splitsys-cycle` predict**. It also ran 175 FULL jobs with STRIP_EN = 0. verification-engineer's independent tb/core will re-check; if it disagrees, the value goes back to provisional through spec-steward.
+**Affects.** spec.toml `[latency.*]`; generated files; perf-modeler must regenerate results with `latencies_provisional = false`.
+
+### D-018 — SV/Rust name parity enforced by test (2026-10-24)
+**Decision.** D-015 claimed identical names but the outputs had drifted. They are now unified, and the test `sv_and_rust_names_match` fails on any future drift:
+- Rust `*_ADDR_BITS` was renamed to **`*_AW`** (`WBUF_AW`, `ABUF_AW`, `OBUF_AW`, `RQ_AW`; type u32), the name the RTL already uses. No Rust consumer used `*_ADDR_BITS` (grep of sw/, tb/), so no alias was kept.
+- Rust gained `*_WORD_BITS` and **`PING_MAGIC_LE: u32`** (SV already had them).
+- SV gained `DESC_SIZE_*` and `L_*_PROVISIONAL`.
+- Both gained `OPERAND_PORT_OFFSET` (D-019) and `FLETCHER32_CHECK_ABCDEFGH = 0xEBE19591`. SPEC §3.9 listed three check values but only two existed; this is the value golden already tests.
+**Documented Rust-only names** (tables and conveniences that have no SV equivalent): `SPEC_VERSION`, `PING_MAGIC` (`[u8; 4]`, the same bytes as `PING_MAGIC_LE`), `LATENCIES`, `REGIONS`, `OPCODES`, `STATUSES`, `COUNTER_NAMES`, `BENCH_SHAPES`, `BENCH_M_SWEEP`, `BENCH_M_DECODE`, `BENCH_M_PREFILL`. There are no SV-only names. Types still differ by language (D-015), for example `W_SKEW_BASE_STRIP` is a packed `logic [127:0]` in SV and `[usize; 16]` in Rust.
+**Reason.** Lead review. No RTL rename was needed: Rust moved to the SV names, which rtl/ already uses (`*_AW` in core, packet, selftest, sequencer; `PING_MAGIC_LE` in packet).
+**Affects.** Rust consumers only gain names. Nothing in rtl/ or tb/ changes.
+
+### D-019 — Operand arrival offset, strict request/response, exact RX timeout, baud plan (2026-10-24)
+**Decision.**
+1. Word k is at the array input port in `s + OPERAND_PORT_OFFSET + k`, where `OPERAND_PORT_OFFSET = L_RD + 1` (one lane-select register between BRAM and array). The last word reaches the array in the first FLUSH cycle, and PE(7,7) is final exactly at the first DRAIN cycle (zero slack for PE(7,7); drain order gives FULL ≥ 7 and STRIP ≥ 3 cycles of margin). `OPERAND_PORT_OFFSET` is a derived constant in both languages.
+2. The protocol is strictly request/response. Bytes that arrive while a command executes or while its response is sent are discarded, and the host must wait for each response.
+3. RX timeout: with consecutive frame-byte `rx_valid` strobes at t and t+g, the frame continues iff `g ≤ RX_TIMEOUT`. Otherwise the parser resets at the end of cycle `t + RX_TIMEOUT`. The gap g includes one character time.
+4. SPEC §3.8 no longer says "try 921600" (contradicted D-014). Allowed upgrades are 1,562,500 or 3,125,000 baud (exact dividers 4 and 2), or a fractional generator.
+**Reason.** Lead review. Items 1–3 pin behavior that RTL already implements (rtl/sequencer.sv header, rtl/packet.sv `to_cnt == TIMEOUT-1` with no strobe) and that splitsys-cycle (`operand_port_offset`) and host must match, so that the zero-slack boundary and the timeout edge cannot drift.
+**Affects.** SPEC §3.5, §3.8; host driver (wait for each response; do not pipeline requests), verification (timeout edge tests at g = RX_TIMEOUT and RX_TIMEOUT+1).
