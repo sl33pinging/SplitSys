@@ -1,5 +1,5 @@
 // =============================================================================
-// skew.sv -- per-lane delay line for systolic operand skew (SPEC §3.3)
+// skew.sv -- per-lane delay line for systolic operand skew (SPEC sec. 3.3)
 // -----------------------------------------------------------------------------
 // Lane j is delayed by exactly  D(j) = BASE[j] + j  clock cycles. Data, vld and
 // first of a lane travel through the same registers, so they stay together.
@@ -8,11 +8,13 @@
 //   LANES   number of lanes
 //   WIDTH   data bits per lane
 //   BASE    per-lane extra delay, packed 8 bits per lane: BASE[8*j +: 8].
-//           A skew:            BASE = 0 for every lane            (D = j)
-//           W skew (STRIP on): lanes 0-7 base 0, lanes 8-15 base 4 (D = c, 4+c)
+//           A skew:                        BASE = 0 per lane  (D = r)
+//           W skew, top edge  (W lanes 0-7):  BASE = 0 per lane  (D = c)
+//           W skew, row-4 entry (W lanes 8-15, STRIP only; a separate
+//             8-lane instance, so j = c there): BASE = 4 per lane (D = 4 + c)
 //   FLAGS   1: carry vld/first per lane. 0: no flag registers are built and
 //           out_vld/out_first are tied to 0 (used for the W path, whose
-//           validity travels with the activations, SPEC §3.1).
+//           validity travels with the activations, SPEC sec. 3.1).
 //
 // Ports (lane j of a packed bus is bus[j])
 //   in_data/in_vld/in_first    lane inputs, sampled every cycle

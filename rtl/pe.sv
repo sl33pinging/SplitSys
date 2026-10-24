@@ -1,12 +1,12 @@
 // =============================================================================
-// pe.sv -- SplitSys processing element (SPEC §3.1)
+// pe.sv -- SplitSys processing element (SPEC sec. 3.1)
 // -----------------------------------------------------------------------------
 // Output-stationary int8 MAC. Activations move right, weights move down, the
 // partial sum stays in place. Maps onto exactly one DSP48E1:
 //
-//   port ──► [A/B reg] ──► (×) ──► [M reg] ──► (+) ──► [P reg] = acc
-//    a_in    a_q, w_q              m_q          ▲        │
-//    w_in    (also forwarded                    └── first ? 0 : P (opmode Z mux)
+//   port --> [A/B reg] --> (x) --> [M reg] --> (+) --> [P reg] = acc
+//    a_in    a_q, w_q              m_q          ^        |
+//    w_in    (also forwarded                    +-- first ? 0 : P (opmode Z mux)
 //             to the neighbours)
 //
 // Ports
@@ -28,7 +28,7 @@
 //
 // Invariants
 //   * vld/first are delayed through the same register stages as the operands,
-//     so a MAC can never pick up a stale `first` (SPEC §8).
+//     so a MAC can never pick up a stale `first` (SPEC sec. 8).
 //   * No saturation: with K <= 256, |acc| <= 256*128*128 = 2^22 << 2^31.
 //   * Synchronous active-high reset clears every register (maps to the DSP's
 //     RSTA/RSTB/RSTM/RSTP pins).
