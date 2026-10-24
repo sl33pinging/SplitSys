@@ -85,6 +85,10 @@ pub mod spec {
     pub const L_WB: u64 = s::L_WB;
     pub const L_ACCEPT: u64 = s::L_ACCEPT;
     pub const L_DONE: u64 = s::L_DONE;
+    /// Cycles from STREAM start to word 0 at the array port (D-018, = L_RD + 1).
+    pub const OPERAND_PORT_OFFSET: u64 = s::OPERAND_PORT_OFFSET;
+    /// Registers between the BRAM output and the array port (= 1).
+    pub const PORT_REGS_AFTER_BRAM: u64 = OPERAND_PORT_OFFSET - L_RD;
     /// True while any latency in spec.toml is still marked `provisional`.
     pub const LATENCIES_PROVISIONAL: bool = s::L_PE_PROVISIONAL
         || s::L_RD_PROVISIONAL
@@ -511,9 +515,13 @@ pub fn phase_walk(d: &Descriptor, lat: &Latencies) -> Counters {
 /// (k = K-1) reaches the array port in the first FLUSH cycle, i.e.
 /// `s + L_RD + K = s + (L_RD + 1) + (K - 1)`. The offset is therefore derived
 /// from the two spec state lengths, not chosen.
+///
+/// Source: `splitsys_spec::OPERAND_PORT_OFFSET` (D-018, = `L_RD + 1`). It is
+/// split as `lat.l_rd + (OPERAND_PORT_OFFSET - L_RD)` so that a calibrated
+/// `L_RD` passed in `lat` moves the offset with it while the register count
+/// between BRAM and array (1) still comes from the spec.
 pub fn operand_port_offset(lat: &Latencies) -> u64 {
-    // stream length (L_RD + K) minus the index of the last read (K - 1).
-    lat.l_rd + 1
+    lat.l_rd + spec::PORT_REGS_AFTER_BRAM
 }
 
 /// Cycle (from accept = 0) in which operand pair k is at the input port of

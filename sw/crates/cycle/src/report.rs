@@ -400,7 +400,7 @@ pub fn explain(s: &Sweep) -> String {
     let prov = if s.latencies_provisional {
         " (PROVISIONAL latencies, not yet confirmed against RTL)"
     } else {
-        ""
+        " (latencies confirmed against the RTL in spec.toml, D-017)"
     };
 
     let mut o = String::new();
@@ -415,6 +415,14 @@ pub fn explain(s: &Sweep) -> String {
         o,
         "Latencies used: L_ACCEPT={}, L_SETUP={}, L_RD={}, L_PE={}, L_RQ={}, L_WB={}, L_DONE={}.\n",
         lat.l_accept, lat.l_setup, lat.l_rd, lat.l_pe, lat.l_rq, lat.l_wb, lat.l_done
+    );
+    let _ = writeln!(
+        o,
+        "**Status: MODEL predictions.** These are not measurements. Confirming the latency \
+         constants means the RTL implements these state lengths. It does not mean the model has been \
+         reconciled against counters: apart from rtl-designer's core smoke run, no Verilator system-sim or \
+         hardware counters have been compared yet. Any dashboard or pitch use must carry the `MODEL` \
+         badge until `sim`/`hw` records with per-counter error exist.\n"
     );
     let off = crate::operand_port_offset(lat);
     let _ = writeln!(

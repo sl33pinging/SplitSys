@@ -458,3 +458,18 @@ fn drain_boundary_has_zero_slack_at_last_pe() {
         }
     }
 }
+
+#[test]
+fn operand_port_offset_matches_spec_constant() {
+    assert_eq!(
+        operand_port_offset(&Latencies::default()),
+        spec::OPERAND_PORT_OFFSET
+    );
+    assert_eq!(spec::PORT_REGS_AFTER_BRAM, 1);
+    // A calibrated L_RD moves the offset with it.
+    let lat = Latencies {
+        l_rd: 5,
+        ..Latencies::default()
+    };
+    assert_eq!(operand_port_offset(&lat), 6);
+}
