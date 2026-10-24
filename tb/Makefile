@@ -19,7 +19,7 @@ ORACLE_BIN     := $(ORACLE_TARGET)/release/splitsys-tb-oracle
 export SPLITSYS_ORACLE := $(ORACLE_BIN)
 
 # Every unit suite we know about; only those whose RTL exists are run.
-ALL_UNITS := pe skew uart counters buffers requant packet array
+ALL_UNITS := pe skew uart counters buffers requant packet packet_ns array
 rtl_of_pe       := pe.sv
 rtl_of_skew     := skew.sv
 rtl_of_uart     := uart_rx.sv uart_tx.sv
@@ -27,6 +27,7 @@ rtl_of_counters := counters.sv
 rtl_of_buffers  := buffers.sv
 rtl_of_requant  := requant.sv
 rtl_of_packet   := packet.sv
+rtl_of_packet_ns := packet.sv
 rtl_of_array    := array.sv pe.sv skew.sv
 # RTL under test. Default: the COMMITTED rtl/ at HEAD, exported to the cache, so a
 # sign-off names an exact git hash and never picks up someone's uncommitted edits.

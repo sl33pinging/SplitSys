@@ -7,12 +7,14 @@
 //!   fletcher32 HEX             -> u32                   = golden::fletcher32
 //!   reqframe OPCODE HEX        -> HEX                   = golden::packet::request_frame
 //!   rspframe STATUS HEX        -> HEX                   = golden::packet::response_frame
+//!   descvalid HEX STRIP_EN     -> "1 ok" / "0 <DescError>" = golden Descriptor::from_bytes + validate
 //! HEX is a contiguous lowercase/uppercase hex string ("-" for empty).
 //! Any malformed request aborts with a non-zero exit (never a guessed value).
 
 use splitsys_golden::numerics::requant_unclamped;
 use splitsys_golden::packet::{request_frame, response_frame};
-use splitsys_golden::{crc8, fletcher32, gemm_i32, requant, requant_is_tie, MatI8};
+use splitsys_golden::consts::MODE_STRIP;
+use splitsys_golden::{crc8, fletcher32, gemm_i32, requant, requant_is_tie, DescError, Descriptor, MatI8};
 use std::io::{self, BufRead, BufWriter, Write};
 
 fn hex_decode(s: &str) -> Vec<u8> {
@@ -79,6 +81,24 @@ fn main() {
             "rspframe" => {
                 let st: u8 = num(it.next());
                 hex_encode(&response_frame(st, &hex_decode(it.next().expect("hex"))))
+            }
+            "descvalid" => {
+                // payload HEX (any length) + bitstream ENABLE_STRIP (0/1).
+                // golden: Descriptor::from_bytes (length rule) + validate (SPEC §3.5 rules 1-8).
+                // golden's validate is compiled with ENABLE_STRIP = 1; for a STRIP_EN = 0
+                // bitstream, SPEC §3.5 rule 1 additionally rejects mode STRIP.
+                let bytes = hex_decode(it.next().expect("hex"));
+                let strip_en: u8 = num(it.next());
+                match Descriptor::from_bytes(&bytes).and_then(|d| {
+                    d.validate()?;
+                    if strip_en == 0 && d.mode == MODE_STRIP {
+                        return Err(DescError::BadMode(d.mode));
+                    }
+                    Ok(())
+                }) {
+                    Ok(()) => "1 ok".to_string(),
+                    Err(e) => format!("0 {}", format!("{e:?}").replace(' ', "_")),
+                }
             }
             other => panic!("unknown oracle command {other:?}"),
         };

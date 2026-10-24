@@ -625,7 +625,20 @@ async def test_run_gemm_validation(dut):
     """RUN_GEMM: each SPEC §3.5 rule violated alone -> NACK_RANGE and no run; legal and
     boundary-legal descriptors -> handshake (run_desc == payload) then ACK."""
     tb, ck = await setup(dut, "test_run_gemm_validation")
+    strip_en = int(os.environ.get("PKT_STRIP_EN", "1"))
     cases = gemm_cases()
+    # Expected accept/reject: golden Descriptor::from_bytes + validate via tb/oracle
+    # (`descvalid`, with this build's STRIP_EN). The SPEC-text intent of each case is
+    # cross-checked against golden; a disagreement is a golden/spec finding, not RTL.
+    gold = oracle([f"descvalid {d.hex()} {strip_en}" for (_, d, _) in cases])
+    checked = []
+    for (label, d, intent), g in zip(cases, gold):
+        ok = g.split()[0] == "1"
+        intent_here = intent and not (strip_en == 0 and d[0] == 1)
+        check(ok == intent_here, f"[{label}] golden validate disagrees with SPEC §3.5 intent",
+              desc=d.hex(), golden=g, spec_intent=intent_here, strip_en=strip_en)
+        checked.append((label + ("" if ok else f" [{g.split()[1]}]"), d, ok))
+    cases = checked
     frames = reqframes([(RUN_GEMM, d) for (_, d, _) in cases])
     for (label, d, ok), f in zip(cases, frames):
         await wait_seq_idle(tb)
@@ -639,7 +652,8 @@ async def test_run_gemm_validation(dut):
         else:
             check(len(tb.accepted) == n0, f"[{label}] rejected descriptor started a job")
     n_ok = sum(1 for c in cases if c[2])
-    dut._log.info(f"{len(cases)} descriptors ({n_ok} legal, {len(cases) - n_ok} single-rule violations); "
+    dut._log.info(f"STRIP_EN={strip_en}: {len(cases)} descriptors ({n_ok} legal, {len(cases) - n_ok} rejected; "
+                  f"expectations from golden validate); "
                   f"{ck.verify()} responses golden-exact")
     tb.check_errors()
 
@@ -816,3 +830,28 @@ async def test_back_to_back_and_random(dut):
     dut._log.info(f"{n} random frames back to back ({big_frames} with >= 1000 B payload), "
                   f"{tb.n_writes} mem writes, {tb.n_reads} mem reads: {nv} responses golden-exact, "
                   f"memory image exact, 0 errors")
+
+
+@cocotb.test()
+async def test_poll_error_priority(dut):
+    """POLL priority with the seq_error level (reserved; core ties it to 0 in the MVP, so
+    only the packet unit can exercise it): busy > error > done > idle (packet.sv header,
+    SPEC §3.8 POLL states)."""
+    tb, ck = await setup(dut, "test_poll_error_priority", busy_len=(3000, 3000), accept_delay=(5, 5))
+    POLL_ERROR = 3
+    f_poll, f_run = reqframes([(POLL, b""), (RUN_GEMM, desc())])
+    dut.seq_error.value = 1
+    _, r = await tb.xact(f_poll)
+    ck.add("error, not done", f_poll, r, ACK, bytes([POLL_ERROR]))
+    _, r = await tb.xact(f_run)
+    ck.add("run", f_run, r, ACK)
+    _, r = await tb.xact(f_poll)
+    ck.add("busy beats error", f_poll, r, ACK, bytes([POLL_BUSY]))
+    await wait_seq_idle(tb)
+    _, r = await tb.xact(f_poll)
+    ck.add("error beats done", f_poll, r, ACK, bytes([POLL_ERROR]))
+    dut.seq_error.value = 0
+    _, r = await tb.xact(f_poll)
+    ck.add("done after error clears", f_poll, r, ACK, bytes([POLL_DONE]))
+    ck.verify()
+    tb.check_errors()
