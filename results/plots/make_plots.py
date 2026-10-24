@@ -20,6 +20,8 @@ Output is deterministic: no timestamps, fixed SVG hash salt, no PNG software tag
 Run (WSL, venv python):
     scripts/wsl 'python results/plots/make_plots.py'
     scripts/wsl 'python results/plots/make_plots.py --check'   # regenerate twice, compare bytes
+Measured overlays: --measured hw,sim (default). Only git-committed results/{hw,sim} records are
+used unless --include-untracked is given (preview only; never publish such plots).
 
 Mode colors: FULL blue, STRIP orange (DEMO.md section 3). The dark theme uses the
 dashboard values; the light theme uses darker steps of the same hues so marks keep
@@ -112,13 +114,31 @@ def load_model():
     }
 
 
-def load_measured(source):
+def git_tracked(subdir):
+    """Set of repo-relative paths tracked by git under subdir, or None if git is unavailable."""
+    import subprocess
+    try:
+        r = subprocess.run(["git", "-C", ROOT, "ls-files", "--", subdir], capture_output=True,
+                           text=True, check=True)
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return set(r.stdout.split())
+
+
+def load_measured(source, include_untracked=False):
     """Load results/<source>/*.json (DEMO.md section 4). Returns {key: record} using the
     newest run_id per key. Runs that failed the golden check or invariants are excluded
-    and reported, never plotted."""
+    and reported, never plotted. By default only git-committed records are used, so a
+    published plot can always be traced to a commit."""
     files = sorted(glob.glob(os.path.join(ROOT, "results", source, "*.json")))
+    tracked = None if include_untracked else git_tracked(f"results/{source}")
+    if tracked is None and not include_untracked:
+        print(f"[make_plots] warning: git unavailable; using all {source} files", file=sys.stderr)
     out, inputs, rejected = {}, [], []
     for f in files:
+        if tracked is not None and rel(f) not in tracked:
+            print(f"[make_plots] {source}: skipped uncommitted {rel(f)}", file=sys.stderr)
+            continue
         try:
             r = load_json(f)
         except (OSError, ValueError) as e:
@@ -143,9 +163,12 @@ def load_measured(source):
             continue
         util = c["mac_useful"] / (64 * c["cycles_total"])  # SPEC section 3.7
         k = key_of(g)
+        m = r.get("model", {})
+        counter_diffs = sorted(k for k in c if k in m and c[k] != m[k])
         rec = {"util": util, "cycles_total": c["cycles_total"], "run_id": r.get("run_id", ""),
-               "build_id": r.get("build_id"), "file": rel(f),
-               "model_git_hash": r.get("model", {}).get("model_git_hash")}
+               "build_id": r.get("build_id"), "git_hash": str(r.get("git_hash", "")),
+               "file": rel(f), "model_git_hash": m.get("model_git_hash"),
+               "counter_diffs": counter_diffs}
         if k not in out or rec["run_id"] > out[k]["run_id"]:
             out[k] = rec
         inputs.append((rel(f), sha256(f)))
@@ -182,6 +205,11 @@ def new_fig(th, w=10.0, h=5.6, ncols=1, nrows=1, **kw):
     return fig, axes
 
 
+SIM_NOTE = ("SIM = Verilator co-simulation of the RTL, driven by the real host through its "
+            "UART pins. Counters equal the model exactly,\nas expected with identical "
+            "latencies; the real test of the model is hardware.")
+
+
 def title_and_source(fig, th, title, subtitle, source_line):
     fig.text(0.012, 0.975, title, ha="left", va="top", fontsize=14, fontweight="bold",
              color=th["text"])
@@ -192,22 +220,31 @@ def title_and_source(fig, th, title, subtitle, source_line):
 
 def source_line(model, measured_sets):
     lat = "latencies PROVISIONAL" if model["provisional"] else "latencies RTL-confirmed, D-017"
-    parts = [f"source: MODEL results/model/*.json, model_git_hash {model['hash']} ({lat})"]
+    head = f"source: MODEL results/model/*.json, model_git_hash {model['hash']} ({lat})"
+    parts = []
     for label, recs in measured_sets:
         if recs:
             builds = sorted({str(r["build_id"]) for r in recs.values()})
             n = len(recs)
-            parts.append(f"{label}: {n} run{'s' if n != 1 else ''}, build {','.join(builds)}")
+            dirty = any(r["git_hash"].endswith("-dirty") for r in recs.values())
+            ndiff = sum(1 for r in recs.values() if r["counter_diffs"])
+            what = "co-sim, not HW" if label == "SIM" else "board"
+            parts.append(f"{label} ({what}): {n} run{'s' if n != 1 else ''}, build "
+                         f"{','.join(builds)}{' (dirty tree)' if dirty else ''}, "
+                         f"{ndiff} with a counter != model")
         elif label == "HW":
             parts.append("HW: none yet")
-    return " | ".join(parts)
+    return head + ("\n" + " | ".join(parts) if parts else "")
 
 
-def title_values(model, hw, keys):
-    """Numbers quoted in a title come from HW when every needed point was measured,
-    otherwise from the MODEL. The returned tag says which, and is printed in the title."""
+def title_values(model, hw, sim, keys):
+    """Numbers quoted in a title come from HW when every needed point was measured on the
+    board, else from SIM when every point was co-simulated, else from the MODEL. The
+    returned tag says which, and is printed at the start of the title."""
     if hw and all(k in hw for k in keys):
         return "HW", {k: hw[k]["util"] for k in keys}
+    if sim and all(k in sim for k in keys):
+        return "SIM", {k: sim[k]["util"] for k in keys}
     return "MODEL", {k: model["points"][k]["util"] for k in keys}
 
 
@@ -231,8 +268,8 @@ def measured_markers(ax, th, mode, xs_vals, recs, marker):
     if not xs_vals:
         return
     xs, ys = zip(*xs_vals)
-    ax.plot(xs, ys, linestyle="none", marker=marker, markersize=8, color=th[mode],
-            markeredgecolor=th["bg"], markeredgewidth=1.2, zorder=5)
+    ax.plot(xs, ys, linestyle="none", marker=marker, markersize=5.5, color=th[mode],
+            markeredgecolor=th[mode], markeredgewidth=0, zorder=5)
 
 
 def util_series(model, gemm, mode):
@@ -252,14 +289,18 @@ def draw_util(ax, th, model, gemm, hw, sim, show_labels=True, label_size=9):
         s = util_series(model, gemm, mode)
         xs, ys = zip(*s)
         ax.plot(xs, ys, color=th[mode], linewidth=2, linestyle=(0, (4, 2)), zorder=3)
-        ax.plot(xs, ys, linestyle="none", marker="o", markersize=8,
+        # Model = hollow ring, drawn larger than measured markers so both stay visible.
+        ax.plot(xs, ys, linestyle="none", marker="o", markersize=11,
                 markerfacecolor=th["model_face"], markeredgecolor=th["model_edge"],
-                markeredgewidth=1.5, zorder=4)
+                markeredgewidth=1.5, zorder=6)
         measured_markers(ax, th, mode, measured_series(hw, gemm, mode, ms), hw, "o")
         measured_markers(ax, th, mode, measured_series(sim, gemm, mode, ms), sim, "s")
         if show_labels:
             # Direct labels at decode (M=1) and prefill (M=64) only.
             for m, y in (s[0], s[-1]):
+                # Label with the best available source (HW > SIM > MODEL), as in the title.
+                k = (gemm, m, mode)
+                y = hw[k]["util"] if k in hw else (sim[k]["util"] if k in sim else y)
                 first = m == ms[0]
                 up = mode == "STRIP"
                 ax.annotate(f"{mode} {pct(y)}", (m, y), textcoords="offset points",
@@ -295,14 +336,14 @@ def util_handles(th, hw, sim):
 def plot_util_headline(th, model, hw, sim, facts):
     g = HEADLINE_GEMM
     keys = [(g, m, mode) for m in (1, 64) for mode in ("FULL", "STRIP")]
-    tag, v = title_values(model, hw, keys)
+    tag, v = title_values(model, hw, sim, keys)
     f1, s1 = v[(g, 1, "FULL")], v[(g, 1, "STRIP")]
     f64, s64 = v[(g, 64, "FULL")], v[(g, 64, "STRIP")]
     facts["util_headline"] = {"source": tag, "gemm": g, "M1_FULL": f1, "M1_STRIP": s1,
                               "M1_ratio": s1 / f1, "M64_FULL": f64, "M64_STRIP": s64,
                               "M64_ratio": s64 / f64}
     fig, ax = new_fig(th)
-    fig.subplots_adjust(left=0.08, right=0.98, top=0.82, bottom=0.17)
+    fig.subplots_adjust(left=0.08, right=0.98, top=0.78, bottom=0.17)
     style_axes(ax, th)
     draw_util(ax, th, model, g, hw, sim)
     ax.set_xlabel("M (rows of the activation matrix; log₂ scale)")
@@ -313,15 +354,17 @@ def plot_util_headline(th, model, hw, sim, facts):
         f"{tag}: STRIP lifts decode utilization {s1 / f1:.2f}× at M=1; "
         f"the modes converge once M ≥ 8",
         f"{g} (K=64, N=256), int8 requant on. M=1: FULL {pct(f1)} → STRIP {pct(s1)}. "
-        f"M=64: FULL {pct(f64)}, STRIP {pct(s64)} (STRIP drains 4 rows/tile vs 8).",
+        f"M=64: FULL {pct(f64)}, STRIP {pct(s64)} (STRIP drains 4 rows/tile vs 8)."
+        + ("\n" + SIM_NOTE if tag == "SIM" else ""),
         source_line(model, [("HW", hw), ("SIM", sim)]))
     return fig
 
 
 def plot_util_all(th, model, hw, sim, facts):
-    tag, v = title_values(model, hw, [(g, 1, md) for g in GEMM_ORDER for md in ("FULL", "STRIP")])
+    tag, v = title_values(model, hw, sim,
+                          [(g, 1, md) for g in GEMM_ORDER for md in ("FULL", "STRIP")])
     fig, axes = new_fig(th, w=11.0, h=7.4, ncols=2, nrows=2, sharex=True, sharey=True)
-    fig.subplots_adjust(left=0.08, right=0.98, top=0.84, bottom=0.12, hspace=0.28,
+    fig.subplots_adjust(left=0.08, right=0.98, top=0.80, bottom=0.12, hspace=0.28,
                         wspace=0.08)
     ratios = {}
     for ax, g in zip(axes.flat, GEMM_ORDER):
@@ -347,13 +390,13 @@ def plot_util_all(th, model, hw, sim, facts):
         f"{tag}: on all four block matmuls, STRIP lifts M=1 utilization "
         f"{lo:.2f}–{hi:.2f}×",
         "One transformer block, d_model=64, int8 requant on. Dashed lines connect model "
-        "points; shaded = decode regime (M ≤ 4).",
+        "points; shaded = decode regime (M ≤ 4)." + ("\n" + SIM_NOTE if tag == "SIM" else ""),
         source_line(model, [("HW", hw), ("SIM", sim)]))
     return fig
 
 
 def plot_bench(th, model, hw, sim, facts):
-    tag, v = title_values(model, hw, [(g, m, md) for g in GEMM_ORDER for m in (1, 64)
+    tag, v = title_values(model, hw, sim, [(g, m, md) for g in GEMM_ORDER for m in (1, 64)
                                       for md in ("FULL", "STRIP")])
     n_meas = n_model = 0
     measured = hw if hw else sim
@@ -412,7 +455,7 @@ def plot_bench(th, model, hw, sim, facts):
         f"{tag}: STRIP pays at decode ({min(r1):.2f}–{max(r1):.2f}×), "
         f"barely moves prefill ({min(r64):.3f}–{max(r64):.3f}×)",
         "Benchmark GEMMs (SPEC §1.1), int8 requant on. The prefill edge is drain length "
-        "(4 vs 8 rows per tile), not mapping.",
+        "(4 vs 8 rows per tile), not mapping." + ("\n" + SIM_NOTE if tag == "SIM" else ""),
         source_line(model, [("HW", hw), ("SIM", sim)]))
     return fig
 
@@ -568,6 +611,7 @@ def plot_cost(th, model, cost, facts):
                      "delta_dsp": dd, "array_plus_sequencer_lut": mux_lut,
                      "fmax_full_only": a["fmax_mhz"], "fmax_split": b["fmax_mhz"]}
     wp = cost.get("worst_path", {}).get("split", {})
+    wpa = cost.get("worst_path", {}).get("full_only", {})
     meets = ("Both builds meet timing (WNS ≥ 0)." if a.get("wns_ns", -1) >= 0
              and b.get("wns_ns", -1) >= 0 else "A build FAILS timing (WNS < 0).")
     fig.text(0.012, 0.975,
@@ -577,11 +621,12 @@ def plot_cost(th, model, cost, facts):
     fig.text(0.012, 0.915,
              "The FULL-only build also drops requant lanes 8–15 (FULL drains 8 lanes), so most "
              "of the delta is STRIP's 16-wide output path.\n"
-             f"Fmax est. {a['fmax_mhz']} → {b['fmax_mhz']} MHz (from WNS at "
-             f"{cost.get('clock_mhz', 100):g} MHz). Split-build worst path: "
-             f"{wp.get('source', '?')} → {wp.get('destination', '?')}\n"
-             f"({wp.get('logic_levels', '?')} logic levels, {wp.get('route_pct', 0):.0f}% "
-             f"routing). {meets}",
+             f"{meets} Fmax est. {a['fmax_mhz']} → {b['fmax_mhz']} MHz (1000/(period − WNS) "
+             f"at {cost.get('clock_mhz', 100):g} MHz, not a sweep).\n"
+             f"Worst paths are routing-dominated ({wpa.get('route_pct', 0):.0f}% / "
+             f"{wp.get('route_pct', 0):.0f}% routing, {wpa.get('logic_levels', '?')} / "
+             f"{wp.get('logic_levels', '?')} logic levels), so the Fmax delta is not a clean "
+             f"cost of splitting.",
              ha="left", va="top", fontsize=9.5, color=th["muted"])
     fig.text(0.012, 0.015,
              f"source: BUILD ({cost.get('source', '?')}) results/cost.json, git {cost.get('git_hash')}, "
@@ -603,14 +648,14 @@ def save(fig, outdir, name, theme, written):
     plt.close(fig)
 
 
-def build(outdir, measured=("hw",)):
+def build(outdir, measured=("hw", "sim"), include_untracked=False):
     matplotlib.rcParams.update({
         "svg.hashsalt": "splitsys", "svg.fonttype": "path", "font.family": "DejaVu Sans",
         "hatch.linewidth": 0.6, "path.simplify": False,
     })
     model = load_model()
-    hw, hw_in = load_measured("hw") if "hw" in measured else ({}, [])
-    sim, sim_in = load_measured("sim") if "sim" in measured else ({}, [])
+    hw, hw_in = load_measured("hw", include_untracked) if "hw" in measured else ({}, [])
+    sim, sim_in = load_measured("sim", include_untracked) if "sim" in measured else ({}, [])
     cost, cost_in = load_cost()
     for label, recs in (("hw", hw), ("sim", sim)):
         for k, r in recs.items():
@@ -657,9 +702,11 @@ def digest_dir(paths):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", default=os.path.join(ROOT, "results", "plots"))
-    ap.add_argument("--measured", default="hw",
-                    help="comma list of measured sources to overlay: hw, sim (default: hw). "
+    ap.add_argument("--measured", default="hw,sim",
+                    help="comma list of measured sources to overlay: hw, sim (default: both). "
                          "SIM points are drawn as squares and labeled SIM.")
+    ap.add_argument("--include-untracked", action="store_true",
+                    help="also use measured records not yet committed to git (preview only)")
     ap.add_argument("--check", action="store_true",
                     help="also regenerate into a temp dir and require byte-identical output")
     args = ap.parse_args()
@@ -667,12 +714,12 @@ def main():
     bad = [x for x in measured if x not in ("hw", "sim")]
     if bad:
         ap.error(f"unknown --measured source(s): {bad}")
-    written = build(args.out, measured)
+    written = build(args.out, measured, args.include_untracked)
     for p in written:
         print(rel(p))
     if args.check:
         with tempfile.TemporaryDirectory() as td:
-            again = build(td, measured)
+            again = build(td, measured, args.include_untracked)
             a, b = digest_dir(written), digest_dir(again)
             diff = sorted(k for k in a if a[k] != b.get(k))
             if diff or set(a) != set(b):

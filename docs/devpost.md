@@ -3,7 +3,9 @@
 <!--
 Owner: demo-storyteller. red-team-reviewer audits before submission.
 Sources: [M] results/model/sweep.json @ model_git_hash 72da65248adf (MODEL);
-[B] results/cost.json @ git 35fb363f (BUILD, Vivado post-route); [V] tb/SIGNOFF.md, DECISIONS D-017;
+[SIM] results/sim/*.json committed at f70dec9 (46 co-sim records, all counters == model; NOT hardware);
+[B] results/cost.json @ git 8bbd7ba6 (BUILD, Vivado post-route);
+[V] tb/SIGNOFF.md (11/11, 64/64), tb/system/SIGNOFF_SYSTEM.md (617/617), DECISIONS D-016/D-017;
 [S] docs/SPEC.md v1.1 constants. ⟦…⟧ = placeholder: fill from results/ only, never guess.
 Before pasting: strip these HTML comments and the [M]/[B]/[V]/[S] tags if Devpost renders them
 oddly. Keep the words "model" / "measured" in the prose, though.
@@ -36,9 +38,10 @@ SplitSys is a GEMM accelerator on a RealDigital Urbana board (AMD Spartan-7 XC7S
 - **Decode (M = 1), `ffn_up`:**
   - The model predicts utilization of 7.0% in FULL and 14.4% in STRIP, which is 2.07× [M].
   - Across all four matmuls the model predicts 2.02–2.07× [M].
+  - Co-simulation of the RTL, driven by the real host software, gives the same 6.95% → 14.40% [SIM]. That's simulation, not silicon.
   - Measured on the board: ⟦HW: ffn_up M=1 FULL util⟧ → ⟦HW: ffn_up M=1 STRIP util⟧, with model error ⟦HW: max per-counter error⟧.
 - **Prefill (M = 64):** both modes fill the array. The model predicts 55.6% vs 57.7% [M]. The small STRIP edge comes from a shorter drain (4 rows per tile instead of 8), not from the split.
-- **Cost:** the split costs 25% more operand bandwidth per cycle (20 vs 16 bytes) [S] and, measured post-route, +2,197 LUTs (+42%) and +16 DSPs [B]. Most of that is the 16-lane output path. The muxing itself is about 663 LUTs [B].
+- **Cost:** the split costs 25% more operand bandwidth per cycle (20 vs 16 bytes) [S] and, measured post-route, +2,239 LUTs (+43%) and +16 DSPs [B]. Most of that is the 16-lane output path. The muxing itself is about 663 LUTs [B].
 - **Verified on hardware:** ⟦HW: GEMMs verified⟧ GEMMs, ⟦HW: MACs verified⟧ MACs, ⟦HW: mismatches⟧ mismatches.
 
 ## How we built it
@@ -60,8 +63,11 @@ SplitSys is a GEMM accelerator on a RealDigital Urbana board (AMD Spartan-7 XC7S
 
 ## Accomplishments that we're proud of
 
-- **Unit sign-off:** 8 of 8 unit suites and 50 of 50 tests pass at two seeds [V]. Every suite catches deliberately injected RTL bugs.
-- **Integrated core:** 283 golden jobs bit-exact, with all 12 counters equal to the cycle model [V]. On hardware: ⟦HW: model error per counter⟧.
+- **Verification in simulation:**
+  - 11 of 11 cocotb suites and 64 of 64 tests in an eligible sign-off run, including 262 directed jobs on the integrated core [V]. The unit suites catch deliberately injected RTL bugs.
+  - A pin-level system simulation passed 617 of 617 jobs [V].
+  - 46 co-simulation runs of the real host against the simulated chip: 0 output mismatches, and every counter equal to the cycle model [SIM].
+  - Matching the model in simulation is expected, since both use the same latencies. The real test is hardware: ⟦HW: model error per counter⟧.
 - **Cost measured, not guessed,** including the uncomfortable part: most of the area goes to the wider output path, not to the split itself [B].
 - **A live, offline dashboard** in which every number carries its source label (HW, SIM, or MODEL).
 
@@ -70,7 +76,7 @@ SplitSys is a GEMM accelerator on a RealDigital Urbana board (AMD Spartan-7 XC7S
 - **Utilization is set by mapping first, overhead second.** At M = 1, the mapping caps FULL at 12.5% and STRIP at 25% [S]. Fixed per-tile setup, flush, and drain cycles then bring the model down to 7.0% and 14.4% [M].
 - **Flexibility costs bandwidth.** A shorter, wider array needs more operand bytes per MAC: +25% here [S].
 - **The cost of a feature hides in its neighbours.** Most of our split's area was the output path that STRIP's 16-wide tiles need, not the muxes.
-- **A cycle model is only useful if it is written independently** and compared counter by counter.
+- **A cycle model is only useful if it is written independently** and compared counter by counter. Agreeing with your own simulation proves the RTL matches the spec. Only the board can show the model predicts real hardware.
 
 ## What's next for SplitSys
 

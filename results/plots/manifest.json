@@ -6,24 +6,24 @@
         2.024712,
         2.070866
       ],
-      "source": "MODEL"
+      "source": "SIM"
     },
     "bench_ratio_M64": {
       "range": [
         1.0132,
         1.036033
       ],
-      "source": "MODEL"
+      "source": "SIM"
     },
     "cost": {
       "array_plus_sequencer_lut": 663,
       "delta_dsp": 16,
-      "delta_ff": 1523,
-      "delta_lut": 2197,
-      "delta_lut_pct": 0.424049,
-      "fmax_full_only": 122.5,
-      "fmax_split": 105.6,
-      "git_hash": "35fb363f",
+      "delta_ff": 1590,
+      "delta_lut": 2239,
+      "delta_lut_pct": 0.434842,
+      "fmax_full_only": 132.3,
+      "fmax_split": 112.9,
+      "git_hash": "8bbd7ba6",
       "source": "hw-build"
     },
     "roofline": {
@@ -44,7 +44,7 @@
         2.024712,
         2.070866
       ],
-      "source": "MODEL"
+      "source": "SIM"
     },
     "util_headline": {
       "M1_FULL": 0.069527,
@@ -54,7 +54,7 @@
       "M64_STRIP": 0.576536,
       "M64_ratio": 1.036033,
       "gemm": "ffn_up",
-      "source": "MODEL"
+      "source": "SIM"
     }
   },
   "inputs": [
@@ -67,14 +67,183 @@
       "sha256": "1f66a4bf0956bd46b031a5ec4755b0c375cac241e284fc51480ef736349054bd"
     },
     {
+      "path": "results/sim/2026-10-24T17-27-53Z-ffn_up-m1-strip.json",
+      "sha256": "755404b312f368b3379a5c0340db9ee2554a0776067c4555c948427165feb108"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-28-02Z-ffn_up-m1-full.json",
+      "sha256": "c65e34828207fefd084067b81996ab7d8fb5538f10dc97bd506050df49a72e4b"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-28-08Z-qkv-m8-full.json",
+      "sha256": "d592ef55e0d4f9a4d713b2808584be67894e1c46bb448082f00a1df41b7f9b44"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-28-09Z-qkv-m8-strip.json",
+      "sha256": "ee2a204c5d81fec81262a6a3af89b18761ac11327005faef8bb603a7a6d6611b"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-28-24Z-ffn_up-m1-full.json",
+      "sha256": "98ade6f1c6c5de093a4ac1edebc29b477da6ff1e84aab33cc1f8f48b6e25db29"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-28-26Z-ffn_up-m1-strip.json",
+      "sha256": "0a9f25cca291d4274177537505827ba5d0633134c03682dbc966bd4207e185e2"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-28-38Z-ffn_up-m64-full.json",
+      "sha256": "cbde50de3b8ad3e46de787e8d192dacd8271532fb46d3095beb301655adcde3c"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-28-49Z-ffn_up-m64-strip.json",
+      "sha256": "d299b9134d6a06f5e03cc8a83e5101cc064cb531a1b8b590dccb44fb5fb5ae31"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-31-22Z-ffn_up-m1-full.json",
+      "sha256": "9883f03b8e44dabfd22da6f748f5829c507b42d1db7638a456cecd742f78389f"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-31-24Z-ffn_up-m1-strip.json",
+      "sha256": "7aaef9355a55cf4a3d276673b87c5eac09c7c644ec12842858c1b8171fe62193"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-31-36Z-ffn_up-m64-full.json",
+      "sha256": "53662d9650c7e9b3bb4fdf976c660a7af5f84c6a4687c827afae6945ef21f055"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-31-44Z-ffn_up-m64-strip.json",
+      "sha256": "007be9e6b1272f023a5e605ad547d484e1c70659185e272bf120e14c869df7ef"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-31-48Z-ffn_up-m2-full.json",
+      "sha256": "d74befe833cc6cb06b87a7bd6cf4461a7d485b2473ff7816068484750a8dde17"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-31-50Z-ffn_up-m2-strip.json",
+      "sha256": "c7f1c7c85ef5f200a54df21b1b7c9bd8b78ec41a44a3e67a15a62c78fe035e2e"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-31-51Z-ffn_up-m4-full.json",
+      "sha256": "a49b99e7ed5ea6f3b568575e5fb4283bf920c9e9e65d8ee6556babfdb36995fd"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-31-53Z-ffn_up-m4-strip.json",
+      "sha256": "e546552be78ea8567526d10fd13ead058dc688ed623562e600be1f697f69b10e"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-31-55Z-ffn_up-m8-full.json",
+      "sha256": "81c2fd8f14709cc79c185de17787d4bc2f8d7e2c585c9a8fb36e541ad2a55f16"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-31-57Z-ffn_up-m8-strip.json",
+      "sha256": "1a507e926ea1f073d3a6012c2a4c441d9868be721a538faac10c37040b3ad4cb"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-32-00Z-ffn_up-m16-full.json",
+      "sha256": "663e2c7c0210061ea1b47e395240bf1f0bcf492df1e105bdaf0484146d5a71bb"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-32-03Z-ffn_up-m16-strip.json",
+      "sha256": "d076bbe4c1c9c17c90aed878326f5982ded129d516dfa8943d9d8995c52a3b22"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-32-07Z-ffn_up-m32-full.json",
+      "sha256": "f707e6b2c5d0850ea34122c2c45bb3da228e46e124cc0c6dae6b6c11fab85b07"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-32-13Z-ffn_up-m32-strip.json",
+      "sha256": "2a3f234718f13d880b471a77e038186329e6c7ddb85feb6b75637652d803e06e"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-32-17Z-qkv-m1-full.json",
+      "sha256": "2813ca158a6a1d51b1f87dc20c391b9840e0d24722c52a3d0569345dbb4292be"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-32-19Z-qkv-m1-strip.json",
+      "sha256": "b37fef04db3e7b799dfec4e2e5193b6e6815b18aef7201a40b79ce83ab076ab0"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-32-27Z-qkv-m64-full.json",
+      "sha256": "0708c5240acf63d62c8d3f2beda94c49108aa6bc6d5c9413d4a5ce3601086124"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-32-34Z-qkv-m64-strip.json",
+      "sha256": "5f2e6a5513412f405368b661ee3b7e8e47b9afc0ff472852e1d37797a8e36cd5"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-32-37Z-attn_out-m1-full.json",
+      "sha256": "c0667a52e6e4ebc4b8f25d4fa07268d101dc4ceadd07c8ff28a24fb44655393c"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-32-37Z-attn_out-m1-strip.json",
+      "sha256": "2513de2837f856560cf063ce476de34b01278ce78d878a27f00796e739dd917b"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-32-39Z-attn_out-m64-full.json",
+      "sha256": "c2f15f5295318c3de7e80250cb2baef83fe477775dd1bdb31516e42e63cde024"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-32-42Z-attn_out-m64-strip.json",
+      "sha256": "76c09bc275f2d27bde75bb4a7e282efd76955e06873c4f0df26aeddcb67106c1"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-32-48Z-ffn_down-m1-full.json",
+      "sha256": "b87cf143d70b9b4343b1c71c2b8366cb6d4f2cbd39050b808d005f4137fde4a9"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-32-48Z-ffn_down-m1-strip.json",
+      "sha256": "09e68cfda5c60b5383371f653bf8cfbbe34f7ec8ac771641175b8cc3b688998b"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-32-56Z-ffn_down-m64-full.json",
+      "sha256": "6a49270e311734f5420a8c884e4211e5f46cd00ed1d2ac7c9424ae8356421f0b"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-32-58Z-ffn_down-m64-strip.json",
+      "sha256": "3d0b0ff7b632a8ebb8339c563a7db8a81e2db510c75f7e1b46c07c16884a19ec"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-38-14Z-ffn_up-m1-strip.json",
+      "sha256": "60aac0e2347272437dff914b21a245df57d02275bc049d0ff3c46295693525ed"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-38-27Z-ffn_up-m1-full.json",
+      "sha256": "1f059cfa0124007ab8c5e70b933f2258292c78f21edd97601f42213b37c315d9"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-38-40Z-qkv-m8-full.json",
+      "sha256": "d56a2fe4b1822bd6785a7a624b8121ebc4f2a6b1dfd94a47a63d09f8bbcfda9f"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-38-41Z-qkv-m8-strip.json",
+      "sha256": "34e27b85fdfe9eaef4e7ed9944fb52144919e63d7bf9cbd0401ecfef98c81c53"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-39-15Z-ffn_up-m1-full.json",
+      "sha256": "e6734c8e475857486f8cc0674da7e17ca2111378eed00c608f76d6509f505a48"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-39-19Z-ffn_up-m1-strip.json",
+      "sha256": "6420ad5cef9f547b7edc72022559a137a3bbfda440d0806d432231dc82aef394"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-39-49Z-ffn_up-m64-full.json",
+      "sha256": "f66f0848d88f4a25246df71e91724251fd83b92e9cfe89536c486f9b74a1c724"
+    },
+    {
+      "path": "results/sim/2026-10-24T17-40-13Z-ffn_up-m64-strip.json",
+      "sha256": "b6d72db92c15ce13dad1363575a7681f6ab686de21c76c5919822687d1d9b7bc"
+    },
+    {
       "path": "results/cost.json",
-      "sha256": "49dd5f674aa73346f10f360760f3a47290ae43b8b5f5b4ca29794877eb2d5f2c"
+      "sha256": "5eeb94e6d42a7535bd401ad5b4d29ad45eab1f01a17faf7ec5caac562b88f74c"
     }
   ],
   "latencies_provisional": false,
   "matplotlib": "3.9.2",
   "measured_requested": [
-    "hw"
+    "hw",
+    "sim"
   ],
   "missing": [
     "results/hw/*.json (no hardware runs yet)"
@@ -104,6 +273,7 @@
   ],
   "sources_present": [
     "model",
+    "sim",
     "cost"
   ]
 }

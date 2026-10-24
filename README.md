@@ -4,14 +4,19 @@
 HONESTY KEY (red-team: audit every number in this file against this key).
   [M]  MODEL  results/model/sweep.json + roofline.json, model_git_hash 72da65248adf
               (latencies confirmed by RTL, D-017). Values also in results/plots/manifest.json.
-  [B]  BUILD  results/cost.json (source "hw-build"), Vivado 2025.2.1 post-route, git 35fb363f.
-  [V]  VERIF  tb/SIGNOFF.md (unit sign-off) and docs/DECISIONS.md D-017 (core smoke).
+  [SIM] SIM   results/sim/*.json committed at f70dec9: 46 per-run records (Verilator co-sim of the
+              real top, driven through its UART pins by the real splitsys-host), builds 034cbc27,
+              0b53783d, 03f3b9d1. Every record: golden_match, 0 mismatches, invariants_ok, all 12
+              counters == model. SIM is NOT hardware.
+  [B]  BUILD  results/cost.json (source "hw-build"), Vivado 2025.2.1 post-route, git 8bbd7ba6.
+  [V]  VERIF  tb/SIGNOFF.md (11/11 suites, 64/64 tests, eligible run at b53783d),
+              tb/system/SIGNOFF_SYSTEM.md (617/617), docs/DECISIONS.md D-016/D-017.
   [S]  SPEC   docs/SPEC.md v1.1 design constants (not results).
   ⟦HW: …⟧ / ⟦SIM: …⟧ / ⟦HUMAN: …⟧ = not measured / not decided yet. Never replace with a guess.
   Phase H (hardware) has not started; there are NO hardware results in this file yet.
 -->
 
-**Big systolic arrays leave most of their rows idle on one-token-at-a-time LLM decode. SplitSys is an 8×8 int8 array that rewires itself into a 4×16 array at runtime. Our cycle model predicts this roughly doubles decode utilization (MODEL 2.02–2.07× [M]; ⟦HW: measured ratio⟧). The price is 25% more operand bandwidth per cycle and an area cost we measured.**
+**Big systolic arrays leave most of their rows idle on one-token-at-a-time LLM decode. SplitSys is an 8×8 int8 array that rewires itself into a 4×16 array at runtime. Our cycle model predicts this roughly doubles decode utilization (MODEL 2.02–2.07× [M]; co-simulation of the RTL gives the same 2.02–2.07× [SIM]; on hardware ⟦HW: measured ratio⟧). The price is 25% more operand bandwidth per cycle and an area cost we measured.**
 
 > ⟦HUMAN: GIF or photo of the board running, PE grid lit on the monitor⟧
 
@@ -34,20 +39,26 @@ HONESTY KEY (red-team: audit every number in this file against this key).
 
 ## Headline results
 
-Utilization = `mac_useful / (64 · cycles_total)`, read from the hardware counters (SPEC §3.7). Int8 output, requant on.
+Utilization = `mac_useful / (64 · cycles_total)`, read from the performance counters (SPEC §3.7). Int8 output, requant on.
 
-| GEMM | M | Mode | **Measured (HW)** | Model [M] | Model error |
-| --- | ---: | --- | ---: | ---: | ---: |
-| ffn_up | 1 | FULL | ⟦HW: ffn_up M=1 FULL util⟧ | 7.0% | ⟦HW: err⟧ |
-| ffn_up | 1 | STRIP | ⟦HW: ffn_up M=1 STRIP util⟧ | 14.4% | ⟦HW: err⟧ |
-| ffn_up | 64 | FULL | ⟦HW: ffn_up M=64 FULL util⟧ | 55.6% | ⟦HW: err⟧ |
-| ffn_up | 64 | STRIP | ⟦HW: ffn_up M=64 STRIP util⟧ | 57.7% | ⟦HW: err⟧ |
-| ffn_down | 1 | FULL | ⟦HW: ffn_down M=1 FULL util⟧ | 10.4% | ⟦HW: err⟧ |
-| ffn_down | 1 | STRIP | ⟦HW: ffn_down M=1 STRIP util⟧ | 21.1% | ⟦HW: err⟧ |
+| GEMM | M | Mode | **Measured (HW)** | SIM [SIM] | Model [M] | HW model error |
+| --- | ---: | --- | ---: | ---: | ---: | ---: |
+| ffn_up | 1 | FULL | ⟦HW: ffn_up M=1 FULL util⟧ | 6.95% | 6.95% | ⟦HW: err⟧ |
+| ffn_up | 1 | STRIP | ⟦HW: ffn_up M=1 STRIP util⟧ | 14.40% | 14.40% | ⟦HW: err⟧ |
+| ffn_up | 64 | FULL | ⟦HW: ffn_up M=64 FULL util⟧ | 55.65% | 55.65% | ⟦HW: err⟧ |
+| ffn_up | 64 | STRIP | ⟦HW: ffn_up M=64 STRIP util⟧ | 57.65% | 57.65% | ⟦HW: err⟧ |
+| ffn_down | 1 | FULL | ⟦HW: ffn_down M=1 FULL util⟧ | 10.41% | 10.41% | ⟦HW: err⟧ |
+| ffn_down | 1 | STRIP | ⟦HW: ffn_down M=1 STRIP util⟧ | 21.09% | 21.09% | ⟦HW: err⟧ |
+
+**SIM is co-simulation of the RTL, not hardware.** The SIM column comes from Verilator running the real top-level RTL. The real host binary drives it byte by byte through the UART pins, over a TCP bridge. Its counters equal the model **exactly**, on every counter of every one of the 46 committed runs [SIM]. That agreement is expected: the sequencer is deterministic, there is no DRAM, and the model and the RTL implement the same confirmed latencies (D-017). So it shows the RTL does what the spec says. It does not yet show the model predicts a physical chip. **The real test of the model is the HW column.**
 
 <!-- [M] values: results/model/sweep.json points (ffn_up,1,FULL) util_model 0.069527 / cycles_total 3682 / tiles 32;
      (ffn_up,1,STRIP) 0.143982 / 1778 / 16; (ffn_up,64,FULL) 0.556484 / 29442; (ffn_up,64,STRIP) 0.576536 / 28418;
-     (ffn_down,1,FULL) 0.1041 / 2458; (ffn_down,1,STRIP) 0.2109 / 1214. -->
+     (ffn_down,1,FULL) 0.104149 / 2458; (ffn_down,1,STRIP) 0.210873 / 1214.
+     [SIM] values: newest committed record per shape (build 034cbc27 for ffn_up M=1/64:
+     results/sim/2026-10-24T17-39-15Z-ffn_up-m1-full.json cycles_total 3682, -17-39-19Z-ffn_up-m1-strip 1778,
+     -17-39-49Z-ffn_up-m64-full 29442, -17-40-13Z-ffn_up-m64-strip 28418; build 0b53783d for ffn_down:
+     -17-32-48Z-ffn_down-m1-full 2458, -17-32-48Z-ffn_down-m1-strip 1214). Same cycles as the model. -->
 
 - **Decode (M = 1):**
   - In FULL mode, one output row occupies an 8-row tile, so at most 1/8 of the PEs can do useful work. In STRIP mode the bound is 1/4. These mapping ceilings of 12.5% and 25% come from the spec [S].
@@ -57,7 +68,9 @@ Utilization = `mac_useful / (64 · cycles_total)`, read from the hardware counte
   - Both modes fill every PE, so the mapping is identical.
   - The model still puts STRIP slightly ahead (57.7% vs 55.6%, 1.036× [M]). The reason is drain length, not the split: a STRIP tile drains 4 rows instead of 8.
   - That faster drain relies on the 16-lane output path, which is part of the split's area cost (below). With drain overlapped (shadow accumulators, not built), the gap would mostly vanish.
-- **Model vs counters:** ⟦HW: per-counter model error across N runs, max |err|⟧. ⟦SIM: co-simulation runs with counters == model, count⟧.
+- **Model vs counters:**
+  - SIM: 46 committed co-sim runs across 30 shapes, with 0 counter differences and `cycles_stall` = 0 on every run [SIM].
+  - HW: ⟦HW: per-counter model error across N runs, max |err|⟧.
 
 Plots, regenerated from the JSON by `results/plots/make_plots.py`, in dark and light variants:
 
@@ -91,44 +104,51 @@ Every plot is titled with its finding and labeled with its source. A plot shows 
 
 ## Verification
 
-All counts below are from `tb/SIGNOFF.md` [V] unless noted.
+All counts below are from `tb/SIGNOFF.md` and `tb/system/SIGNOFF_SYSTEM.md` [V] unless noted.
 
-- **Unit sign-off:** 8 of 8 cocotb + Verilator suites, 50 of 50 tests, at seeds 1 and 2. The suites cover:
+- **Sign-off:** `make -C tb signoff` passed 11 of 11 cocotb + Verilator suites and 64 of 64 tests, in a run marked sign-off eligible at b53783d. That covers the eight units and the level-2 core, each with and without STRIP. The earlier unit run passed 8 of 8 suites and 50 of 50 tests at seeds 1 and 2. The suites cover:
   - PE: 10,000 random MAC streams per seed
   - requant: 100,152 cases, including 14,724 rounding ties
   - packet layer: 10,000 random frames
   - array: 500 random FULL tiles and 500 random STRIP tiles, with a single-nonzero test at every output position in both modes
 - **Expected values come only from Rust:** the golden model, the vector generator, and the cycle model. Python never re-derives them.
-- **Mutation testing:** every suite includes deliberate RTL mutants, and each one was caught. In the array suite these were a wrong row-4 skew base, a wrong lower-half column mask, a wrong lower-half drain, and a removed A-source mux.
-- **Core smoke:** 283 golden jobs ran through the integrated core: FULL and STRIP, int8 and int32, edge shapes, K = 1 and K = 256. The output buffer was bit-exact and all 12 counters equaled the cycle model (DECISIONS D-017) [V].
-- **System and co-simulation:** the real `splitsys-host` binary talks to the simulated RTL over a TCP bridge. ⟦SIM: system-sim GEMM count, co-sim run count, mismatches⟧.
+- **Mutation testing:** every unit suite includes deliberate RTL mutants, and each one was caught (STATUS 12:00, tb/SIGNOFF.md). In the array suite these were a wrong row-4 skew base, a wrong lower-half column mask, a wrong lower-half drain, and a removed A-source mux.
+- **Core (level 2):** `tb/core` runs all 262 directed jobs, including a single nonzero at every PE position and quadrant isolation, plus random jobs. The output buffer is bit-exact and all 12 counters equal the cycle model [V]. Before that, the RTL designer's own smoke run passed 283 golden jobs (DECISIONS D-017).
+- **System (level 3):** `tb/system` drives the whole top only through its pins (UART, buttons, LEDs). It passed 617 of 617 jobs in each of three runs:
+  - 200 random FULL jobs up to 64×256×256
+  - 100 random STRIP jobs
+  - the 262 directed jobs
+  - mode-switch chains
+  - self-test, including two runs at seeds 2 and 3 from a random initial state
+  The latest run, at RTL adca4a3, is recorded as not yet sign-off eligible because test-bench edits were uncommitted at the time [V].
+- **Co-simulation (SIM):** the real `splitsys-host` binary drives the simulated top over a TCP-to-UART bridge. Results: 46 committed run records, 30 distinct shapes, 181,632 outputs compared, 0 mismatches, 0 counter differences from the model [SIM].
 - **On hardware:** ⟦HW: GEMMs verified, MACs verified, mismatches (results/session.json)⟧.
 
 ## Cost of splitting
 
-Two post-route builds of the same top, with `ENABLE_STRIP = 1` and `ENABLE_STRIP = 0` (Vivado 2025.2.1, xc7s50csga324-2, git 35fb363f) [B]:
+Two post-route builds of the same top, with `ENABLE_STRIP = 1` and `ENABLE_STRIP = 0` (Vivado 2025.2.1, xc7s50csga324-2, git 8bbd7ba6) [B]:
 
 | | FULL-only | Split | Delta |
 | --- | ---: | ---: | ---: |
-| LUT | 5,181 | 7,378 | +2,197 (+42%) |
-| FF | 6,255 | 7,778 | +1,523 |
+| LUT | 5,149 | 7,388 | +2,239 (+43%) |
+| FF | 6,346 | 7,936 | +1,590 (+25%) |
 | DSP48E1 | 80 | 96 | +16 |
 | BRAM | 26 | 26 | 0 |
-| WNS at 100 MHz | +1.834 ns | +0.526 ns | both meet timing |
+| WNS at 100 MHz | +2.441 ns | +1.143 ns | both meet timing |
 
 **Where the delta lives** (`breakdown.delta` in cost.json) [B]:
 
 | Block | LUT | FF | DSP |
 | --- | ---: | ---: | ---: |
-| Array STRIP muxes | +374 | +264 | 0 |
-| Sequencer STRIP control | +289 | +70 | 0 |
-| Requant lanes 8–15 | +1,488 | +1,216 | +16 |
+| Array STRIP muxes | +376 | +264 | 0 |
+| Sequencer STRIP control | +287 | +70 | 0 |
+| Requant lanes 8–15 | +1,503 | +1,216 | +16 |
 
 **Read it honestly:**
 - **Most of the delta is the 16-wide output path,** not the split itself. The FULL-only build trims requant lanes 8–15, because FULL drains only 8 lanes per row.
 - **The split proper** (array muxes plus sequencer control) costs about +663 LUT.
-- **The Fmax figures are estimates,** derived from WNS at the 100 MHz constraint: 122.5 → 105.6 MHz. They are not a frequency sweep. The split build's worst path is a reset net, `u_board/rst_r_reg` → `u_selftest`, with 0 logic levels and 95% routing delay, so that delta is placement and does not come from STRIP logic.
-- **These figures will be refreshed.** The reset tree has been restructured since this build. ⟦BUILD: refreshed cost.json at the KG1 commit⟧.
+- **The Fmax figures are estimates,** derived from WNS at the 100 MHz constraint: 132.3 → 112.9 MHz. They are not a frequency sweep. Both builds' worst paths are routing-dominated (89% and 93% routing, 2 logic levels each), so the Fmax delta is not a clean measure of what splitting costs.
+- **These are the pre-freeze builds.** If KG1 is built from a later commit, refresh the figures from that build. ⟦BUILD: confirm cost.json git hash == KG1 build⟧.
 
 ## Reproduce
 
@@ -137,9 +157,10 @@ Run from the repo root. On Windows, use Git Bash and run Linux tools through `sc
 ```bash
 scripts/wsl 'scripts/check_env.sh'                                   # toolchain present
 scripts/wsl 'cd sw && cargo test --workspace'                        # golden, cycle model, host
-scripts/wsl 'make -C tb -j8 units'                                   # unit sign-off suites
-scripts/wsl 'make -C tb system' ; scripts/wsl 'make -C tb cosim'     # system sim; co-sim (prints TCP port)
-splitsys-host --transport tcp:127.0.0.1:<port> bench smoke           # real host vs simulated RTL
+scripts/wsl 'make -C tb -j12 signoff'                                # unit + core sign-off suites
+scripts/wsl 'make -C tb system'                                      # whole top through its pins
+scripts/wsl 'make -C tb cosim-check'                                 # real host vs simulated top -> results/sim
+scripts/wsl 'make -C tb cosim'   # then: splitsys-host --transport tcp:127.0.0.1:<port> bench smoke
 scripts/wsl 'cd sw && cargo run -p splitsys-cycle -- all'            # regenerate results/model
 scripts/wsl 'python results/plots/make_plots.py --check'             # regenerate plots (deterministic)
 scripts/vivado -mode batch -source fpga/tcl/build.tcl -tclargs top   # bitstream (+ top_nostrip for cost)
@@ -152,7 +173,7 @@ On hardware, run `splitsys-host ping | selftest | bench bench | bench sweep | se
 - **No speed claim against CPUs or GPUs.** The claim is about utilization, operand bandwidth per MAC, and whether the model predicts the counters.
 - **End-to-end time is UART-bound** (115200 baud). Wall-clock time is never reported as accelerator performance. On-chip cycles come from the counters.
 - **Tiny model.** d_model = 64, a single transformer block, and synthetic int8 data with a fixed seed. No DDR3: weights live in on-chip BRAM. Softmax, norms, and attention-score matmuls run on the host.
-- **No overlap between stages.** STREAM, FLUSH, and DRAIN run back to back, and the array idles during drain. That fixed per-tile overhead is why prefill utilization tops out near 56–58% for K = 64 [M]. The model assumes zero stall cycles; ⟦HW: measured `cycles_stall`⟧.
+- **No overlap between stages.** STREAM, FLUSH, and DRAIN run back to back, and the array idles during drain. That fixed per-tile overhead is why prefill utilization tops out near 56–58% for K = 64 [M]. The model assumes zero stall cycles, and co-simulation measured 0 on every run [SIM]. On hardware: ⟦HW: measured `cycles_stall`⟧.
 - **INDEP mode** (four independent 4×4 jobs) is specified but not built.
 
 ## What's next
