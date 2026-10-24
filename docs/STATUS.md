@@ -21,7 +21,7 @@
 6. Optional: run the Windows `sw\target\release\splitsys-host.exe --transport tcp:127.0.0.1:5555 ping|selftest` against `make -C tb cosim` in WSL (exact demo binary vs RTL).
 7. On S4 PASS: begin Phase H with the human using docs/HW_CHECKLIST.md (one physical action per message).
 
-**Open human items:** solo vs team (Best Solo eligibility), repo/video URLs, table number before Sun 09:00. Always read the real clock (`date`) before logging times.
+**Open human items:** ~~solo vs team~~ **SOLO entry (human, Sat ~14:00) → eligible for Best Solo Hack**; public GitHub repo (ask later), video URL, table number before Sun 09:00. Always read the real clock (`date`) before logging times.
 
 **Canonical RTL lint until top.sv exists:** `scripts/wsl 'verilator --lint-only -Wall -Wno-MULTITOP -Irtl -Irtl/gen rtl/gen/splitsys_pkg.sv rtl/*.sv'`
 
