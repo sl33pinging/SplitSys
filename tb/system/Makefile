@@ -10,7 +10,7 @@
 # splitsys-cycle predict, self-test from sw/crates/vec/out/selftest_expected.json.
 #
 # Knobs: SEED (1), N_FULL (200), N_STRIP (100), N_SWITCH (6 F/S pairs per chain),
-#        SWITCH_CHAINS (4), WORKERS (16), SUITES (full,strip,directed,modeswitch,selftest),
+#        SWITCH_CHAINS (4), WORKERS (16), SUITES (full,strip,directed,modeswitch,selftest,display),
 #        RTL_REV (HEAD | <rev> | worktree), RAND_RESET=1 (random X-initial state),
 #        ONLY=<substring> (only jobs whose name contains it, e.g. ONLY=gemm_full_s1_17),
 #        WAVES=1 (FST build; one dump per board in $(WORK)/waves/<board>.fst; use with ONLY=)
@@ -35,7 +35,7 @@ N_STRIP       ?= 100
 N_SWITCH      ?= 6
 SWITCH_CHAINS ?= 4
 WORKERS       ?= 16
-SUITES        ?= full,strip,directed,modeswitch,selftest
+SUITES        ?= full,strip,directed,modeswitch,selftest,display
 RTL_REV       ?= HEAD
 RAND_RESET    ?= 0
 WAVES         ?= 0

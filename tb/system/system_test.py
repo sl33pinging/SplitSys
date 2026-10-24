@@ -16,7 +16,8 @@ Expected values come only from Rust:
 Python only builds payload byte layouts (region, address, length) and applies
 the SPEC §3.7 invariants.
 
-Suites (--suites, comma separated): full, strip, directed, modeswitch, selftest.
+Suites (--suites, comma separated): full, strip, directed, modeswitch, selftest, display
+(display = 7-segment image rebuilt from the real D0/D1 AN/SEG pins, H-1 orientation rule).
 Usage (normally via tb/system/Makefile):
   system_test.py --harness <Vtop> --vec <splitsys-vec> --cycle <splitsys-cycle>
                  --seed 1 --n-full 200 --n-strip 100 --workers 16 --suites full,...
@@ -370,6 +371,89 @@ def run_job(b: Board, job: dict, pred: dict, stats: dict) -> None:
 
 
 # ------------------------------------------------------------------ suites
+# ------------------------------------------------------------------ 7-segment pins
+# Pin facts (fpga/xdc/urbana_master.xdc): D*_SEG[7:0] = {DP, G, F, E, D, C, B, A}, all
+# "Active LOW"; D*_AN[3:0] "Active LOW". The XDC does NOT say which display is left or which
+# anode is the leftmost digit; that was MEASURED on the board in Phase H step H-1
+# (Sat 2026-10-24, build 52a66216: the heartbeat bitstream showed "6.126 6A25" for
+# BUILD_ID 0x52A66216, i.e. the exact reverse of the old D1-left / AN[3]-leftmost assumption):
+#     D0 is the LEFT display, D1 the RIGHT one; AN[0] is the LEFTMOST digit of each display.
+# So the 8 cells read left to right are D0.AN0 D0.AN1 D0.AN2 D0.AN3 D1.AN0 D1.AN1 D1.AN2 D1.AN3.
+# This is a test-side board fact; it must never be read back from rtl/ parameters.
+SEG_FONT = {"0": 0x3F, "1": 0x06, "2": 0x5B, "3": 0x4F, "4": 0x66, "5": 0x6D, "6": 0x7D,
+            "7": 0x07, "8": 0x7F, "9": 0x6F, "F": 0x71, "S": 0x6D, "-": 0x40, " ": 0x00}
+SEG_DP = 0x80
+_SEG_NAME = {v: k for k, v in SEG_FONT.items() if k != "S"}   # 0x6D = '5' = 'S' (same glyph)
+
+
+def cell_h1(display: int, an: int) -> int:
+    """Left-to-right cell index of (display D0/D1, anode bit) under the H-1 board rule."""
+    return 4 * display + an
+
+
+def cell_old(display: int, an: int) -> int:
+    """The superseded pre-H-1 assumption (D1 left, AN[3] leftmost); used only to prove sensitivity."""
+    return 4 * (1 - display) + (3 - an)
+
+
+def parse_cells(s: str) -> list[int]:
+    """'S   | 21.4' -> 8 active-high {DP,G..A} patterns, left to right ('|' optional, '.' = DP of prev)."""
+    cells: list[int] = []
+    for ch in s.replace("|", ""):
+        if ch == ".":
+            cells[-1] |= SEG_DP
+        else:
+            cells.append(SEG_FONT[ch])
+    assert len(cells) == 8, (s, len(cells))
+    return cells
+
+
+def render_cells(cells: list) -> str:
+    out = []
+    for i, c in enumerate(cells):
+        if c is None:
+            out.append("?")
+            continue
+        nm = "S" if (c & 0x7F) == SEG_FONT["S"] and i == 0 else _SEG_NAME.get(c & 0x7F, "#")
+        out.append(nm + ("." if c & SEG_DP else ""))
+        if i == 3:
+            out.append("|")
+    return "".join(out)
+
+
+def scan_display(b: "Board", cycles: int) -> tuple[list, list, list]:
+    """Step the simulated board 1 clock at a time, sample the real D0/D1 AN/SEG pins, and rebuild
+    the 8-cell image under the H-1 rule (and under the old rule, for the sensitivity check).
+    Returns (cells_h1, cells_old, problems)."""
+    seen_h1: list[set] = [set() for _ in range(8)]
+    seen_old: list[set] = [set() for _ in range(8)]
+    problems: list[str] = []
+    for _ in range(cycles):
+        b.ctl("step 1")
+        d0a, d0s, d1a, d1s = (int(x, 16) for x in b.ctl("seg"))
+        for d, (an, sg) in enumerate(((d0a, d0s), (d1a, d1s))):
+            on = (~an) & 0xF                      # active-low anodes
+            if on == 0:
+                continue                          # blanking gap between digit slots
+            if on & (on - 1):
+                problems.append(f"D{d}_AN={an:x}: more than one anode on")
+                continue
+            i = on.bit_length() - 1
+            pat = (~sg) & 0xFF                    # active-low segments
+            seen_h1[cell_h1(d, i)].add(pat)
+            seen_old[cell_old(d, i)].add(pat)
+    cells_h1, cells_old = [], []
+    for k in range(8):
+        for seen, cells, tag in ((seen_h1, cells_h1, "h1"), (seen_old, cells_old, "old")):
+            if len(seen[k]) == 1:
+                cells.append(next(iter(seen[k])))
+            else:
+                cells.append(None)
+                if tag == "h1":
+                    problems.append(f"cell {k} (from left) showed {sorted(hex(x) for x in seen[k]) or 'nothing'}")
+    return cells_h1, cells_old, problems
+
+
 def job_cost(j: dict) -> int:
     return sum(ld["len"] for ld in j["load"]) + 2 * j["expected"]["obuf_len"]
 
@@ -643,6 +727,69 @@ class Runner:
         if p != st_exp:
             raise Fail(f"SELFTEST after busy job: payload {p.hex()} expected {st_exp.hex()}")
 
+    # ---- display: 7-segment image rebuilt from the real top pins (H-1 orientation rule)
+    # Expected images are golden board/spec data, not computed: SPEC §3.9 ("F  9.3", "S 21.4":
+    # mode letter on the left display, utilization to one decimal right-aligned on the right one,
+    # '-' everywhere before the first update) with the H-1 measured orientation (see SEG_FONT).
+    # Notation: 4 cells | 4 cells, left to right; '.' lights the DP of the preceding cell.
+    DISPLAY_CASES = [
+        ("display_poweron_dashes",    None,         ST["ACK"],        "----|----"),
+        ("display_strip_214",         (214, 1),     ST["ACK"],        "S   | 21.4"),
+        ("display_full_93",           (93, 0),      ST["ACK"],        "F   |  9.3"),
+        ("display_full_0",            (0, 0),       ST["ACK"],        "F   |  0.0"),
+        ("display_strip_999",         (999, 1),     ST["ACK"],        "S   | 99.9"),
+        ("display_full_1000",         (1000, 0),    ST["ACK"],        "F   |100.0"),
+        ("display_nack_mode2_keeps",  (5, 2),       ST["NACK_RANGE"], "F   |100.0"),
+        ("display_strip_5",           (5, 1),       ST["ACK"],        "S   |  0.5"),
+    ]
+    DISPLAY_SCAN_CYCLES = 600      # > 2 full scan frames of the cosim build (SCAN_CYC=64, 4 slots)
+
+    def suite_display(self):
+        suite = "display"
+        cases = self.DISPLAY_CASES
+        if self.a.only:
+            cases = [c for c in cases if self.a.only in c[0]]
+            if not cases:
+                return
+        sets = [(OP["SET_DISPLAY"], u16(v[0]) + bytes([v[1]])) for _, v, _, _ in cases if v is not None]
+        frames = iter(req_frames(sets)) if sets else iter(())
+        log(f"[display] {len(cases)} cases on 1 board; orientation rule H-1 (D0 left, AN[0] leftmost)")
+        b = None
+        try:
+            b = self.board("display0")
+            self.ping(b, suite)
+            for name, v, st, exp_s in cases:
+                try:
+                    if v is not None:
+                        b.xact(next(frames), st, f"SET_DISPLAY util {v[0]} mode {v[1]}")
+                        b.flush_checks(name)
+                    b.ctl("step 32")                       # BCD conversion (11 clk) + pin registers
+                    c0 = b.cycle()
+                    got, got_old, probs = scan_display(b, self.DISPLAY_SCAN_CYCLES)
+                    exp = parse_cells(exp_s)
+                    inp = "power-on" if v is None else f"SET_DISPLAY util_permille={v[0]} mode={v[1]} (status {st})"
+                    if probs or got != exp:
+                        bad = [k for k in range(8) if got[k] != exp[k]]
+                        where = ", ".join(f"cell {k} ({'D0' if k < 4 else 'D1'} AN[{k % 4}])" for k in bad)
+                        raise Fail(f"{inp}: expected '{render_cells(exp)}' got '{render_cells(got)}' "
+                                   f"(left to right, H-1 rule) cycles {c0}..{c0 + self.DISPLAY_SCAN_CYCLES}; "
+                                   f"differing: {where or 'none'}; scan problems: {probs[:4]}; "
+                                   f"pins read with the old D1-left/AN3-left rule: '{render_cells(got_old)}'")
+                    # tb self-check: the image must be orientation-sensitive unless it is symmetric
+                    if exp != exp[::-1] and got_old == exp:
+                        raise Fail(f"{inp}: test is not orientation-sensitive (old rule also gives '{exp_s}')")
+                    self.record(suite, name, True)
+                except Fail as e:
+                    self.record(suite, name, False, str(e))
+                    b.rsps.clear()
+        except Exception as e:  # noqa: BLE001
+            self.record(suite, "display-infra", False, f"{type(e).__name__}: {e}\n{traceback.format_exc()}")
+        finally:
+            if b:
+                st = b.close()
+                if st is not None and int(st[2]) != 0:
+                    self.record(suite, "display-uart", False, f"{st[2]} UART TX framing errors")
+
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -656,7 +803,7 @@ def main() -> int:
     ap.add_argument("--n-switch", type=int, default=6)
     ap.add_argument("--switch-chains", type=int, default=4)
     ap.add_argument("--workers", type=int, default=16)
-    ap.add_argument("--suites", default="full,strip,directed,modeswitch,selftest")
+    ap.add_argument("--suites", default="full,strip,directed,modeswitch,selftest,display")
     ap.add_argument("--rand-reset", action="store_true", help="randomize X-initial state (+verilator+rand+reset+2)")
     ap.add_argument("--summary", default="")
     ap.add_argument("--only", default="", help="run only jobs whose name contains this (full/strip/directed)")
