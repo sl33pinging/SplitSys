@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.2.1 (win64) Build 6403652 Thu Mar 19 19:48:24 GMT 2026
-| Date         : Sat Oct 24 09:26:54 2026
+| Date         : Sat Oct 24 09:38:44 2026
 | Host         : Someones_Laptop running 64-bit major release  (build 9200)
 | Command      : report_utilization -file C:/Users/danie/FPGA_Projects/Calhack2026/fpga/reports/heartbeat_uart_echo/utilization.rpt
 | Design       : heartbeat_uart_echo
@@ -73,13 +73,13 @@ Table of Contents
 +--------------------------------------------+------+-------+------------+-----------+-------+
 |                  Site Type                 | Used | Fixed | Prohibited | Available | Util% |
 +--------------------------------------------+------+-------+------------+-----------+-------+
-| Slice                                      |  119 |     0 |          0 |      8150 |  1.46 |
-|   SLICEL                                   |   72 |     0 |            |           |       |
-|   SLICEM                                   |   47 |     0 |            |           |       |
+| Slice                                      |  130 |     0 |          0 |      8150 |  1.60 |
+|   SLICEL                                   |   78 |     0 |            |           |       |
+|   SLICEM                                   |   52 |     0 |            |           |       |
 | LUT as Logic                               |  178 |     0 |          0 |     32600 |  0.55 |
 |   using O5 output only                     |    0 |       |            |           |       |
-|   using O6 output only                     |  142 |       |            |           |       |
-|   using O5 and O6                          |   36 |       |            |           |       |
+|   using O6 output only                     |  143 |       |            |           |       |
+|   using O5 and O6                          |   35 |       |            |           |       |
 | LUT as Memory                              |   12 |     0 |          0 |      9600 |  0.13 |
 |   LUT as Distributed RAM                   |   12 |     0 |            |           |       |
 |     using O5 output only                   |    0 |       |            |           |       |
@@ -90,10 +90,10 @@ Table of Contents
 |     using O6 output only                   |    0 |       |            |           |       |
 |     using O5 and O6                        |    0 |       |            |           |       |
 | Slice Registers                            |  316 |     0 |          0 |     65200 |  0.48 |
-|   Register driven from within the Slice    |  262 |       |            |           |       |
-|   Register driven from outside the Slice   |   54 |       |            |           |       |
-|     LUT in front of the register is unused |   45 |       |            |           |       |
-|     LUT in front of the register is used   |    9 |       |            |           |       |
+|   Register driven from within the Slice    |  257 |       |            |           |       |
+|   Register driven from outside the Slice   |   59 |       |            |           |       |
+|     LUT in front of the register is unused |   55 |       |            |           |       |
+|     LUT in front of the register is used   |    4 |       |            |           |       |
 +--------------------------------------------+------+-------+------------+-----------+-------+
 
 
@@ -184,14 +184,14 @@ Table of Contents
 | Ref Name | Used | Functional Category |
 +----------+------+---------------------+
 | FDRE     |  280 |        Flop & Latch |
-| LUT4     |   63 |                 LUT |
+| LUT4     |   60 |                 LUT |
 | CARRY4   |   45 |          CarryLogic |
+| LUT5     |   43 |                 LUT |
 | OBUF     |   41 |                  IO |
-| LUT5     |   41 |                 LUT |
 | LUT1     |   36 |                 LUT |
 | FDSE     |   36 |        Flop & Latch |
-| LUT6     |   33 |                 LUT |
-| LUT3     |   22 |                 LUT |
+| LUT6     |   32 |                 LUT |
+| LUT3     |   23 |                 LUT |
 | LUT2     |   19 |                 LUT |
 | RAMD64E  |   12 |  Distributed Memory |
 | IBUF     |    6 |                  IO |

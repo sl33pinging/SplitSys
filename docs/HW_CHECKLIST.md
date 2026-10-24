@@ -44,25 +44,25 @@ Sources: master XDC `fpga/xdc/urbana_master.xdc` ("URBANA BOARD CONSTRAINTS V2I1
 | --- | --- |
 | Bitstream | `fpga/build/heartbeat_uart_echo/top.bit` |
 | Build | `scripts/vivado -mode batch -source fpga/tcl/build.tcl -tclargs heartbeat_uart_echo` (Phase S result: `fpga/reports/heartbeat_uart_echo/summary.json`) |
-| build_id | `0x2148101A` (git `2148101a`; bit md5 `c537e86cc6e33acb4561748e3a75ec98`). Re-read `summary.json` if rebuilt. |
+| build_id | `0x280BBFEB` (git `280bbfeb`; bit md5 `7601a531fd591bb196bc70ed54dac1ec`). Re-read `summary.json` if rebuilt. |
 | Program command | `scripts/vivado -mode batch -source fpga/tcl/program.tcl -tclargs fpga/build/heartbeat_uart_echo/top.bit` |
 | Physical action | None beyond pre-flight. After programming: **watch the board for 5 seconds**, then **press and hold BTN0** for 2 s, release, and do the same for BTN1, BTN2, BTN3 (one at a time). |
 | Host command | none |
-| Expected observation | 1. Console prints `PROGRAM_OK` and `DONE pin = '1'`.<br>2. For the first **2 s** every segment and every decimal point of all **8** digits is lit (lamp test).<br>3. Then the display shows the build_id in hex: `2148 101A` with a decimal point lit after exactly one digit (the D0 AN[0] marker).<br>4. **LED15 blinks at 1 Hz** (0.5 s on, 0.5 s off: count 10 blinks in ~10 s).<br>5. **LED14 is steadily on.** All other LEDs off (LED3 may flash once if the COM port is opened).<br>6. While a button BTNn is held, LED(8+n) is **on**; it goes off when released (the schematic says the buttons are active high). |
-| Record (these resolve open XDC ambiguities) | (a) the exact 8-character string read left to right, and where the lit DP is. The design assumes D1 = left display and AN[3] = leftmost digit, which gives `2148 101A` with the DP after the rightmost `A`. Any permutation is a display-mapping fact for `rtl/board_io.sv`, **not** an H-1 failure.<br>(b) confirm LED8–11 are off when released and on when pressed (active high, sch p4). If they are reversed, `top` needs `BTN_ACTIVE_LOW=1`; tell `rtl-designer`. Until then BTN1 would hold `top` in reset.<br>(c) LED14 lit (LED logic 1 = on, sch p4). |
+| Expected observation | 1. Console prints `PROGRAM_OK` and `DONE pin = '1'`.<br>2. For the first **2 s** every segment and every decimal point of all **8** digits is lit (lamp test).<br>3. Then the display shows the build_id in hex: `280B BFEB` with a decimal point lit after exactly one digit (the D0 AN[0] marker).<br>4. **LED15 blinks at 1 Hz** (0.5 s on, 0.5 s off: count 10 blinks in ~10 s).<br>5. **LED14 is steadily on.** All other LEDs off (LED3 may flash once if the COM port is opened).<br>6. While a button BTNn is held, LED(8+n) is **on**; it goes off when released (the schematic says the buttons are active high). |
+| Record (these resolve open XDC ambiguities) | (a) the exact 8-character string read left to right, and where the lit DP is. The design assumes D1 = left display and AN[3] = leftmost digit, which gives `280B BFEB` with the DP after the rightmost `B`. Any permutation is a display-mapping fact for `rtl/board_io.sv`, **not** an H-1 failure.<br>(b) confirm LED8–11 are off when released and on when pressed (active high, sch p4). If they are reversed, `top` needs `BTN_ACTIVE_LOW=1`; tell `rtl-designer`. Until then BTN1 would hold `top` in reset.<br>(c) LED14 lit (LED logic 1 = on, sch p4). |
 | Failure branch | Capture: the full program console output, a photo of the board (LEDs + display), and `usbipd list`. Likely causes, in order: (1) no JTAG target → cable/power, or device attached to WSL (P-2); (2) `PROGRAM_FAIL: DONE` → wrong part or corrupt bit, rebuild; (3) programmed but nothing lit → check LED14 (active high per sch p4; all-dark means the design is not running: check DONE, the clock); (4) LED15 wrong rate → clock is not 100 MHz (check schematic oscillator; SPEC CLK_HZ must change via `spec-steward`); (5) 7-seg blank but LEDs fine → anode/segment polarity (active-low per master XDC and sch p4). |
 
 ## H-2 — UART echo, 10,000 bytes
 
 | Field | Value |
 | --- | --- |
-| Bitstream | same as H-1 (`fpga/build/heartbeat_uart_echo/top.bit`, build_id `0x2148101A`); no reprogram needed if H-1 just passed. |
+| Bitstream | same as H-1 (`fpga/build/heartbeat_uart_echo/top.bit`, build_id `0x280BBFEB`); no reprogram needed if H-1 just passed. |
 | Program command | (only if power-cycled) `scripts/vivado -mode batch -source fpga/tcl/program.tcl -tclargs fpga/build/heartbeat_uart_echo/top.bit` |
 | Physical action | none |
 | Host command | Windows (strategy b): `splitsys-host --transport serial:COM__ echo --bytes 10000` (the subcommand exists in `sw/crates/host/src/main.rs`; default baud 115200 from the spec; the Windows build of the host is pending, see S4). Link settings: 115200 baud, 8N1, no flow control. <br>Fallback sanity check if the host is not ready: PuTTY (Serial, COM__, 115200, 8N1, flow control None); type characters. |
 | Expected observation | Host prints 10,000 bytes sent, 10,000 received, **0 mismatches, 0 missing** (and the measured throughput, ~11.5 kB/s at 115200). LED3 lit during the transfer. LED4 (frame error) and LED5 (FIFO overflow) stay **off**. In PuTTY: each typed character appears once. |
 | Board facts used | FPGA **receives on B16** (schematic net `UART_TXD` = FTDI TXD) and **transmits on A16** (net `UART_RXD` = FTDI RXD); see Board facts (sch p10, p12). Effective baud = 100 MHz / (54 × 16) = 115,741 (+0.47 %); the echo top has a 64-byte FIFO, and RX tolerates about ±4 %. |
-| Failure branch | Capture: host console output (`> h2_echo.log`), first 64 bytes sent vs received in hex, LED3/4/5 states, a photo. Likely causes, in order: (1) nothing received and LED3 **never** lights while sending → wrong COM port, or the port is held by another program. A pin swap is unlikely, since the schematic settles the direction, but as a last resort swap the two `PACKAGE_PIN`s in `fpga/xdc/urbana_splitsys.xdc`, rebuild, retest, and record the result in docs/ENV.md; (2) LED3 lights but nothing comes back → TX pin wrong (same swap) ; (3) garbage bytes → baud mismatch (host not at 115200, or clock not 100 MHz: compare H-1 heartbeat rate); (4) occasional drops with LED5 on → host sending far faster than 115200 or the FIFO too small (report to lead); (5) LED4 on after opening the port only → a glitch on port open; press and release BTN1 (clears LED4/LED5) and retry. |
+| Failure branch | Capture: host console output (`> h2_echo.log`), first 64 bytes sent vs received in hex, LED3/4/5 states, a photo.<br>**0 bytes echoed (and the COM port is right and not held by another program)** → the UART pins may be the other way round; the FT2232H pin function behind the default came from the datasheet as recalled, not a file in the repo. Program the prebuilt fallback and repeat H-2:<br>`scripts/vivado -mode batch -source fpga/tcl/program.tcl -tclargs fpga/build/heartbeat_uart_echo_uartswap/top.bit`<br>(build_id `0x280BBFEB`, FPGA RX = A16, TX = B16; `fpga/reports/heartbeat_uart_echo_uartswap/summary.json`, `"uart_swap":1`, bit md5 `944eb47764d6b1f9fd20f1b87b81f0f5`; rebuild: `... build.tcl -tclargs heartbeat_uart_echo_uartswap heartbeat_uart_echo UART_SWAP=1`).<br>**If the swap bitstream echoes correctly, every later bitstream must be built with `UART_SWAP=1`**: H-3 uses the prebuilt `fpga/build/packet_mem_uartswap/top.bit`; `top` must be rebuilt as `... -tclargs top_uartswap top UART_SWAP=1` (cost build: `top_nostrip_uartswap top ENABLE_STRIP=0 UART_SWAP=1`). Record the fact in docs/ENV.md and here, and flip the default in `fpga/xdc/urbana_uart.xdc` before KG1.<br>Other likely causes, in order: (1) wrong COM port or the port held by another program; (2) LED3 lights but nothing comes back → TX pin (swap as above); (3) garbage bytes → baud mismatch (host not at 115200, or clock not 100 MHz: compare the H-1 heartbeat rate); (4) occasional drops with LED5 on → host sending much faster than 115200 or the FIFO too small (report to lead); (5) LED4 on only after opening the port → a glitch on port open; press and release BTN1 (clears LED4/LED5) and retry. |
 | Then | If the plan raises the baud (SPEC §3.8: only after 10,000 packets at 115200 pass), that is a later H-3 decision, not part of this bitstream. |
 
 ## H-3 — Packet layer and memory round trips
@@ -72,7 +72,7 @@ Sources: master XDC `fpga/xdc/urbana_master.xdc` ("URBANA BOARD CONSTRAINTS V2I1
 | Bitstream | `fpga/build/packet_mem/top.bit` (top `fpga/bringup/packet_mem/packet_mem.sv`: production uart_rx/tx + packet + 4× buffers + board_io; sequencer, self-test and counters are **stubs**) |
 | Build | `scripts/vivado -mode batch -source fpga/tcl/build.tcl -tclargs packet_mem` (Phase S result: `fpga/reports/packet_mem/summary.json`: WNS +2.692 ns, 1316 LUT, 1216 FF, 25 BRAM) |
 | build_id | `0x9FD6577E` (git `9fd6577e`; bit md5 `a3d969551ee39c018312fc2b23ad7bd5`). Re-read `summary.json` if rebuilt. |
-| Program command | `scripts/vivado -mode batch -source fpga/tcl/program.tcl -tclargs fpga/build/packet_mem/top.bit` |
+| Program command | `scripts/vivado -mode batch -source fpga/tcl/program.tcl -tclargs fpga/build/packet_mem/top.bit` — or, if H-2 needed the swap, `fpga/build/packet_mem_uartswap/top.bit` (build_id `0x280BBFEB`, md5 `b1ab743529041c3157a0f64a7e21b8ea`, WNS +2.922 ns) |
 | Physical action | none |
 | Host command | 1. `splitsys-host --transport serial:COM__ ping`<br>2. Memory round trip, 10,000 frames over all four regions: **PENDING: `host-dashboard` to add a `memtest --frames N` subcommand** (the driver already has `write_mem`/`read_mem` in `sw/crates/host/src/client.rs`). It should do random region, random unaligned address and random length (1..1019 bytes, within the region), WRITE_MEM then READ_MEM, compare, and print the counts. |
 | Expected observation | 1. `PING ok: build_id 9fd6577e  proto v1`.<br>2. memtest: 10,000 frames, 0 mismatches, 0 NACK/timeouts, every region exercised. LED15 1 Hz heartbeat, LED3 flickers during traffic. The 7-segment display shows `-` on every digit (board_io before the first SET_DISPLAY). |
@@ -81,16 +81,44 @@ Sources: master XDC `fpga/xdc/urbana_master.xdc` ("URBANA BOARD CONSTRAINTS V2I1
 
 ## H-4 — Self-test (BTN0 and SELFTEST opcode)
 
-TODO (owner: `fpga-integrator` with `rtl-designer`). Bitstream `top` (ENABLE_STRIP=1). Check: BTN0 → LED0 (FULL) and LED1 (STRIP) on; `splitsys-host selftest` agrees (pass bytes and both Fletcher-32 values). Depends on the button polarity recorded at H-1.
+| Field | Value |
+| --- | --- |
+| Bitstream | `fpga/build/top/top.bit` (full design, ENABLE_STRIP=1). **Not built yet**: fill in when `fpga/reports/top/summary.json` exists. |
+| Build | `scripts/vivado -mode batch -source fpga/tcl/build.tcl -tclargs top` (ROM `sw/crates/vec/out/selftest_rom.mem`; must have `"pass":true`, `"git_dirty":"false"`, `dsp` ≥ 64) |
+| build_id | TODO (from `fpga/reports/top/summary.json`) |
+| Program command | `scripts/vivado -mode batch -source fpga/tcl/program.tcl -tclargs fpga/build/top/top.bit` |
+| Physical action | After programming: **press BTN0 once** (short press). |
+| Host command | then `splitsys-host --transport serial:COM__ ping`, then `splitsys-host --transport serial:COM__ selftest` |
+| Expected observation | 1. After programming: LED15 heartbeat at 1 Hz; display shows `-` on every digit; LED0/LED1 off.<br>2. BTN0: LED2 (busy) flashes briefly, then **LED0 (FULL pass) and LED1 (STRIP pass) light and stay lit**.<br>3. `ping` prints `PING ok: build_id <build_id>  proto v1`.<br>4. `selftest` prints `SELFTEST FULL : PASS (fletcher32 6c1d81af)` and `SELFTEST STRIP: PASS (fletcher32 8b1c6e80)` and exits 0. The expected values are from `sw/crates/vec/out/selftest_expected.json`; recheck them if the ROM is regenerated. |
+| Failure branch | Capture: `selftest` console output (both checksums), LED0/1/2 photo, `ping` output. Likely causes, in order: (1) nothing happens on BTN0 and LED0/1 stay off, but `selftest` over UART passes → button polarity or debounce (`BTN_ACTIVE_LOW`; H-1 record (b)); (2) the design looks held in reset (no heartbeat) → BTN1 polarity: `BTN_ACTIVE_LOW` is wrong, so BTN1 reads as held; (3) FULL fails with a checksum different from expected → datapath bug: hand the checksum to `verification-engineer` to reproduce in `tb/system` with the same ROM; (4) FULL passes, STRIP fails → STRIP-specific path (skew/lower-half alignment); (5) `selftest` times out → the self-test engine never pulses `st_done`. TODO(verif): verification-engineer to add the triage commands (sim reproduction from the ROM, dumping OBUF via READ_MEM for a diff against golden). |
 
 ## H-5 — Random GEMMs, both modes
 
-TODO (owner: `fpga-integrator` with `verification-engineer`, `perf-modeler`). Bitstream `top`. Check: 100 random GEMMs per mode bit-exact; counters equal the cycle model (or one calibration of provisional latencies, then freeze).
+| Field | Value |
+| --- | --- |
+| Bitstream | same as H-4 (`fpga/build/top/top.bit`); no reprogram after H-4 passes. |
+| Physical action | none |
+| Host command | **PENDING (`host-dashboard`):** a random-GEMM batch command (for example `splitsys-host --transport serial:COM__ random --count 100 --mode both --seed 1`) does not exist yet. Available now: `splitsys-host --transport serial:COM__ run --name <benchmark> --m <M> --mode both --seed <s>` (one GEMM per mode, checked bit-exact against golden, counters against the model) and `splitsys-host --transport serial:COM__ bench smoke`. |
+| Expected observation | 100 GEMMs per mode: **0 mismatches** (bit-exact) and every counter equal to the cycle model. If the provisional latencies (SPEC §4; L_RQ is still provisional) differ by a constant, one calibration is allowed (perf-modeler updates spec.toml via spec-steward), then they are frozen and the batch is rerun. Run records go to `results/hw/` with `source: "hw"`. |
+| Failure branch | Capture: the failing GEMM's spec (name, M, K, N, mode, seed), its run-record JSON, the first mismatching output index, and the counter diff. Likely causes, in order: (1) counters off by a constant in every run → provisional latency; calibrate once (perf-modeler); (2) mismatches only in STRIP → STRIP datapath; (3) mismatches only for some M/N → tiling/edge handling in the sequencer; (4) sporadic mismatches that don't repeat with the same seed → UART/link issue: rerun H-3 memtest. TODO(verif): verification-engineer to provide the sim-reproduction command for one failing seed. |
 
 ## H-6 — Benchmarks and KG1
 
-TODO (owner: `fpga-integrator` with `host-dashboard`, `perf-modeler`). Bitstream `top`. Check: full benchmark suite and M-sweep → `results/hw/`; then archive **KG1** in `fpga/known_good/KG1/` and update `fpga/known_good/CURRENT`.
+| Field | Value |
+| --- | --- |
+| Bitstream | same as H-4/H-5 |
+| Physical action | none |
+| Host command | `splitsys-host --transport serial:COM__ bench bench`, then `splitsys-host --transport serial:COM__ bench sweep` |
+| Expected observation | Every run bit-exact, counters equal the model; records in `results/hw/`. Then **archive KG1** (lead runs it, fpga-integrator checks): `mkdir -p fpga/known_good/KG1 && cp fpga/build/top/top.bit fpga/known_good/KG1/ && cp -r fpga/reports/top fpga/known_good/KG1/reports && git rev-parse HEAD > fpga/known_good/KG1/git_hash.txt && cp <h4-h6 console logs> fpga/known_good/KG1/` then `echo fpga/known_good/KG1/top.bit > fpga/known_good/CURRENT` and commit `fpga/known_good/` (the `.gitignore` allows it). Never overwrite an existing KG directory. |
+| Failure branch | As H-5. If only the sweep fails at some M, keep the passing bench results, record the failing M, and do not archive KG1 until the lead decides. |
 
 ## H-7 — Dashboard cold start
 
-TODO (owner: `host-dashboard` with `fpga-integrator`). Bitstream `fpga/known_good/CURRENT`. Check: dashboard on the real monitor with HW data; cold-start drill (power-cycle → program → dashboard live) under 60 s.
+| Field | Value |
+| --- | --- |
+| Bitstream | `fpga/known_good/CURRENT` (KG1) |
+| Program command | `scripts/vivado -mode batch -source fpga/tcl/program.tcl -tclargs fpga/known_good/CURRENT` (program.tcl follows the pointer file) |
+| Physical action | Human: **power-cycle the board** (switch off, on), start a stopwatch. |
+| Host command | 1. the program command above; 2. PowerShell: `powershell -ExecutionPolicy Bypass -File demo\start_demo.ps1 -Transport serial:COM__` (prebuilt `sw\target\release\splitsys-host.exe` required). |
+| Expected observation | Within **60 s** of the power-cycle: board programmed (`PROGRAM_OK`), start script's PING shows the KG1 build_id, dashboard Scene 1 live on the monitor with a green `BOARD LIVE` badge and HW-labelled data, and the build_id on screen matches `fpga/known_good/KG1/`. |
+| Failure branch | Capture: the timings of each step, the start-script console output. Likely causes: (1) programming takes most of the 60 s → consider QSPI flash (optional, after G4; confirm the flash part first); (2) PING fails → COM port changed after the power cycle (use `-Transport serial:auto` or recheck P-4); (3) dashboard shows MODEL/SIM data → wrong results directory. TODO(host-dashboard): confirm the expected start-script output lines. |
