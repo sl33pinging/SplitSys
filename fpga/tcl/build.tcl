@@ -20,12 +20,17 @@
 #          a repo-relative ROM_FILE=<path> may be given. It is passed to synthesis
 #          as an absolute path, must exist, counts toward git_dirty, and a
 #          $readmemh file that cannot be opened (Synth 8-4445) is an error.
+#   UART_SWAP=1  build option, not a generic: use fpga/xdc/urbana_uart_swap.xdc
+#          (FPGA RX = A16, TX = B16) instead of fpga/xdc/urbana_uart.xdc (RX =
+#          B16, TX = A16, the schematic reading). Fallback for H-2; give the
+#          build its own tag, e.g. ... -tclargs top_uartswap top UART_SWAP=1
 #
 # Sources
 #   Bring-up top (fpga/bringup/<top>/ exists): the repo-relative files listed in
 #   fpga/bringup/<top>/sources.f, then fpga/bringup/<top>/*.sv (not sim/).
 #   Otherwise: rtl/gen/*.sv then rtl/*.sv.
-#   Constraints: fpga/bringup/<top>/*.xdc if any, else fpga/xdc/urbana_splitsys.xdc.
+#   Constraints: fpga/bringup/<top>/*.xdc if any (UART_SWAP not supported then),
+#   else fpga/xdc/urbana_splitsys.xdc + fpga/xdc/urbana_uart[_swap].xdc.
 #
 # Outputs
 #   fpga/reports/<tag>/ utilization.rpt timing_summary.rpt drc.rpt power.rpt
@@ -117,6 +122,12 @@ set build_id_hex [string toupper $git_hash]
 # ------------------------------------------------------------------- generics
 set generics [list BUILD_ID "32'h$git_hash"]
 set gen_dict [dict create BUILD_ID "32'h$git_hash"]
+set uart_swap 0
+if {[dict exists $user_generics UART_SWAP]} {
+    set uart_swap [dict get $user_generics UART_SWAP]
+    set user_generics [dict remove $user_generics UART_SWAP]
+    if {$uart_swap ni {0 1}} { die "UART_SWAP must be 0 or 1" }
+}
 set rom_file ""
 if {$is_full_top} {
     if {![dict exists $user_generics ENABLE_STRIP]} { lappend user_generics ENABLE_STRIP 1 }
@@ -161,7 +172,12 @@ if {[file isdirectory $top_bringup]} {
     foreach f [lsort [glob -nocomplain -directory [file join $ROOT rtl] *.sv]]     { lappend srcs $f }
     set xdcs [list]
 }
-if {[llength $xdcs] == 0} { set xdcs [list [file join $ROOT fpga xdc urbana_splitsys.xdc]] }
+if {[llength $xdcs] == 0} {
+    set uart_xdc [expr {$uart_swap ? "urbana_uart_swap.xdc" : "urbana_uart.xdc"}]
+    set xdcs [list [file join $ROOT fpga xdc urbana_splitsys.xdc] [file join $ROOT fpga xdc $uart_xdc]]
+} elseif {$uart_swap} {
+    die "UART_SWAP=1 is not supported for a top with its own XDC in $top_bringup"
+}
 foreach f [concat $srcs $xdcs] { if {![file exists $f]} { die "missing source $f" } }
 set dirty_files [concat $srcs $xdcs [list [file normalize [info script]]]]
 if {$rom_file ne ""} { lappend dirty_files $rom_file }
@@ -176,6 +192,11 @@ puts "BUILD: generics=$generics"
 puts "BUILD: sources=[llength $srcs] xdc=$xdcs"
 
 # ---------------------------------------------------------------------- flow
+# The user's Vivado_init.tcl points board.repoPaths at a WSL share whose
+# board.xml files fail to parse (78 CRITICAL WARNING [Board 49-4] at set_part).
+# This flow uses only the part number, never a board file, so clear it for
+# this session (the Windows-side init file is not touched).
+set_param board.repoPaths [list]
 set_part $PART
 foreach f $srcs { read_verilog -sv $f }
 foreach f $xdcs { read_xdc $f }
@@ -262,7 +283,7 @@ dict for {k v} $gen_dict { lappend gj "[jstr $k]:[jstr $v]" }
 set fj [list]
 foreach f $failures { lappend fj [jstr $f] }
 set es [expr {$enable_strip eq "null" ? "null" : [jstr $enable_strip]}]
-set json "\{\"tag\":[jstr $tag],\"top\":[jstr $top],\"part\":[jstr $PART],\"build_id\":[jstr 0x$build_id_hex],\"git_hash\":[jstr $git_hash],\"git_dirty\":[jstr $dirty],\"vivado\":[jstr [version -short]],\"clk_period_ns\":[jnum $period],\"wns_ns\":[jnum $wns],\"whs_ns\":[jnum $whs],\"lut\":$lut,\"ff\":$ff,\"dsp\":$dsp,\"bram\":$bram,\"fmax_est_mhz\":[jnum $fmax],\"enable_strip\":$es,\"rom_file\":[jstr [expr {$rom_file eq "" ? "" : [string map [list "$ROOT/" ""] $rom_file]}]],\"min_dsp\":$min_dsp,\"latches\":$n_latch,\"drc_errors\":$n_drc_err,\"generics\":\{[join $gj ,]\},\"bitfile\":[jstr $bitfile],\"pass\":[expr {$pass ? "true" : "false"}],\"failures\":\[[join $fj ,]\]\}"
+set json "\{\"tag\":[jstr $tag],\"top\":[jstr $top],\"part\":[jstr $PART],\"build_id\":[jstr 0x$build_id_hex],\"git_hash\":[jstr $git_hash],\"git_dirty\":[jstr $dirty],\"vivado\":[jstr [version -short]],\"clk_period_ns\":[jnum $period],\"wns_ns\":[jnum $wns],\"whs_ns\":[jnum $whs],\"lut\":$lut,\"ff\":$ff,\"dsp\":$dsp,\"bram\":$bram,\"fmax_est_mhz\":[jnum $fmax],\"enable_strip\":$es,\"uart_swap\":$uart_swap,\"rom_file\":[jstr [expr {$rom_file eq "" ? "" : [string map [list "$ROOT/" ""] $rom_file]}]],\"min_dsp\":$min_dsp,\"latches\":$n_latch,\"drc_errors\":$n_drc_err,\"generics\":\{[join $gj ,]\},\"bitfile\":[jstr $bitfile],\"pass\":[expr {$pass ? "true" : "false"}],\"failures\":\[[join $fj ,]\]\}"
 set fh [open [file join $rpt_dir summary.json] w]
 puts $fh $json
 close $fh

@@ -5,7 +5,7 @@
 # XDC in this directory (fpga/xdc/urbana_master.xdc, header "URBANA BOARD
 # CONSTRAINTS V2I1 1/3/2023"; origin recorded in docs/ENV.md). Port names are
 # kept identical to the master file so any line can be checked by grep, with
-# ONE deliberate exception: the two USB-UART pins (see the UART section).
+# ONE deliberate exception: the two USB-UART pins (urbana_uart*.xdc).
 # "master:<line>" gives the line number in urbana_master.xdc; "sch p<N>" is a
 # page of the Urbana schematic Urbana_V2I1_SCH_2023-01-03.PDF (docs/ENV.md).
 #
@@ -96,21 +96,10 @@ set_property -dict {PACKAGE_PIN H3 IOSTANDARD LVCMOS25} [get_ports {D1_SEG[5]}]
 set_property -dict {PACKAGE_PIN E5 IOSTANDARD LVCMOS25} [get_ports {D1_SEG[6]}]
 set_property -dict {PACKAGE_PIN J4 IOSTANDARD LVCMOS25} [get_ports {D1_SEG[7]}]
 
-# ---- USB-UART (master:140-141, "UART signals"; the BLE_UART_* pins on
-# master:136-139 are the Bluetooth module and are not used).
-# The master XDC names are from the USB BRIDGE's point of view, not the FPGA's:
-#   sch p12: FPGA B16 = net UART_TXD, FPGA A16 = net UART_RXD.
-#   sch p10: net UART_TXD = FT2232HQ (IC6) pin 38 = BDBUS0; net UART_RXD = pin 39
-#            = BDBUS1. Channel B is the UART (channel A pins 16-19 are JTAG
-#            FT_TCK/TDI/TDO/TMS). In FT2232H async-UART mode BDBUS0 is TXD (FTDI
-#            output) and BDBUS1 is RXD (FTDI input) -- FTDI DS_FT2232H pin table.
-# So the FPGA RECEIVES on B16 and TRANSMITS on A16. Our ports are named from
-# the FPGA's side (UART_RXD = FPGA input), so these two lines intentionally
-# differ from master:140-141:
-#   master "UART_TXD" (B16)  ->  our port UART_RXD (FPGA input)
-#   master "UART_RXD" (A16)  ->  our port UART_TXD (FPGA output)
-set_property -dict {PACKAGE_PIN B16 IOSTANDARD LVCMOS33} [get_ports {UART_RXD}]
-set_property -dict {PACKAGE_PIN A16 IOSTANDARD LVCMOS33} [get_ports {UART_TXD}]
+# ---- USB-UART pins are NOT in this file. fpga/tcl/build.tcl reads exactly one of:
+#   urbana_uart.xdc       (default) FPGA RX = B16, TX = A16, per the schematic
+#   urbana_uart_swap.xdc  (UART_SWAP=1) FPGA RX = A16, TX = B16: fallback if H-2
+#                         echoes nothing (see docs/HW_CHECKLIST.md H-2)
 
 # No set_input_delay/set_output_delay: BTN and UART_RXD are asynchronous and
 # 2-FF synchronized in RTL; LED/7-seg/UART_TXD are driven from flops and are

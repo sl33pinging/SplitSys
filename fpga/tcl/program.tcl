@@ -24,6 +24,10 @@ if {[file isfile $bit] && [file extension $bit] ne ".bit"} {
 if {![file isfile $bit]} { fail "bitfile not found: $bit" }
 puts "PROGRAM: $bit"
 
+# Ignore the WSL board repository set by the user's Vivado_init.tcl (its
+# board.xml files fail to parse); programming needs no board files.
+set_param board.repoPaths [list]
+
 open_hw_manager
 if {[catch {connect_hw_server -allow_non_jtag} e]} { fail "connect_hw_server: $e" }
 set targets [get_hw_targets -quiet]
