@@ -1,0 +1,15 @@
+# tb-side oracle: a thin line-protocol CLI over the bit-exact reference crate
+# `splitsys_golden`. It computes NOTHING itself: every expected value is the
+# return value of a public `splitsys_golden` function. cocotb tests use it so
+# that no expected value is ever re-derived in Python (CLAUDE.md, SPEC §6).
+# Owner: verification-engineer. Not a member of the sw/ workspace on purpose.
+[package]
+name = "splitsys-tb-oracle"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+splitsys-golden = { path = "../../sw/crates/golden" }
+
+[workspace]
