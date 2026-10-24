@@ -327,31 +327,12 @@ impl MockBoard {
     }
 }
 
-/// Self-test jobs and their stored Fletcher-32 values.
-#[cfg(feature = "vec-rom")]
+/// Self-test jobs and their stored Fletcher-32 values (the real ROM image).
 fn selftest_jobs() -> (Vec<golden::Job>, Vec<u32>) {
     let rom = splitsys_vec::selftest::build_rom();
     (rom.jobs, rom.fletcher)
 }
 
-/// Without the `vec-rom` feature: two stand-in jobs (M mod 8 = 0, N mod 16 = 0,
-/// int8, per SPEC §3.9), stored values computed by golden. Not the ROM's values.
-#[cfg(not(feature = "vec-rom"))]
-fn selftest_jobs() -> (Vec<golden::Job>, Vec<u32>) {
-    let mut rng = golden::rng::Rng::new(0x5E1F_7E57);
-    let jobs: Vec<golden::Job> = [spec::MODE_FULL, spec::MODE_STRIP]
-        .iter()
-        .map(|&mode| {
-            let (m, k, n) = (8, 24, 32);
-            let a = golden::MatI8::from_fn(m, k, |_, _| rng.i8());
-            let w = golden::MatI8::from_fn(k, n, |_, _| rng.i8());
-            golden::Job::new(mode, a, w, Some(vec![(1234u16, 12u8); n]), golden::Bases::default())
-                .expect("stand-in self-test job")
-        })
-        .collect();
-    let f = jobs.iter().map(|j| golden::fletcher32(&j.obuf_image)).collect();
-    (jobs, f)
-}
 
 #[cfg(test)]
 mod tests {

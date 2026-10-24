@@ -56,6 +56,15 @@ enum Cmd {
         /// Skip writing the OBUF poison pattern before the run (less UART traffic).
         #[arg(long)]
         no_poison: bool,
+        /// Random batch (H-5): N jobs per mode from the `splitsys-vec gemm` generator.
+        #[arg(long)]
+        random: Option<usize>,
+        #[arg(long, default_value_t = splitsys_spec::M_MAX)]
+        max_m: usize,
+        #[arg(long, default_value_t = splitsys_spec::K_MAX)]
+        max_k: usize,
+        #[arg(long, default_value_t = splitsys_spec::N_MAX)]
+        max_n: usize,
     },
     /// Run a suite in both modes: bench (4 GEMMs × M∈{1,64}) | sweep (× M∈{1..64}) | smoke.
     Bench {
@@ -142,7 +151,10 @@ fn real_main(cli: &Cli) -> Result<ExitCode, String> {
             println!("source {} via {}", b.source().as_str(), b.describe());
             Ok(if s.pass_full && s.pass_strip { ExitCode::SUCCESS } else { ExitCode::FAILURE })
         }
-        Cmd::Run { gemm, name, m, mode, seed, int32, no_poison } => {
+        Cmd::Run { gemm, name, m, mode, seed, int32, no_poison, random, max_m, max_k, max_n } => {
+            if let Some(n) = random {
+                return random_batch(cli, &results, &root, *n, mode, *seed, (*max_m, *max_k, *max_n), !no_poison);
+            }
             let mut specs = Vec::new();
             if let Some(p) = gemm {
                 let b = std::fs::read(p).map_err(|e| format!("{}: {e}", p.display()))?;
@@ -216,6 +228,10 @@ fn real_main(cli: &Cli) -> Result<ExitCode, String> {
                 if r.ok() { "PASS" } else { "FAIL" },
                 r.seed, r.frames, r.bytes, r.bad_frames, r.bad_bytes, r.errors,
                 l.nack_crc, l.bad_rsp_crc, l.timeouts, l.busy, l.retries
+            );
+            println!(
+                "regions (frames): WBUF {} ABUF {} OBUF {} RQPARAM {}",
+                r.per_region[0], r.per_region[1], r.per_region[2], r.per_region[3]
             );
             if let Some(e) = &r.first_error {
                 println!("first error: {e}");
@@ -377,4 +393,76 @@ fn run_specs(
         b.stats.retries
     );
     Ok(all_ok)
+}
+
+/// `run --random N`: the H-5 random-GEMM batch.
+#[allow(clippy::too_many_arguments)]
+fn random_batch(
+    cli: &Cli,
+    results: &std::path::Path,
+    root: &std::path::Path,
+    n: usize,
+    mode: &str,
+    seed: u64,
+    max: (usize, usize, usize),
+    poison: bool,
+) -> Result<ExitCode, String> {
+    let modes: Vec<u8> = match mode.to_ascii_lowercase().as_str() {
+        "both" => vec![splitsys_spec::MODE_FULL, splitsys_spec::MODE_STRIP],
+        m => vec![runner::mode_code(m)?],
+    };
+    let mut b = open_board(cli)?;
+    let ping = b.ping().map_err(|e| format!("{e} via {}", b.describe()))?;
+    let id = format!("{:08x}", ping.build_id);
+    let src = runner::effective_source(b.source(), Some(&id));
+    let mut ctx = Context::new(results.to_path_buf(), root);
+    ctx.poison = poison;
+    ctx.build_id = Some(id);
+    let mut session = Session::load_or_new(&session_path(results, src), src);
+    println!(
+        "random batch: {n} jobs × {} mode(s), seed {seed}, max M/K/N {}/{}/{}, via {} (source {src})",
+        modes.len(),
+        max.0,
+        max.1,
+        max.2,
+        b.describe()
+    );
+    for &m in &modes {
+        let ms = if m == splitsys_spec::MODE_STRIP { "strip" } else { "full" };
+        println!("  same jobs for sim: {}", splitsys_host::batch::vec_command(seed, n, ms, max));
+    }
+    let mut k = 0usize;
+    let s = splitsys_host::batch::run_batch(&mut b, &mut ctx, seed, n, &modes, max, |bj, res| {
+        k += 1;
+        match res {
+            Ok((r, path)) => {
+                session.add(r);
+                let ok = r.verified() && r.check.counter_diffs.is_empty();
+                println!(
+                    "  {:>4} {:<18} M={:<3} K={:<3} N={:<3} {:<5} {} util {:>6.2}% cycles {:>7} {} {}",
+                    k,
+                    bj.name,
+                    r.gemm.m,
+                    r.gemm.k,
+                    r.gemm.n,
+                    r.gemm.mode,
+                    if r.gemm.requant { "i8 " } else { "i32" },
+                    r.derived.util * 100.0,
+                    r.counters.cycles_total,
+                    if ok { "OK" } else { "FAIL" },
+                    path.as_ref().map(|p| p.display().to_string()).unwrap_or_default()
+                );
+                for d in &r.check.counter_diffs {
+                    println!("         counter {d}");
+                }
+            }
+            Err(e) => println!("  {:>4} {:<18} ERROR: {e}", k, bj.name),
+        }
+    })?;
+    write_json(&session_path(results, src), &session).map_err(|e| e.to_string())?;
+    println!("{}", s.line());
+    if let Some(f) = &s.first_failure {
+        println!("first failure: {f}");
+    }
+    Ok(if s.ok() { ExitCode::SUCCESS } else { ExitCode::FAILURE })
 }

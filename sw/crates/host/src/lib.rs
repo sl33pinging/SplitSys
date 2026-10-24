@@ -5,6 +5,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod batch;
 pub mod client;
 pub mod frame;
 pub mod memtest;

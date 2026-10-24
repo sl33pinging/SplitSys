@@ -206,6 +206,19 @@ pub fn effective_source(t: crate::transport::Source, build_id_hex: Option<&str>)
 /// `MOCK_BUILD_ID` as the 8-hex-digit string used in records.
 pub const MOCK_BUILD_ID_HEX: &str = "4d4f434b";
 
+/// Every counter (all 12, READ_COUNTERS order) that differs from the model.
+pub fn counter_diffs(meas: &cycle::Counters, model: &cycle::Counters) -> Vec<String> {
+    meas.readback()
+        .into_iter()
+        .zip(model.readback())
+        .filter(|((_, a), (_, b))| a != b)
+        .map(|((name, a), (_, b))| {
+            let e = if b == 0 { f64::INFINITY } else { (a as f64 - b as f64) / b as f64 * 100.0 };
+            format!("{name}: {a} vs model {b} ({e:+.2}%)")
+        })
+        .collect()
+}
+
 /// Measured utilization in permille for SET_DISPLAY: round-half-up of
 /// `1000 · mac_useful / (64 · cycles_total)`, integer-only, clamped to 0..=1000.
 pub fn util_permille(c: &cycle::Counters) -> u16 {
@@ -224,8 +237,46 @@ pub fn run_gemm(
     cache: &mut LoadCache,
     g: &GemmSpec,
 ) -> Result<(RunRecord, Option<PathBuf>), RunError> {
-    let t0 = Instant::now();
     let job = build_job(g).map_err(RunError::Job)?;
+    run_job(board, ctx, cache, g, &job, true)
+}
+
+/// Run a prebuilt golden job. `g` supplies the record's name/seed and must match
+/// the job's shape, mode and requant. With `cacheable = false` (e.g. random jobs
+/// at random bases) every image is written and the load cache is invalidated
+/// afterwards, since the job may overwrite what the cache believes is resident.
+pub fn run_job(
+    board: &mut Board,
+    ctx: &mut Context,
+    cache: &mut LoadCache,
+    g: &GemmSpec,
+    job: &golden::Job,
+    cacheable: bool,
+) -> Result<(RunRecord, Option<PathBuf>), RunError> {
+    if !cacheable {
+        cache.clear();
+    }
+    let r = run_job_inner(board, ctx, cache, g, job);
+    if !cacheable {
+        cache.clear();
+    }
+    r
+}
+
+fn run_job_inner(
+    board: &mut Board,
+    ctx: &mut Context,
+    cache: &mut LoadCache,
+    g: &GemmSpec,
+    job: &golden::Job,
+) -> Result<(RunRecord, Option<PathBuf>), RunError> {
+    let t0 = Instant::now();
+    if job.desc.dims() != (g.m, g.k, g.n)
+        || job.desc.mode != mode_code(&g.mode).map_err(RunError::Job)?
+        || job.c.is_some() != g.requant
+    {
+        return Err(RunError::Job(format!("spec {g:?} does not match job {:?}", job.desc)));
+    }
     let (cd, model) = model_for(g).map_err(RunError::Job)?;
     if ctx.build_id.is_none() {
         let p = board.ping()?;
@@ -348,6 +399,7 @@ pub fn run_gemm(
             invariants_ok: inv.is_ok(),
             invariant_error: inv.err(),
             first_mismatch: first_bad,
+            counter_diffs: counter_diffs(&counters, &model),
         },
         provenance: Provenance {
             transport: Some(board.describe()),

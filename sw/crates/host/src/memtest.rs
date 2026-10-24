@@ -16,6 +16,8 @@ pub struct MemtestReport {
     pub seed: u64,
     pub frames: u64,
     pub bytes: u64,
+    /// Frames per region (WBUF, ABUF, OBUF, RQPARAM): H-3 requires all four exercised.
+    pub per_region: [u64; spec::N_REGIONS],
     /// Frames whose read-back differed from what was written.
     pub bad_frames: u64,
     /// Mismatched bytes over all frames.
@@ -60,6 +62,7 @@ pub fn memtest(
             .write_mem(region, addr, &data)
             .and_then(|_| board.read_mem(region, addr, len));
         r.frames += 1;
+        r.per_region[usize::from(region)] += 1;
         match res {
             Ok(back) => {
                 r.bytes += len as u64;
@@ -125,6 +128,7 @@ mod tests {
         let r = memtest(&mut b, 300, 7, |_, _| {});
         assert!(r.ok(), "{r:?}");
         assert_eq!(r.frames, 300);
+        assert!(r.per_region.iter().all(|&c| c > 0), "{:?}", r.per_region);
         assert!(r.bytes > 300);
     }
 

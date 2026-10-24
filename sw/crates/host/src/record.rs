@@ -59,6 +59,9 @@ pub struct Check {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     /// Row-major index (m*N + n) of the first mismatching in-bounds output.
     pub first_mismatch: Option<u64>,
+    /// Counters that differ from the cycle model: "name: measured vs model (err%)".
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub counter_diffs: Vec<String>,
 }
 
 /// Extra provenance (not in the DEMO.md §4 example, all optional).
