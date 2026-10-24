@@ -1,0 +1,152 @@
+{
+  "source": "hw-build",
+  "full_only": {
+    "lut": 5181,
+    "ff": 6255,
+    "dsp": 80,
+    "bram": 26,
+    "fmax_mhz": 122.5,
+    "wns_ns": 1.834
+  },
+  "split": {
+    "lut": 7378,
+    "ff": 7778,
+    "dsp": 96,
+    "bram": 26,
+    "fmax_mhz": 105.6,
+    "wns_ns": 0.526
+  },
+  "git_hash": "35fb363f",
+  "build_id": {
+    "split": "0x35FB363F",
+    "full_only": "0x35FB363F"
+  },
+  "part": "xc7s50csga324-2",
+  "vivado": "2025.2.1",
+  "clock_mhz": 100.0,
+  "fmax_note": "fmax_mhz = 1000/(10 ns - WNS) from the post-route timing at the 100 MHz constraint; an estimate, not a swept Fmax. Check worst_path before attributing the Fmax delta to splitting: a routing-dominated control net (reset, mux select) is placement, not STRIP logic",
+  "worst_path": {
+    "split": {
+      "slack_ns": 0.526,
+      "source": "u_board/rst_r_reg/C",
+      "destination": "u_selftest/ret_reg[1]/R",
+      "logic_levels": 0,
+      "route_pct": 95.219
+    },
+    "full_only": {
+      "slack_ns": 1.834,
+      "source": "u_selftest/busy_reg_rep__0/C",
+      "destination": "u_core/u_wbuf/mem_reg_2/ADDRBWRADDR[13]",
+      "logic_levels": 1,
+      "route_pct": 93.598
+    }
+  },
+  "breakdown": {
+    "split": {
+      "array": {
+        "lut": 1101,
+        "ff": 1488,
+        "dsp": 64,
+        "bram36": 0,
+        "bram18": 0
+      },
+      "requant": {
+        "lut": 3154,
+        "ff": 2434,
+        "dsp": 32,
+        "bram36": 0,
+        "bram18": 0
+      },
+      "sequencer": {
+        "lut": 670,
+        "ff": 479,
+        "dsp": 0,
+        "bram36": 0,
+        "bram18": 0
+      },
+      "core": {
+        "lut": 5225,
+        "ff": 4409,
+        "dsp": 96,
+        "bram36": 25,
+        "bram18": 0
+      },
+      "total": {
+        "lut": 7378,
+        "ff": 7778,
+        "dsp": 96,
+        "bram36": 25,
+        "bram18": 2
+      }
+    },
+    "full_only": {
+      "array": {
+        "lut": 727,
+        "ff": 1224,
+        "dsp": 64,
+        "bram36": 0,
+        "bram18": 0
+      },
+      "requant": {
+        "lut": 1666,
+        "ff": 1218,
+        "dsp": 16,
+        "bram36": 0,
+        "bram18": 0
+      },
+      "sequencer": {
+        "lut": 381,
+        "ff": 409,
+        "dsp": 0,
+        "bram36": 0,
+        "bram18": 0
+      },
+      "core": {
+        "lut": 2974,
+        "ff": 2860,
+        "dsp": 80,
+        "bram36": 25,
+        "bram18": 0
+      },
+      "total": {
+        "lut": 5181,
+        "ff": 6255,
+        "dsp": 80,
+        "bram36": 25,
+        "bram18": 2
+      }
+    },
+    "delta": {
+      "array": {
+        "lut": 374,
+        "ff": 264,
+        "dsp": 0
+      },
+      "requant": {
+        "lut": 1488,
+        "ff": 1216,
+        "dsp": 16
+      },
+      "sequencer": {
+        "lut": 289,
+        "ff": 70,
+        "dsp": 0
+      },
+      "core": {
+        "lut": 2251,
+        "ff": 1549,
+        "dsp": 16
+      },
+      "total": {
+        "lut": 2197,
+        "ff": 1523,
+        "dsp": 16
+      }
+    }
+  },
+  "note": "split minus full_only includes the STRIP datapath (array W-entry/A-source muxes, sequencer STRIP control) AND requant lanes 8-15 (STRIP's 16-wide output: 16 DSPs), which ENABLE_STRIP=0 trims because FULL drains 8 lanes; see breakdown.delta",
+  "reports": {
+    "split": "fpga/reports/top/summary.json",
+    "full_only": "fpga/reports/top_nostrip/summary.json"
+  }
+}

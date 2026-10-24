@@ -1,0 +1,43 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.2.1 (win64) Build 6403652 Thu Mar 19 19:48:24 GMT 2026
+| Date         : Sat Oct 24 10:09:11 2026
+| Host         : Someones_Laptop running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -hierarchical_depth 4 -file C:/Users/danie/FPGA_Projects/Calhack2026/fpga/reports/top_nostrip/utilization_hier.rpt
+| Design       : top
+| Device       : xc7s50csga324-2
+| Speed File   : -2
+| Design State : Routed
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++-------------------+----------------------+------------+------------+---------+------+------+--------+--------+------------+
+|      Instance     |        Module        | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
++-------------------+----------------------+------------+------------+---------+------+------+--------+--------+------------+
+| top               |                (top) |       5181 |       5092 |       0 |   89 | 6255 |     25 |      2 |         80 |
+|   (top)           |                (top) |          0 |          0 |       0 |    0 |    0 |      0 |      0 |          0 |
+|   u_board         |             board_io |        174 |        174 |       0 |    0 |  298 |      0 |      0 |          0 |
+|   u_core          |                 core |       2974 |       2885 |       0 |   89 | 2860 |     25 |      0 |         80 |
+|     (u_core)      |                 core |        128 |        128 |       0 |    0 |    4 |      0 |      0 |          0 |
+|     u_array       |                array |        727 |        659 |       0 |   68 | 1224 |      0 |      0 |         64 |
+|       (u_array)   |                array |          0 |          0 |       0 |    0 |  211 |      0 |      0 |          0 |
+|       u_askew     |                 skew |         61 |         25 |       0 |   36 |  110 |      0 |      0 |          0 |
+|       u_wskew_top | skew__parameterized0 |         52 |         20 |       0 |   32 |  104 |      0 |      0 |          0 |
+|     u_rq          |              requant |       1666 |       1665 |       0 |    1 | 1218 |      0 |      0 |         16 |
+|     u_seq         |            sequencer |        381 |        361 |       0 |   20 |  409 |      0 |      0 |          0 |
+|     u_wbuf        |              buffers |         57 |         57 |       0 |    0 |    1 |     16 |      0 |          0 |
+|   u_counters      |             counters |        241 |        241 |       0 |    0 | 1138 |      0 |      0 |          0 |
+|   u_packet        |               packet |       1005 |       1005 |       0 |    0 | 1060 |      0 |      1 |          0 |
+|   u_selftest      |             selftest |        725 |        725 |       0 |    0 |  829 |      0 |      1 |          0 |
++-------------------+----------------------+------------+------------+---------+------+------+--------+--------+------------+
+* Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
+
+

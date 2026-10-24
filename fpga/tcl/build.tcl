@@ -222,6 +222,7 @@ report_timing_summary   -max_paths 10 -report_unconstrained -file [file join $rp
 report_drc              -file [file join $rpt_dir drc.rpt]
 report_power            -file [file join $rpt_dir power.rpt]
 report_io               -file [file join $rpt_dir io.rpt]
+report_utilization -hierarchical -hierarchical_depth 4 -file [file join $rpt_dir utilization_hier.rpt]
 write_checkpoint -force [file join $out_dir post_route.dcp]
 
 # ------------------------------------------------------------------- metrics
