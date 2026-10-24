@@ -24,11 +24,13 @@
 #   so a frame split across TCP segments never times out.
 #   BUILD_ID = 0x0<7-hex git hash of the RTL under test> (PING / run records show it).
 
+SHELL := /bin/bash
 TB_ROOT   := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 REPO_ROOT := $(abspath $(TB_ROOT)/..)
 SPLITSYS_CACHE     ?= $(HOME)/.cache/splitsys
-SPLITSYS_SIM_BUILD ?= $(SPLITSYS_CACHE)/sim_build
-CARGO_TARGET_DIR ?= $(SPLITSYS_CACHE)/target
+# Per-agent namespace (tb/common/provenance.mk): this lane defaults to ve2; red-team sets its own.
+SPLITSYS_CACHE_TAG ?= ve2
+export SPLITSYS_CACHE_TAG
 
 RTL_REV ?= HEAD
 ifeq ($(RTL_REV),worktree)
@@ -40,6 +42,11 @@ else
   RTL_DIR := $(SPLITSYS_CACHE)/rtl_rev/$(RTL_SHA)/rtl
   BUILD_HASH := $(shell git -C $(REPO_ROOT) rev-parse --short=7 $(RTL_REV))
 endif
+
+.DEFAULT_GOAL := run
+include $(TB_ROOT)/common/provenance.mk
+SPLITSYS_SIM_BUILD := $(TB_SIM_BUILD)
+SW_TARGET          := $(TB_NS)/sw-target
 
 UART_DIV       ?= 1
 BTN_ACTIVE_LOW ?= 0
@@ -72,9 +79,12 @@ endif
 # Records go to RESULTS/sim (default <repo>/results/sim, source "sim").
 RESULTS ?= $(REPO_ROOT)/results
 SEED    ?= 1
-check: build
-	@cd $(REPO_ROOT)/sw && cargo build -q --release -p splitsys-host
-	bash $(TB_ROOT)/cosim/host_check.sh $(BIN) $(CARGO_TARGET_DIR)/release/splitsys-host $(RESULTS) $(SEED)
+check: provenance build
+	@cd $(REPO_ROOT)/sw && CARGO_TARGET_DIR=$(SW_TARGET) cargo build -q --release -p splitsys-host
+	@mkdir -p $(RUN_LOG_DIR); log=$(RUN_LOG_DIR)/cosim-check.log; \
+	echo "provenance: $(PROV_LINE)" > $$log; echo "sign-off eligible: $(PROV_ELIGIBLE)" >> $$log; \
+	bash $(TB_ROOT)/cosim/host_check.sh $(BIN) $(SW_TARGET)/release/splitsys-host $(RESULTS) $(SEED) 2>&1 | tee -a $$log; \
+	rc=$${PIPESTATUS[0]}; echo "== [cosim-check] rc=$$rc $(PROV_LINE) log=$$log"; exit $$rc
 
 run: build
 	@echo "== cosim: RTL=$(RTL_SHA) BUILD_ID=0x$(BUILD_ID_HEX) bit=$$(( $(UART_DIV) * 16 )) clocks; Ctrl-C to stop"
