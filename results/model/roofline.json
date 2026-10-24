@@ -1,8 +1,8 @@
 {
   "source": "model",
   "kind": "roofline",
-  "model_git_hash": "8efa5ac",
-  "latencies_provisional": true,
+  "model_git_hash": "90939f4",
+  "latencies_provisional": false,
   "latencies": {
     "L_PE": 3,
     "L_RD": 2,

@@ -1,8 +1,8 @@
 {
   "source": "model",
   "kind": "utilization_vs_M",
-  "model_git_hash": "8efa5ac",
-  "latencies_provisional": true,
+  "model_git_hash": "90939f4",
+  "latencies_provisional": false,
   "latencies": {
     "L_PE": 3,
     "L_RD": 2,
@@ -62,7 +62,7 @@
           0
         ],
         "tiles": 24,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.06951484431571325,
@@ -99,7 +99,7 @@
           3072
         ],
         "tiles": 12,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.14392803598200898,
@@ -136,7 +136,7 @@
           0
         ],
         "tiles": 24,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.1390296886314265,
@@ -173,7 +173,7 @@
           6144
         ],
         "tiles": 12,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.28785607196401797,
@@ -210,7 +210,7 @@
           0
         ],
         "tiles": 24,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.278059377262853,
@@ -247,7 +247,7 @@
           12288
         ],
         "tiles": 12,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5757121439280359,
@@ -284,7 +284,7 @@
           24576
         ],
         "tiles": 24,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.556118754525706,
@@ -321,7 +321,7 @@
           24576
         ],
         "tiles": 24,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5761440360090022,
@@ -358,7 +358,7 @@
           49152
         ],
         "tiles": 48,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5563201738500543,
@@ -395,7 +395,7 @@
           49152
         ],
         "tiles": 48,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.576360225140713,
@@ -432,7 +432,7 @@
           98304
         ],
         "tiles": 96,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5564209382358268,
@@ -469,7 +469,7 @@
           98304
         ],
         "tiles": 96,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5764683805592044,
@@ -506,7 +506,7 @@
           196608
         ],
         "tiles": 192,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5564713341182864,
@@ -543,7 +543,7 @@
           196608
         ],
         "tiles": 192,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5765224734916018,
@@ -580,7 +580,7 @@
           0
         ],
         "tiles": 8,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.06941431670281996,
@@ -617,7 +617,7 @@
           1024
         ],
         "tiles": 4,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.14349775784753363,
@@ -654,7 +654,7 @@
           0
         ],
         "tiles": 8,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.13882863340563992,
@@ -691,7 +691,7 @@
           2048
         ],
         "tiles": 4,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.28699551569506726,
@@ -728,7 +728,7 @@
           0
         ],
         "tiles": 8,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.27765726681127983,
@@ -765,7 +765,7 @@
           4096
         ],
         "tiles": 4,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5739910313901345,
@@ -802,7 +802,7 @@
           8192
         ],
         "tiles": 8,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5553145336225597,
@@ -839,7 +839,7 @@
           8192
         ],
         "tiles": 8,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5752808988764045,
@@ -876,7 +876,7 @@
           16384
         ],
         "tiles": 16,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5559174809989142,
@@ -913,7 +913,7 @@
           16384
         ],
         "tiles": 16,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5759280089988752,
@@ -950,7 +950,7 @@
           32768
         ],
         "tiles": 32,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5562194459532862,
@@ -987,7 +987,7 @@
           32768
         ],
         "tiles": 32,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5762521102982555,
@@ -1024,7 +1024,7 @@
           65536
         ],
         "tiles": 64,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5563705514805759,
@@ -1061,7 +1061,7 @@
           65536
         ],
         "tiles": 64,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5764142977765269,
@@ -1098,7 +1098,7 @@
           0
         ],
         "tiles": 32,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.06952743074416078,
@@ -1135,7 +1135,7 @@
           4096
         ],
         "tiles": 16,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.1439820022497188,
@@ -1172,7 +1172,7 @@
           0
         ],
         "tiles": 32,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.13905486148832155,
@@ -1209,7 +1209,7 @@
           8192
         ],
         "tiles": 16,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.2879640044994376,
@@ -1246,7 +1246,7 @@
           0
         ],
         "tiles": 32,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.2781097229766431,
@@ -1283,7 +1283,7 @@
           16384
         ],
         "tiles": 16,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5759280089988752,
@@ -1320,7 +1320,7 @@
           32768
         ],
         "tiles": 32,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5562194459532862,
@@ -1357,7 +1357,7 @@
           32768
         ],
         "tiles": 32,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5762521102982555,
@@ -1394,7 +1394,7 @@
           65536
         ],
         "tiles": 64,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5563705514805759,
@@ -1431,7 +1431,7 @@
           65536
         ],
         "tiles": 64,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5764142977765269,
@@ -1468,7 +1468,7 @@
           131072
         ],
         "tiles": 128,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5564461350360005,
@@ -1505,7 +1505,7 @@
           131072
         ],
         "tiles": 128,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5764954257565095,
@@ -1542,7 +1542,7 @@
           262144
         ],
         "tiles": 256,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5564839345153183,
@@ -1579,7 +1579,7 @@
           262144
         ],
         "tiles": 256,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.5765359983109297,
@@ -1616,7 +1616,7 @@
           0
         ],
         "tiles": 8,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.10414971521562245,
@@ -1653,7 +1653,7 @@
           4096
         ],
         "tiles": 4,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.21087314662273476,
@@ -1690,7 +1690,7 @@
           0
         ],
         "tiles": 8,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.2082994304312449,
@@ -1727,7 +1727,7 @@
           8192
         ],
         "tiles": 4,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.42174629324546953,
@@ -1764,7 +1764,7 @@
           0
         ],
         "tiles": 8,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.4165988608624898,
@@ -1801,7 +1801,7 @@
           16384
         ],
         "tiles": 4,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.8434925864909391,
@@ -1838,7 +1838,7 @@
           32768
         ],
         "tiles": 8,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.8331977217249796,
@@ -1875,7 +1875,7 @@
           32768
         ],
         "tiles": 8,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.8441879637262985,
@@ -1912,7 +1912,7 @@
           65536
         ],
         "tiles": 16,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.8335368335368335,
@@ -1949,7 +1949,7 @@
           65536
         ],
         "tiles": 16,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.8445360824742268,
@@ -1986,7 +1986,7 @@
           131072
         ],
         "tiles": 32,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.833706492977814,
@@ -2023,7 +2023,7 @@
           131072
         ],
         "tiles": 32,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.8447102495359868,
@@ -2060,7 +2060,7 @@
           262144
         ],
         "tiles": 64,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.8337913486005089,
@@ -2097,7 +2097,7 @@
           262144
         ],
         "tiles": 64,
-        "model_git_hash": "8efa5ac"
+        "model_git_hash": "90939f4"
       },
       "derived": {
         "util_model": 0.84479736000825,
