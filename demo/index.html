@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SplitSys Dashboard</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="stage">
+  <div id="hdr">
+    <div class="title">SplitSys · 8×8 int8 systolic array on Spartan-7</div>
+    <div class="meta" id="hdr-meta">build — · — MHz</div>
+    <div class="spacer"></div>
+    <div class="tabs" id="tabs">
+      <div class="tab" data-s="1"><b>1</b> Live</div>
+      <div class="tab" data-s="2"><b>2</b> Results</div>
+      <div class="tab" data-s="3"><b>3</b> Architecture</div>
+    </div>
+    <div class="pill" id="status-pill">CONNECTING</div>
+  </div>
+  <div id="banner"></div>
+
+  <!-- Scene 1: live -->
+  <div class="scene" id="scene1">
+    <div class="panel" id="p-grid" style="left:24px; top:20px; width:700px; height:774px;">
+      <h2 id="grid-title">PE array</h2><span class="badge" id="grid-badge">—</span>
+      <svg id="grid-svg" width="656" height="660" viewBox="0 0 656 660"></svg>
+    </div>
+    <div class="panel" id="p-run" style="left:740px; top:20px; width:640px; height:774px;">
+      <h2 id="run-title">This run</h2><span class="badge" id="run-badge">—</span>
+      <div id="run-body"></div>
+    </div>
+    <div class="panel" id="p-ver" style="left:1396px; top:20px; width:500px; height:390px;">
+      <h2 id="ver-title">Verified</h2><span class="badge" id="ver-badge">—</span>
+      <div id="ver-body"></div>
+    </div>
+    <div class="panel" id="p-cost" style="left:1396px; top:426px; width:500px; height:368px;">
+      <h2 id="cost-title">Cost of splitting</h2><span class="badge" id="cost-badge">—</span>
+      <div id="cost-body"></div>
+    </div>
+    <div id="ticker"></div>
+  </div>
+
+  <!-- Scene 2: results -->
+  <div class="scene" id="scene2">
+    <div class="panel" id="p-sweep" style="left:24px; top:20px; width:1140px; height:560px;">
+      <h2 id="sweep-title">Utilization vs M</h2><span class="badge" id="sweep-badge">—</span>
+      <svg id="sweep-svg" width="1096" height="480" viewBox="0 0 1096 480"></svg>
+    </div>
+    <div class="panel" id="p-err" style="left:1180px; top:20px; width:716px; height:560px;">
+      <h2 id="err-title">Model vs measured</h2><span class="badge" id="err-badge">—</span>
+      <div id="err-body"></div>
+    </div>
+    <div class="panel" id="p-bench" style="left:24px; top:596px; width:1872px; height:388px;">
+      <h2 id="bench-title">Benchmarks</h2><span class="badge" id="bench-badge">—</span>
+      <svg id="bench-svg" width="1828" height="310" viewBox="0 0 1828 310"></svg>
+    </div>
+  </div>
+
+  <!-- Scene 3: architecture -->
+  <div class="scene" id="scene3">
+    <div class="panel" id="p-block" style="left:24px; top:20px; width:1000px; height:590px;">
+      <h2>One array, two shapes: a row-4 mux rewires 8×8 into 4×16</h2><span class="badge model" id="block-badge">SPEC</span>
+      <svg id="block-svg" width="956" height="510" viewBox="0 0 956 510"></svg>
+    </div>
+    <div class="panel" id="p-roof" style="left:1040px; top:20px; width:856px; height:590px;">
+      <h2 id="roof-title">Roofline</h2><span class="badge" id="roof-badge">—</span>
+      <svg id="roof-svg" width="812" height="510" viewBox="0 0 812 510"></svg>
+    </div>
+    <div class="panel" id="p-trade" style="left:24px; top:626px; width:1000px; height:358px;">
+      <h2 id="trade-title">The tradeoff</h2><span class="badge" id="trade-badge">—</span>
+      <div id="trade-body" class="card-text"></div>
+    </div>
+    <div class="panel" id="p-limits" style="left:1040px; top:626px; width:856px; height:358px;">
+      <h2>What this is not</h2>
+      <div class="card-text" style="margin-top:8px">
+        Not a speed claim versus CPUs or GPUs: the claim is utilization, operand bytes per MAC, and model fidelity.<br>
+        End to end is UART-bound; only on-chip cycles are measured.<br>
+        No DDR3: operands live in on-chip BRAM.<br>
+        Attention score matmuls and softmax run on the host.
+      </div>
+    </div>
+  </div>
+
+  <div id="watermark"><div class="wm">DEMO DATA</div><div class="corner" id="wm-corner">DEMO DATA · not hardware</div></div>
+</div>
+<script src="/app.js"></script>
+</body>
+</html>

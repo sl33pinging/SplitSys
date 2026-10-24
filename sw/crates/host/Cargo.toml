@@ -1,5 +1,6 @@
 [package]
 name = "splitsys-host"
+description = "SplitSys host: UART protocol driver, CLI (ping/selftest/run/bench/serve/echo), mock board, dashboard server"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
@@ -7,4 +8,26 @@ license.workspace = true
 [lints]
 workspace = true
 
+[lib]
+name = "splitsys_host"
+path = "src/lib.rs"
+
+[[bin]]
+name = "splitsys-host"
+path = "src/main.rs"
+
 [dependencies]
+splitsys-spec = { path = "../spec" }
+splitsys-golden = { path = "../golden" }
+splitsys-cycle = { path = "../cycle" }
+splitsys-vec = { path = "../vec", optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+clap = { version = "4", features = ["derive"] }
+# Pure Rust on Windows; default-features off drops the libudev (pkg-config) dependency on Linux.
+serialport = { version = "4", default-features = false }
+
+[features]
+# Mock SELFTEST uses the real self-test ROM jobs from splitsys-vec.
+default = []
+vec-rom = ["dep:splitsys-vec"]
