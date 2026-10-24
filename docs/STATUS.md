@@ -1,6 +1,6 @@
 # SplitSys Status (kept by the lead)
 
-**Phase:** S (simulation-first, no board) · **Current gate:** S4 prep (target 16:00) · S0 **PASS** (~09:35) · S1 **PASS** (~10:15) · **Last update:** Sat 11:20 (real clock)
+**Phase:** S → H transition · S0 **PASS** (~09:35) · S1 **PASS** (~10:15) · S2 **PASS** · S3 **PASS** · S4 **PASS w/ conditions** (12:35) · **Last update:** Sat 12:35 (real clock)
 
 > **Correction (11:20):** the times in the handoff log from 09:20 to "16:10" were lead estimates, not clock readings, and are wrong (they ran ~5 h fast). Real times are the commit times in `git log`. Actual sequence: S0 PASS ≈ 09:35, S1 PASS ≈ 10:15, clean system sign-off 10:52, last commit before a Wi-Fi outage 10:55. Log entries after this note use the real clock.
 
@@ -148,6 +148,11 @@ States: `todo` · `running` · `done` (owner handoff, lead checked) · `PASS` (r
 | 11:32 | red-team-reviewer | phase 1 | S2 PARTIAL, S3 PARTIAL (re-runs pending rebuild), **S4 FAIL as-is**: SEV-2 dashboard error table omits q0..q3 yet says 'every counter' → host; SEV-2 'mutants in every unit suite' unsupported by SIGNOFF → storyteller; SEV-2 docs/plots cite archived dirty SIM records → storyteller after rebuild; SEV-3 int32 run headlined unlabeled in Scene 1 → host; SEV-3 MatX HBM+SRAM uncited, D-008 wording → storyteller; SEV-3 rebuild HEAD drift (84f48f0 landed mid-rebuild) → fpga warned; SEV-3 WSL VM self-restart ~11:26 wiped /tmp → toolchain. Model/SIM/cost numbers all trace; checklist complete; no CPU/GPU claims; no external URLs. |
 
 | 11:39 | fpga-integrator | FAIL (provenance) | S4 rebuild: all 6 builds exit 0 with positive slack (top WNS +0.849) but wave 2 stamped 84f48f0 (commit landed mid-rebuild) → script refused to commit. Lead froze commits; fpga hardening s4_rebuild.sh (pin build_id to start HEAD, verify HEAD unchanged) and rerunning. |
+
+| 12:21 | lead | resumed | New account; prior agents ended. Committed host-dashboard's leftovers (fb89e37: sim screenshots @05900507 + 4 clean records) and toolchain's keepalive (a800dd0); keepalive running. Launched demo-storyteller (finish doc fixes + cost refresh) and red-team phase 2 (S2/S3 re-runs, S4 HW readiness, claims). |
+
+| 12:31 | demo-storyteller | done | S4 doc fixes (022555c): cost refreshed from cost.json @52a66216 (+2,247 LUT +43.7%, +16 DSP; Fmax never headlined), SIM = 70 clean records (66 @f402cc7 + 4 @5900507, same RTL), 217,088 outputs 0 mismatches; mutant claim, MatX citation, D-008, UART wording fixed; plots deterministic; pitches 246/224/250. Minor: Q## Pre-Phase-H human checklistA question says '+44%' vs +43.7%. |
+| 12:35 | red-team-reviewer | **S2 PASS, S3 PASS, S4 PASS (conditions)** | Reproduced: signoff 11/11 64/64; tb/system SIGNOFF=1 617/617; cosim-check 8/8, 0 mismatches; cargo 151 pass; gen --check; 6 bitstreams @52a66216 WNS/WHS ≥ 0, 0 DRC, DIV_OVERRIDE 0, md5s == manifest, UART pins per swap rationale, ROM kept; claims audit: no SEV-1/2. SEV-2 stale Windows exe → lead rebuilt 12:35. SEV-3s: HW_CHECKLIST text (H-1 id, H-2 strings, T-4, H-7) → fpga fixing; mock-bridge tcp labelled SIM, --version lacks hash → host (after H); devpost "requantizer 7 cycles" + "+44%" wording → storyteller (after H); MatX quote to be confirmed by the human before submission. Lead archived reviewed bitstreams read-only at `C:\Users\danie\FPGA_Projects\SplitSys_reviewed_bits\52a66216`. **Phase H may begin.** |
 
 ## Pre-Phase-H human checklist
 - [x] Install Windows Rust + build splitsys-host natively (done by human ~11:30; release build 52 s; lead verified mock ping + selftest PASS from the Windows exe).
