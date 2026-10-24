@@ -172,10 +172,11 @@ def load_measured(source, include_untracked=False):
         if k not in out or rec["run_id"] > out[k]["run_id"]:
             out[k] = rec
         inputs.append((rel(f), sha256(f)))
-        st = RECORD_STATS.setdefault(source, {"records": 0, "counter_diffs": 0, "builds": set()})
+        st = RECORD_STATS.setdefault(source, {"records": 0, "counter_diffs": 0, "builds": {}})
         st["records"] += 1
         st["counter_diffs"] += 1 if counter_diffs else 0
-        st["builds"].add(str(r.get("build_id")))
+        b = str(r.get("build_id"))
+        st["builds"][b] = st["builds"].get(b, 0) + 1
     for f, why in rejected:
         print(f"[make_plots] {source}: excluded {f}: {why}", file=sys.stderr)
     return out, inputs
@@ -242,17 +243,26 @@ def source_line(model, measured_sets):
     for label, recs in measured_sets:
         if recs:
             st = RECORD_STATS.get(label.lower(), {})
-            builds = sorted(st.get("builds") or {str(r["build_id"]) for r in recs.values()})
+            per_build = st.get("builds") or {}
+            # Per-build record counts, oldest build first (by earliest run_id), so each HW number
+            # can be traced to the bitstream it ran on.
+            first_run = {}
+            for r in recs.values():
+                b = str(r["build_id"])
+                first_run[b] = min(first_run.get(b, r["run_id"]), r["run_id"])
+            builds = [f"{b} ({per_build[b]})" if b in per_build else b
+                      for b in sorted(per_build or first_run,
+                                      key=lambda b: (first_run.get(b, "~"), b))]
             nrec = st.get("records", len(recs))
             dirty = any(r["git_hash"].endswith("-dirty") for r in recs.values())
             ndiff = st.get("counter_diffs", sum(1 for r in recs.values() if r["counter_diffs"]))
             drawn = recs if label == "HW" else sim_only(hw, recs)
             n = sum(1 for k in drawn if k in model["points"])
-            what = "co-sim, not HW" if label == "SIM" else "board, on-chip counters"
+            what = "co-sim, not HW" if label == "SIM" else "board counters"
             shown = (f"{n} benchmark point{'s' if n != 1 else ''} drawn" if n else
-                     "not drawn (HW measured every plotted point)")
+                     "not drawn (HW measured every point)")
             lines.append(f"{label} ({what}): {nrec} int8 record{'s' if nrec != 1 else ''}, "
-                         f"build {','.join(builds)}{' (dirty tree)' if dirty else ''}, "
+                         f"build{'s' if len(builds) > 1 else ''} {', '.join(builds)}{' (dirty tree)' if dirty else ''}, "
                          f"{ndiff} with a counter != model; {shown}")
         elif label == "HW":
             lines.append("HW: none yet")
@@ -653,7 +663,8 @@ def plot_cost(th, model, cost, facts):
              f"Split worst path: {wp.get('source', '?').rsplit('/', 1)[0]}"
              f" → {wp.get('destination', '?').rsplit('/', 1)[0]}, {wp.get('logic_levels', '?')} logic "
              f"levels, {wp.get('route_pct', 0):.0f}% routing (FULL-only: "
-             f"{wpa.get('logic_levels', '?')} levels, {wpa.get('route_pct', 0):.0f}% routing):\n"
+             f"{wpa.get('logic_levels', '?')} logic level{'' if wpa.get('logic_levels') == 1 else 's'}, "
+             f"{wpa.get('route_pct', 0):.0f}% routing):\n"
              f"{why}",
              ha="left", va="top", fontsize=9.5, color=th["muted"])
     fig.text(0.012, 0.015,
@@ -714,7 +725,7 @@ def build(outdir, measured=("hw", "sim"), include_untracked=False):
                    + cost_in],
         "headline_facts": json.loads(json.dumps(facts), parse_float=lambda s: round(float(s), 6)),
         "measured_records": {k: {"records": v["records"], "counter_diffs": v["counter_diffs"],
-                                 "builds": sorted(v["builds"])}
+                                 "builds": dict(sorted(v["builds"].items()))}
                              for k, v in sorted(RECORD_STATS.items())},
         "plots": sorted(os.path.basename(p) for p in written),
         "missing": ([] if hw else ["results/hw/*.json (no hardware runs yet)"])

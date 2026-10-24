@@ -6,22 +6,28 @@ Sources: [M] results/model/sweep.json @ model_git_hash 72da65248adf (MODEL);
 [SIM] results/sim/*.json top level (not archive_dirty/): 70 co-sim records (results/sim/session.json gemms_run 70,
       macs_verified 17014784, mismatches 0): 66 at build 0f402cc7 / git f402cc7 (committed e2cea28) + 4 scripted-demo
       at build 05900507 / git 5900507 (committed fb89e37), same RTL; all counters == model; NOT hardware;
-[B] results/cost.json, committed 8ccb333: S4 freeze builds, build_id 0x52A66216 (BUILD, Vivado post-route):
-      delta.total lut 2247 (2247/5142 = 43.7%), dsp 16; array 376 + sequencer 290 = 666 LUT;
+[B] results/cost.json, committed 23acf6a: S4 freeze rebuild, git 38a3950a, build_id 0x38A3950A (BUILD, Vivado post-route;
+      split build = KG2 = the live bitstream, fpga/known_good/KG2/summary.json): full_only/split lut 5146/7389;
+      delta.total lut 2243 (2243/5146 = 43.6%), dsp 16; array 378 + sequencer 289 = 667 LUT;
 [V] tb/SIGNOFF.md (11/11, 64/64), tb/system/SIGNOFF_SYSTEM.md (617/617 eligible at f402cc7), DECISIONS D-016/D-017;
 Public source for "splittable systolic array" (Inspiration): https://matx.com/research/series_b
   ("The MatX One chip is based on a splittable systolic array ... high utilization on smaller matrices
   with flexible shapes"), fetched 2026-10-24.
-[HW] results/hw/*.json top level (source "hw"): 256 run records from one board session (COM3, Sat 13:00-13:42),
-      build_id 52a66216, model_git_hash 72da65248adf: 200 from H-5 `run --random 100 --mode both --seed 1`
-      (committed e180386) + 56 from H-6 `bench sweep --seed 1` (committed 2bacace). Derived from the records:
-      golden_match 256/256, mismatches 0, 952,012 outputs compared, mac_useful sum 118,801,362, invariants_ok 256/256,
-      0 of 3,072 counter values != model, cycles_stall 0 everywhere. results/session.json agrees (256 / 118801362 / 0).
+[HW] results/hw/*.json top level (source "hw" on all): 473 run records on the board (COM3), model_git_hash 72da65248adf,
+      from two bitstreams with the same datapath RTL (git diff 52a66216 38a3950a -- rtl spec: display defaults only):
+      KG1 build_id 52a66216: 272 = 200 H-5 `run --random 100 --mode both --seed 1` (e180386) + 56 H-6
+          `bench sweep --seed 1` (2bacace) + 16 H-7 dashboard runs (cd75ccc).
+      KG2 build_id 38a3950a (live demo): 201 = 1 check run + 200 H-5 re-run (b80c1ad; same shapes, identical counters).
+      Derived from the records: golden_match 473/473, mismatches 0, 1,891,096 outputs compared, mac_useful sum
+      233,654,180, invariants_ok 473/473, 0 of 5,676 counter values != model, cycles_stall 0 everywhere.
+      results/session.json agrees (473 / 233654180 / 0).
       ffn_up M=1: 2026-10-24T20-40-41Z-ffn_up-m1-full.json util 0.069527, -strip 0.143982 (ratio 2.0709).
       M=1 ratio range over 4 GEMMs 2.0247 (ffn_down) .. 2.0709 (ffn_up). M=64 ffn_up 0.556484 / 0.576536.
       H-5 shape-matched pairs: 97; STRIP more cycles on 31 (max 3566/2711 = 1.315x, M=22 K=250 N=17), all with more
-      STRIP tiles. Logs: results/hw/logs/H-3..H-6. H-2 UART echo (10,000 and 100,000 bytes, 0 mismatched): docs/STATUS.md
-      Phase H log only (no file). KG1: fpga/known_good/KG1/summary.json build_id 0x52A66216.
+      STRIP tiles. Logs: results/hw/logs/H-3..H-6 (KG1), results/hw/logs/KG2/ H-4, H-5 (KG2; the H-4 log records
+      7-seg 'S   14.4' correct order and RGB0/RGB1 dark). H-2 UART echo (10,000 and 100,000 bytes, 0 mismatched):
+      docs/STATUS.md Phase H log only (no file). KG1: fpga/known_good/KG1/summary.json build_id 0x52A66216;
+      KG2: fpga/known_good/KG2/summary.json build_id 0x38A3950A.
 [S] docs/SPEC.md v1.1 constants. ⟦HUMAN: …⟧ = placeholder for the human; never guess.
 Before pasting: strip these HTML comments and the [M]/[B]/[V]/[S] tags if Devpost renders them
 oddly. Keep the words "model" / "measured" in the prose, though.
@@ -33,7 +39,7 @@ Deadline: Devpost with a valid table number by Sun 09:00 (PLAN.md).
 **Tagline (≤ 200 chars):** An 8×8 int8 systolic array on a Spartan-7 FPGA that rewires into 4×16 for LLM decode: 2.07× the decode utilization, measured on-chip, and a cycle model that predicted every counter.
 
 **Table number:** ⟦HUMAN: table number (cannot change after Sun 09:00)⟧
-**Team / Best Solo Hack eligibility:** ⟦HUMAN: team size; solo yes/no⟧
+**Team:** solo entry (one person); eligible for Best Solo Hack.
 
 ---
 
@@ -55,11 +61,11 @@ SplitSys is a GEMM accelerator on a RealDigital Urbana board (AMD Spartan-7 XC7S
   - `ffn_up` runs at 6.95% utilization in FULL and 14.40% in STRIP, which is 2.07× [HW].
   - Across all four matmuls of the block, the gain is 2.02–2.07× [HW].
   - These are on-chip cycle counts, not wall-clock time.
-- **The model was exact.** A cycle model, frozen before the hardware session, predicted all 12 counters on all 256 hardware GEMMs with 0 error. Not one of the 3,072 counter values differed [HW]. No calibration was applied.
+- **The model was exact.** A cycle model, frozen before the hardware session, predicted all 12 counters on all 473 hardware GEMMs with 0 error. Not one of the 5,676 counter values differed [HW]. No calibration was applied.
 - **Prefill (M = 64):** both modes fill the array. Measured: 55.65% FULL vs 57.65% STRIP for `ffn_up` [HW]. The small STRIP edge comes from a shorter drain (4 rows per tile instead of 8), not from the split.
 - **STRIP isn't always better.** On 31 of 97 random shapes run in both modes, STRIP took more cycles, by up to 1.32× [HW]. Each of those shapes needs more STRIP tiles (STRIP tiles are 4×16, FULL tiles 8×8, so the padding differs). The model predicted those exactly too.
-- **Cost:** the split costs 25% more operand bandwidth per cycle (20 vs 16 bytes) [S] and, measured post-route, +2,247 LUTs (+43.7%) and +16 DSPs [B]. Most of that is the 16-lane output path. The muxing itself is 666 LUTs [B].
-- **Verified on hardware:** 256 GEMMs (200 random up to 64×256×256 in both modes, plus a 56-run benchmark sweep), 118,801,362 MACs, 952,012 outputs compared, 0 mismatches [HW].
+- **Cost:** the split costs 25% more operand bandwidth per cycle (20 vs 16 bytes) [S] and, measured post-route, +2,243 LUTs (+43.6%) and +16 DSPs [B]. Most of that is the 16-lane output path. The muxing itself is 667 LUTs [B].
+- **Verified on hardware:** 473 GEMMs, 233,654,180 MACs, 1,891,096 outputs compared, 0 mismatches [HW]. Two bitstreams with the same datapath ran them. The benchmark bitstream (KG1) ran 200 random GEMMs up to 64×256×256 in both modes, a 56-run benchmark sweep, and 16 dashboard runs. The live demo bitstream (KG2) ran one check run and the same 200 random GEMMs again, with identical counters.
 
 ## How we built it
 
@@ -68,7 +74,7 @@ SplitSys is a GEMM accelerator on a RealDigital Urbana board (AMD Spartan-7 XC7S
 - **SystemVerilog RTL:** PE, skew units, array with FULL/STRIP modes, BRAM buffers, sequencer, requantizer, counters, UART packet layer, self-test, and board I/O.
 - **Verification:** cocotb + Verilator unit suites with expected values only from Rust, plus a system simulation. In co-simulation, the real host binary talks to the simulated RTL over a TCP-to-UART bridge.
 - **Builds:** Vivado 2025.2.1 builds, timing-clean at 100 MHz. A second build with STRIP compiled out measures what the split costs.
-- **Order of work:** everything was simulated first. Then came one guided hardware session, following a written step-by-step checklist: UART echo, a 10,000-frame memory test (5,123,818 bytes, 0 errors), the on-chip self-test, 200 random GEMMs, and the benchmark sweep. No step needed a datapath change, a re-spin, or a model calibration. Bring-up did find two board-I/O quirks in this bitstream: the RGB LEDs glow (unused pins pulled up, a setting copied from the vendor constraints file), and the 7-segment display shows its text in reversed digit order. Neither touches the datapath. Both fixes are in the next build candidate, which hasn't run on hardware yet.
+- **Order of work:** everything was simulated first. Then came one guided hardware session, following a written step-by-step checklist: UART echo, a 10,000-frame memory test (5,123,818 bytes, 0 errors), the on-chip self-test, 200 random GEMMs, and the benchmark sweep. No step needed a datapath change or a model calibration. Bring-up did find two board-I/O quirks: the RGB LEDs glowed (unused pins pulled up, a setting copied from the vendor constraints file), and the 7-segment display showed its text in reversed digit order. Neither touches the datapath. One re-spin (KG2) fixed both, and KG2 passed the self-test and the 200-GEMM random batch on the board before it became the demo bitstream.
 
 ## Challenges we ran into
 
@@ -76,7 +82,7 @@ SplitSys is a GEMM accelerator on a RealDigital Urbana board (AMD Spartan-7 XC7S
 - **UART pins named from the other chip's side.** The vendor constraints file names the UART pins from the USB bridge's point of view. Reading the schematic showed the FPGA's RX and TX had to be swapped. We couldn't confirm that before the board, so we also prebuilt a bitstream with them swapped back. The schematic reading was right: the UART echo test passed with 10,000 and then 100,000 bytes, 0 mismatched, and the fallback was never needed.
 - **Latency assumptions.** The drain-to-requant path measured 7 cycles, not the provisional 4 (D-016). The constant lives in one place, so the model, RTL, and tests all moved together.
 - **A test harness that lied.** Under `make -j`, cocotb could skip a simulation and still exit 0. We caught it, fixed it so every run must produce fresh results, and re-ran every suite.
-- **No datapath surprise on hardware.** The first bit-exact hardware run matched the model on every counter, so there was nothing to reproduce in simulation. The surprises were board I/O: LEDs glowing from a pull-up setting copied out of the vendor constraints file, and display digits in reverse order. We read off on the board which display digit is which and fixed the RTL default. Then we rebuilt the system simulation's display check from that board-confirmed rule: it fails 7 of 8 cases on the old RTL and passes on the fix.
+- **No datapath surprise on hardware.** The first bit-exact hardware run matched the model on every counter, so there was nothing to reproduce in simulation. The surprises were board I/O: LEDs glowing from a pull-up setting copied out of the vendor constraints file, and display digits in reverse order. We read off on the board which display digit is which and fixed the RTL default. Then we rebuilt the system simulation's display check from that board-confirmed rule: it fails 7 of 8 cases on the old RTL and passes on the fix. On the board, the fixed build reads in the right order and the LEDs are dark.
 
 ## Accomplishments that we're proud of
 
@@ -84,8 +90,8 @@ SplitSys is a GEMM accelerator on a RealDigital Urbana board (AMD Spartan-7 XC7S
   - 11 of 11 cocotb suites and 64 of 64 tests in an eligible sign-off run, including 262 directed jobs on the integrated core [V]. Deliberately injected RTL bugs were caught in the skew, counters, packet, array and core suites [V].
   - A pin-level system simulation passed 617 of 617 jobs in an eligible sign-off run [V].
   - 70 co-simulation runs of the real host against the simulated chip (17.0 million MACs checked): 0 output mismatches, and every counter equal to the cycle model [SIM].
-  - Matching the model in simulation is expected, since both use the same latencies. The real test was hardware, and the model passed it: 0 error on all 12 counters, across 256 board runs [HW].
-- **On the board:** 256 GEMMs and 118.8 million MACs bit-exact, a measured 2.02–2.07× decode utilization gain, and zero stall cycles [HW].
+  - Matching the model in simulation is expected, since both use the same latencies. The real test was hardware, and the model passed it: 0 error on all 12 counters, across 473 board runs [HW].
+- **On the board:** 473 GEMMs and 233.7 million MACs bit-exact, a measured 2.02–2.07× decode utilization gain, and zero stall cycles [HW].
 - **Cost measured, not guessed,** including the uncomfortable part: most of the area goes to the wider output path, not to the split itself [B].
 - **A live, offline dashboard** in which every number carries its source label (HW, SIM, or MODEL).
 
@@ -110,3 +116,4 @@ SplitSys is a GEMM accelerator on a RealDigital Urbana board (AMD Spartan-7 XC7S
 Rust · SystemVerilog · Verilator · cocotb · Python · matplotlib · Vivado 2025.2.1 · AMD Spartan-7 XC7S50 (RealDigital Urbana) · vanilla JavaScript / SVG
 
 **Links:** ⟦HUMAN: repo URL⟧ · ⟦HUMAN: demo video URL⟧
+**Hero image:** ⟦HUMAN: hero photo⟧

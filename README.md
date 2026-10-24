@@ -14,32 +14,46 @@ HONESTY KEY (red-team: audit every number in this file against this key).
               its UART pins by the real splitsys-host. Every record: golden_match, 0 mismatches,
               invariants_ok, all 12 counters == model, cycles_stall 0; 217,088 outputs compared in total.
               SIM is NOT hardware.
-  [B]  BUILD  results/cost.json (source "hw-build"), committed 8ccb333: S4 freeze builds, build_id 0x52A66216
-              (git 52a66216) for both, Vivado 2025.2.1 post-route. RTL identical to the SIM builds above.
+  [B]  BUILD  results/cost.json (source "hw-build"), committed 23acf6a: S4 freeze rebuild at git 38a3950a,
+              build_id 0x38A3950A for both builds, Vivado 2025.2.1 post-route. The split build is the KG2 bitstream
+              (fpga/known_good/KG2/summary.json: build_id 0x38A3950A, lut 7389, ff 7936, dsp 96, bram 26, wns 0.744).
+              Datapath RTL identical to the SIM builds: git diff f402cc7 52a66216 -- rtl spec is empty;
+              git diff 52a66216 38a3950a -- rtl spec touches only rtl/top.sv + rtl/board_io.sv
+              (LEFT_IS_D1, AN0_IS_RIGHT display defaults and comments). The RGB PULLDOWN is an XDC change.
   [V]  VERIF  tb/SIGNOFF.md (11/11 suites, 64/64 tests, eligible run at b53783d),
               tb/system/SIGNOFF_SYSTEM.md (617/617, eligible, head f402cc7), docs/DECISIONS.md D-016/D-017.
-  [HW] HW     results/hw/*.json (top level, source "hw"): 256 per-run records from the Phase H session on the board
-              (COM3, Sat 13:00-13:42), all at build_id 52a66216, host git 3976ec0, model_git_hash 72da65248adf:
+  [HW] HW     results/hw/*.json (top level, source "hw"): 473 per-run records on the board (COM3), host git 3976ec0,
+              model_git_hash 72da65248adf on all 473, from two bitstreams with the same datapath RTL (see [B]):
+              KG1, build_id 52a66216 (fpga/known_good/KG1, bit_md5 6a85a822b28e7d9f2097a8a902d865bf): 272 records
                 200 from H-5 `run --random 100 --mode both --seed 1` (100 FULL + 100 STRIP, up to M/K/N 64/256/256,
                     17 of them int32 bypass), committed e180386, log results/hw/logs/H-5_random_both_seed1.log;
                  56 from H-6 `bench sweep --seed 1` (4 GEMMs x M 1..64 x FULL/STRIP), committed 2bacace,
-                    summary results/hw/bench_sweep_2026-10-24T20-41-07Z.json, log results/hw/logs/H-6_bench_sweep_seed1.log.
-              Derived by the storyteller from the 256 records (not copied from session.json, which agrees):
-                golden_match 256/256, mismatches 0, outputs_compared 952,012, mac_useful sum 118,801,362,
-                invariants_ok 256/256, 12 counters x 256 runs = 3,072 counter values, 0 differ from the model,
-                cycles_stall 0 on all 256, latencies_provisional false on all 256.
-              results/session.json: gemms_verified 256, macs_verified 118801362, mismatches 0.
+                    summary results/hw/bench_sweep_2026-10-24T20-41-07Z.json, log results/hw/logs/H-6_bench_sweep_seed1.log;
+                 16 from H-7 dashboard scripted demo (ffn_up M=1,64 x 2 modes, 4 times; 20:57-21:14Z), committed cd75ccc.
+              KG2, build_id 38a3950a (fpga/known_good/KG2, bit_md5 63dea71fd7e8c151f836143c8bac2b2a; CURRENT -> KG2,
+                ccd7e3b; the live demo bitstream): 201 records, committed b80c1ad
+                  1 H-1 check run (ffn_up M=1 STRIP, 21:19:56Z);
+                200 from the H-5 re-run (same command and seed), log results/hw/logs/KG2/H-5_random_both_seed1.log:
+                    same 200 shapes as KG1 H-5, and all 200 counter sets identical to KG1's.
+              Derived by the storyteller from the records (not copied from session.json, which agrees):
+                all 473: golden_match 473/473, mismatches 0, outputs_compared 1,891,096, mac_useful sum 233,654,180,
+                  invariants_ok 473/473, 12 counters x 473 = 5,676 counter values, 0 differ from the model,
+                  cycles_stall 0 on all, latencies_provisional false on all.
+                KG1: 272 runs, 1,085,132 outputs, 127,321,042 MACs, 0 of 3,264 counter values differ.
+                KG2: 201 runs, 805,964 outputs, 106,333,138 MACs, 0 of 2,412 counter values differ.
+                KG1 H-5 + H-6 (the benchmark evidence): 256 runs, 952,012 outputs, 118,801,362 MACs, 0 of 3,072 differ.
+              results/session.json: gemms_verified 473, macs_verified 233654180, mismatches 0, build_ids [52a66216, 38a3950a].
               H-5 shape-matched pairs (same job index, same M/K/N/requant in both modes): 97; STRIP fewer cycles 61,
                 equal 5, more 31 (max 1.3154x, gemm_full_s1_56 vs gemm_strip_s1_56, M=22 K=250 N=17: 2711 vs 3566 cycles, H-5 log lines 116-117);
-                all 31 have STRIP tiles > FULL tiles.
+                all 31 have STRIP tiles > FULL tiles. (Identical on the KG2 re-run.)
               Counters are on-chip cycles at 100 MHz, NOT wall clock.
-              Bitstream archived as fpga/known_good/KG1 (CURRENT -> KG1, commit 7b3af2c):
-                summary.json build_id 0x52A66216, archive.txt bit_md5 6a85a822b28e7d9f2097a8a902d865bf.
+              H-4 self-test --dump: KG1 results/hw/logs/H-4_selftest_dump.log; KG2 results/hw/logs/KG2/H-4_selftest_dump.log
+                (0 of 256 OBUF bytes differ on both; KG2 log also records 7-seg 'S   14.4' correct order, RGB0/RGB1 dark).
   [S]  SPEC   docs/SPEC.md v1.1 design constants (not results).
   ⟦HUMAN: …⟧ = not decided yet. Never replace with a guess.
 -->
 
-**Big systolic arrays leave most of their rows idle on one-token-at-a-time LLM decode. SplitSys is an 8×8 int8 array that rewires itself into a 4×16 array at runtime. Measured on the board's hardware counters, that doubles decode utilization: 2.02–2.07× across the four matmuls of a transformer block at M = 1 [HW]. A cycle model written before the board was touched predicted all 12 counters exactly, on every one of 256 hardware GEMMs [HW]. The price is 25% more operand bandwidth per cycle and an area cost we measured.**
+**Big systolic arrays leave most of their rows idle on one-token-at-a-time LLM decode. SplitSys is an 8×8 int8 array that rewires itself into a 4×16 array at runtime. Measured on the board's hardware counters, that doubles decode utilization: 2.02–2.07× across the four matmuls of a transformer block at M = 1 [HW]. A cycle model written before the board was touched predicted all 12 counters exactly, on every one of 473 hardware GEMMs [HW]. The price is 25% more operand bandwidth per cycle and an area cost we measured.**
 
 > ⟦HUMAN: GIF or photo of the board running, PE grid lit on the monitor⟧
 
@@ -75,9 +89,12 @@ Utilization = `mac_useful / (64 · cycles_total)`, read from the performance cou
 
 At M = 1 the measured STRIP/FULL ratio is 2.07× for `qkv`, `attn_out` and `ffn_up`, and 2.02× for `ffn_down` [HW]. Every one of these runs was bit-exact against the Rust golden model.
 
-**HW is the board.** The HW column is read from the 12 on-chip performance counters of the Spartan-7 at build 0x52A66216 (archived as `fpga/known_good/KG1`), in one hardware session over UART [HW]. These are on-chip cycles at 100 MHz, not wall-clock time.
+**HW is the board.** The HW column is read over UART from the 12 on-chip performance counters of the Spartan-7. These are on-chip cycles at 100 MHz, not wall-clock time [HW]. Two bitstreams ran, with the same datapath RTL:
 
-**SIM is co-simulation of the RTL, not hardware.** The SIM column comes from Verilator running the real top-level RTL. The real host binary drives it byte by byte through the UART pins, over a TCP bridge. Its counters equal the model **exactly**, on every counter of every one of the 70 committed runs [SIM]. That agreement is expected: the sequencer is deterministic, there is no DRAM, and the model and the RTL implement the same confirmed latencies (D-017). So it shows the RTL does what the spec says. It does not show that the model predicts a physical chip. **The HW column is that test, and it came out exact:** on all 256 hardware runs, all 12 counters equal the model [HW].
+- **KG1** (build 0x52A66216, `fpga/known_good/KG1`) produced the benchmark evidence: the H-5 random batch, the H-6 sweep behind this table, and the H-7 dashboard runs (272 records).
+- **KG2** (build 0x38A3950A, `fpga/known_good/KG2`) is the live demo bitstream. It changes only two 7-segment orientation defaults in `rtl/top.sv` and `rtl/board_io.sv`, plus a pulldown on unused pins in the constraints file. On KG2 we re-ran H-4 and H-5 (201 records). The H-5 re-run drew the same 200 shapes, and every counter came back identical to KG1's [HW].
+
+**SIM is co-simulation of the RTL, not hardware.** The SIM column comes from Verilator running the real top-level RTL. The real host binary drives it byte by byte through the UART pins, over a TCP bridge. Its counters equal the model **exactly**, on every counter of every one of the 70 committed runs [SIM]. That agreement is expected: the sequencer is deterministic, there is no DRAM, and the model and the RTL implement the same confirmed latencies (D-017). So it shows the RTL does what the spec says. It does not show that the model predicts a physical chip. **The HW column is that test, and it came out exact:** on all 473 hardware runs, all 12 counters equal the model [HW].
 
 <!-- [HW] values: results/hw/2026-10-24T20-40-41Z-ffn_up-m1-full.json util 0.069527 / cycles_total 3682 / tiles 32;
      20-40-41Z-ffn_up-m1-strip 0.143982 / 1778 / 16; 20-40-54Z-ffn_up-m64-full 0.556484 / 29442;
@@ -107,8 +124,8 @@ At M = 1 the measured STRIP/FULL ratio is 2.07× for `qkv`, `attn_out` and `ffn_
   - That faster drain relies on the 16-lane output path, which is part of the split's area cost (below). With drain overlapped (shadow accumulators, not built), the gap would mostly vanish.
 - **Model vs counters:**
   - SIM: 70 committed co-sim runs (58 distinct shape/mode/requant combinations; two clean builds of the same RTL, 66 runs at f402cc7 and 4 at 5900507), with 0 counter differences and `cycles_stall` = 0 on every run [SIM].
-  - HW: 256 runs on the board (200 random GEMMs up to 64×256×256 in both modes, plus the 56-run benchmark sweep). 0 of 3,072 counter values differ from the model, so the maximum per-counter error is 0. `cycles_stall` = 0 on every run [HW]. No calibration was applied: the model is frozen at `model_git_hash` 72da65248adf.
-- **STRIP is not always faster (measured).** In the H-5 random batch, 97 job indices drew the same shape in both modes. STRIP took fewer cycles on 61, the same on 5, and **more on 31**, by up to 1.32× (M = 22, K = 250, N = 17: 3,566 vs 2,711 cycles) [HW]. Every one of those 31 needs more STRIP tiles than FULL tiles. STRIP pads M to a multiple of 4 and N to a multiple of 16, while FULL pads both to 8, and on those shapes the extra padding costs more than STRIP gains. The model predicted each of those cycle counts exactly, so a mode selector can rely on it.
+  - HW: 473 runs on the board. KG1: 200 random GEMMs up to 64×256×256 in both modes, the 56-run benchmark sweep, and 16 dashboard runs. KG2: one check run and the 200-GEMM random batch again. 0 of 5,676 counter values differ from the model, so the maximum per-counter error is 0. `cycles_stall` = 0 on every run [HW]. No calibration was applied: the model is frozen at `model_git_hash` 72da65248adf.
+- **STRIP is not always faster (measured).** In the H-5 random batch (KG1; the KG2 re-run gave identical cycles), 97 job indices drew the same shape in both modes. STRIP took fewer cycles on 61, the same on 5, and **more on 31**, by up to 1.32× (M = 22, K = 250, N = 17: 3,566 vs 2,711 cycles) [HW]. Every one of those 31 needs more STRIP tiles than FULL tiles. STRIP pads M to a multiple of 4 and N to a multiple of 16, while FULL pads both to 8, and on those shapes the extra padding costs more than STRIP gains. The model predicted each of those cycle counts exactly, so a mode selector can rely on it.
 
 Plots, regenerated from the JSON by `results/plots/make_plots.py`, in dark and light variants:
 
@@ -117,7 +134,7 @@ Plots, regenerated from the JSON by `results/plots/make_plots.py`, in dark and l
 | ![Utilization vs M](results/plots/util_vs_m_light.png) | ![Benchmark bars](results/plots/bench_bars_light.png) |
 | ![Roofline](results/plots/roofline_light.png) | ![Cost of splitting](results/plots/cost_light.png) |
 
-Every plot is titled with its finding and labeled with its source. The utilization and benchmark plots show the 56 hardware benchmark points (filled markers and bars) against the model (hollow rings and ticks), and their titles say `HW`. Where the board measured a point, the identical SIM point is not drawn. The roofline title stays `MODEL`, because arithmetic intensity and the roofs are model quantities; its filled points are HW. The plots use the 239 int8 hardware records and skip the 17 int32-bypass ones (`results/plots/manifest.json`).
+Every plot is titled with its finding and labeled with its source. The utilization and benchmark plots show the 56 hardware benchmark points (filled markers and bars) against the model (hollow rings and ticks), and their titles say `HW`. Where the board measured a point, the identical SIM point is not drawn. The roofline title stays `MODEL`, because arithmetic intensity and the roofs are model quantities; its filled points are HW. The plots load all 439 int8 hardware records (255 from KG1, 184 from KG2) and skip the 34 int32-bypass ones (`results/plots/manifest.json`). Each benchmark point shows the newest record for its shape: 55 of the 56 are KG1 records, and `ffn_up` M = 1 STRIP is the KG2 check run. Repeated runs of a shape never differed on any counter, on either build [HW].
 
 ## Architecture
 
@@ -159,48 +176,53 @@ All counts below are from `tb/SIGNOFF.md` and `tb/system/SIGNOFF_SYSTEM.md` [V] 
   - 52 mode-switch jobs
   - 3 self-test checks
 - **Co-simulation (SIM):** the real `splitsys-host` binary drives the simulated top over a TCP-to-UART bridge. At build f402cc7 the host ran a bench sweep (all 4 GEMMs × M = 1…64 × both modes, 56 runs) plus the 10-run cosim check. At build 5900507 (same RTL) it ran the 4-run scripted demo. Results: 70 committed run records, 217,088 outputs compared, 17,014,784 MACs verified, 0 mismatches, 0 counter differences from the model [SIM].
-- **On hardware (one session on the board, build 0x52A66216) [HW]:**
+- **On hardware [HW].** H-3 ran on the `packet_mem` link-test bitstream (build 0x52A66216). KG1 (the full design, build 0x52A66216) ran H-4 through H-7. KG2 (build 0x38A3950A, same datapath RTL) re-ran H-4 and H-5:
   - UART link (H-3): `memtest` wrote and read back 10,000 random frames (5,123,818 bytes) across WBUF, ABUF, OBUF and the requant parameters, with 0 errors and 0 retries (`results/hw/logs/H-3_memtest_seed1.log`).
-  - Self-test (H-4): the on-chip ROM jobs passed in both modes, and the read-back OBUF matched golden, with 0 of 256 bytes different (`results/hw/logs/H-4_selftest_dump.log`).
-  - Random GEMMs (H-5): 200 runs (100 per mode, up to 64×256×256, 17 with int32 output), with 0 output mismatches, 0 counter mismatches, and 0 invariant failures (`results/hw/logs/H-5_random_both_seed1.log`).
-  - Benchmark sweep (H-6): 56 of 56 runs passed, with a model error of +0.000% at every point (`results/hw/logs/H-6_bench_sweep_seed1.log`).
-  - Totals over the 256 run records: 256 GEMMs and 118,801,362 MACs verified, 952,012 outputs compared, 0 mismatches. `results/session.json` agrees.
+  - Self-test (H-4): the on-chip ROM jobs passed in both modes, and the read-back OBUF matched golden, with 0 of 256 bytes different, on both builds (`results/hw/logs/H-4_selftest_dump.log`, `results/hw/logs/KG2/H-4_selftest_dump.log`).
+  - Random GEMMs (H-5): 200 runs (100 per mode, up to 64×256×256, 17 with int32 output), with 0 output mismatches, 0 counter mismatches, and 0 invariant failures, on each build (`results/hw/logs/H-5_random_both_seed1.log`, `results/hw/logs/KG2/H-5_random_both_seed1.log`).
+  - Benchmark sweep (H-6, KG1): 56 of 56 runs passed, with a model error of +0.000% at every point (`results/hw/logs/H-6_bench_sweep_seed1.log`).
+  - Totals over all 473 run records: 473 GEMMs and 233,654,180 MACs verified, 1,891,096 outputs compared, 0 mismatches. Per build: KG1 272 GEMMs, 127,321,042 MACs; KG2 201 GEMMs, 106,333,138 MACs. `results/session.json` agrees.
 
 ## Cost of splitting
 
-Two post-route builds of the same top, with `ENABLE_STRIP = 1` and `ENABLE_STRIP = 0` (Vivado 2025.2.1, xc7s50csga324-2, S4 freeze, build 0x52A66216 for both) [B]:
+Two post-route builds of the same top, with `ENABLE_STRIP = 1` and `ENABLE_STRIP = 0` (Vivado 2025.2.1, xc7s50csga324-2, S4 freeze rebuild at git 38a3950a, build 0x38A3950A for both) [B]:
 
 | | FULL-only | Split | Delta |
 | --- | ---: | ---: | ---: |
-| LUT | 5,142 | 7,389 | +2,247 (+43.7%) |
+| LUT | 5,146 | 7,389 | +2,243 (+43.6%) |
 | FF | 6,346 | 7,936 | +1,590 (+25.1%) |
 | DSP48E1 | 80 | 96 | +16 (+20%) |
 | BRAM | 26 | 26 | 0 |
-| WNS at 100 MHz | +2.097 ns | +0.523 ns | both meet timing |
+| WNS at 100 MHz | +2.188 ns | +0.744 ns | both meet timing |
 
 **Where the delta lives** (`breakdown.delta` in cost.json) [B]:
 
 | Block | LUT | FF | DSP |
 | --- | ---: | ---: | ---: |
-| Array STRIP muxes | +376 | +264 | 0 |
-| Sequencer STRIP control | +290 | +70 | 0 |
+| Array STRIP muxes | +378 | +264 | 0 |
+| Sequencer STRIP control | +289 | +70 | 0 |
 | Requant lanes 8–15 | +1,503 | +1,216 | +16 |
-| Everything else | +78 | +40 | 0 |
+| Everything else | +73 | +40 | 0 |
 
-<!-- [B] results/cost.json: full_only/split lut 5142/7389, ff 6346/7936, dsp 80/96, bram 26/26, wns_ns 2.097/0.523,
-     fmax_mhz 126.5/105.5; breakdown.delta array 376/264/0, sequencer 290/70/0, requant 1503/1216/16,
-     total 2247/1590/16. "Everything else" = total - (array + requant + sequencer) = 78 LUT, 40 FF.
-     % = delta / full_only: 2247/5142 = 43.7%, 1590/6346 = 25.1%, 16/80 = 20%.
-     worst_path.split: u_board/rst_r_reg_rep__1/C -> rst_core_reg_rep__29/D, logic_levels 0, route_pct 96.189.
-     worst_path.full_only: u_core/u_seq/FSM_sequential_state_reg[1]/C -> u_core/u_seq/cnt_reg[6]/R,
-     logic_levels 7, route_pct 77.319. Earlier split WNS +1.143 ns: results/cost.json at 8aeb9b0 (git 8bbd7ba6);
-     git diff 8bbd7ba6 52a66216 -- rtl spec is empty. -->
+<!-- [B] results/cost.json (git 38a3950a, committed 23acf6a): full_only/split lut 5146/7389, ff 6346/7936,
+     dsp 80/96, bram 26/26, wns_ns 2.188/0.744, fmax_mhz 128.0/108.0; breakdown.delta array 378/264/0,
+     sequencer 289/70/0, requant 1503/1216/16, total 2243/1590/16.
+     "Everything else" = total - (array + requant + sequencer) = 2243-2170 = 73 LUT, 1590-1550 = 40 FF.
+     % = delta / full_only: 2243/5146 = 43.6%, 1590/6346 = 25.1%, 16/80 = 20%.
+     Split proper = 378+289 = 667 LUT, 264+70 = 334 FF.
+     worst_path.split: rst_core_reg_rep__7/C -> u_core/u_rq/g_lane[0].q_e5_reg[39]/R, logic_levels 0, route_pct 94.967.
+     worst_path.full_only: u_core/u_seq/int32_q_reg/C -> u_core/u_rq/g_lane[4].mult_e1_reg[7]/R, logic_levels 1,
+     route_pct 92.814.
+     Same datapath, other builds: git 8bbd7ba6 (results/cost.json at 8aeb9b0): split/FULL-only WNS +1.143/+2.441,
+     lut 7388/5149; git 52a66216 (results/cost.json at 8ccb333, = KG1): WNS +0.523/+2.097, lut 7389/5142.
+     git diff 8bbd7ba6 52a66216 -- rtl spec is empty; 52a66216 -> 38a3950a touches only the display defaults
+     in rtl/top.sv and rtl/board_io.sv. Split WNS spread across the three: 1.143 - 0.523 = 0.62 ns. -->
 
 **Read it honestly:**
-- **Most of the delta is the 16-wide output path,** not the split itself. Requant lanes 8–15 are 1,503 of the 2,247 LUTs and all 16 DSPs. The FULL-only build trims them, because FULL drains only 8 lanes per row.
-- **The split proper** (array muxes plus sequencer control) costs +666 LUT and +334 FF.
-- **Don't read the Fmax estimate as a cost of splitting.** From WNS at the 100 MHz constraint, the estimates are 126.5 MHz (FULL-only) and 105.5 MHz (split). They are not a frequency sweep. The split build's worst path is a replicated reset net (`u_board/rst_r_reg_rep__1` → `rst_core_reg_rep__29`): 0 logic levels, 96% routing. That is placement, not STRIP logic. The same RTL built earlier at 8bbd7ba6 closed with WNS +1.143 ns, so the split build's slack moved by 0.62 ns between two builds of identical RTL. We headline the LUT, FF and DSP counts, not Fmax.
-- **These are the S4 freeze builds** (cost.json committed in 8ccb333). The split build is the bitstream that ran on the board. It is archived as `fpga/known_good/KG1`: `summary.json` gives build_id 0x52A66216 and the same LUT, FF, DSP, BRAM and WNS values as cost.json. So the cost numbers and the hardware numbers describe the same bitstream.
+- **Most of the delta is the 16-wide output path,** not the split itself. Requant lanes 8–15 are 1,503 of the 2,243 LUTs and all 16 DSPs. The FULL-only build trims them, because FULL drains only 8 lanes per row.
+- **The split proper** (array muxes plus sequencer control) costs +667 LUT and +334 FF.
+- **Don't read the Fmax estimate as a cost of splitting.** From WNS at the 100 MHz constraint, the estimates are 128.0 MHz (FULL-only) and 108.0 MHz (split). They are not a frequency sweep. The split build's worst path starts at a replicated reset flop (`rst_core_reg_rep__7`, ending at a requant lane-0 register reset): 0 logic levels, 95% routing. That is placement, not STRIP logic. Three builds of the same datapath RTL closed the split build at WNS +1.143 ns (8bbd7ba6), +0.523 ns (52a66216, KG1) and +0.744 ns (38a3950a, KG2): a 0.62 ns spread with no datapath change. We headline the LUT, FF and DSP counts, not Fmax.
+- **These numbers come from the S4 freeze rebuild at 38a3950a** (cost.json committed in 23acf6a). Its split build is the bitstream on the board now, archived as `fpga/known_good/KG2`: `summary.json` gives build_id 0x38A3950A and the same LUT, FF, DSP, BRAM and WNS values as cost.json. So the cost numbers describe the live demo bitstream. KG1, which produced the benchmark sweep, has the same datapath. Its cost build (52a66216) had the same split LUT count (7,389) and 4 fewer FULL-only LUTs (5,142).
 
 ## Reproduce
 
@@ -234,7 +256,7 @@ The ordered bring-up script, with expected output and failure branches, is `docs
 - **No speed claim against CPUs or GPUs.** The claim is about utilization, operand bandwidth per MAC, and whether the model predicts the counters.
 - **End-to-end time is UART-bound** (115200 baud). Wall-clock time is never reported as accelerator performance. On-chip cycles come from the counters.
 - **Tiny model.** d_model = 64, a single transformer block, and synthetic int8 data with a fixed seed. No DDR3: weights live in on-chip BRAM. Softmax, norms, and attention-score matmuls run on the host.
-- **No overlap between stages.** STREAM, FLUSH, and DRAIN run back to back, and the array idles during drain. That fixed per-tile overhead is why prefill utilization tops out near 56–58% for K = 64 [M]. The model assumes zero stall cycles. Co-simulation measured 0 on every run [SIM], and so did the board, on all 256 runs [HW]. That shows only that on-chip BRAM keeps up at 20 B/cycle. There is no DRAM path, so a memory-bound regime was never tested.
+- **No overlap between stages.** STREAM, FLUSH, and DRAIN run back to back, and the array idles during drain. That fixed per-tile overhead is why prefill utilization tops out near 56–58% for K = 64 [M]. The model assumes zero stall cycles. Co-simulation measured 0 on every run [SIM], and so did the board, on all 473 runs [HW]. That shows only that on-chip BRAM keeps up at 20 B/cycle. There is no DRAM path, so a memory-bound regime was never tested.
 - **INDEP mode** (four independent 4×4 jobs) is specified but not built.
 
 ## What's next
@@ -247,4 +269,4 @@ The ordered bring-up script, with expected output and failure branches, is `docs
 
 ## Built at Cal Hacks 13.0
 
-San Francisco, October 2026. All project code was written during the event. ⟦HUMAN: team members / solo⟧.
+San Francisco, October 2026. Solo entry. All project code was written during the event.
