@@ -174,6 +174,18 @@ pub struct Counters {
 pub struct Selftest {
     pub fletcher32_check_abcde: i64,
     pub fletcher32_check_abcdef: i64,
+    pub fletcher32_check_abcdefgh: i64,
+}
+
+impl Selftest {
+    /// (ASCII input, expected Fletcher-32) reference pairs, in emission order.
+    pub fn checks(&self) -> [(&'static str, i64); 3] {
+        [
+            ("abcde", self.fletcher32_check_abcde),
+            ("abcdef", self.fletcher32_check_abcdef),
+            ("abcdefgh", self.fletcher32_check_abcdefgh),
+        ]
+    }
 }
 
 /// Errors from loading or validating the spec. Validation collects every
@@ -317,6 +329,10 @@ impl Spec {
     /// Per-lane extra skew base for W lanes in STRIP mode (lanes >= COLS enter at row ROWS/2).
     pub fn w_skew_base_strip(&self) -> Vec<i64> {
         (0..self.w_lanes()).map(|j| if j < self.array.cols { 0 } else { self.array.rows / 2 }).collect()
+    }
+    /// STREAM start to operand word 0 at the array input port (L_RD + 1, SPEC §3.5).
+    pub fn operand_port_offset(&self) -> i64 {
+        self.lat("L_RD").value + 1
     }
     pub fn baud_div(&self) -> i64 {
         let u = &self.uart;
@@ -697,19 +713,11 @@ impl Spec {
 
         // selftest reference values pin the Fletcher-32 definition
         let s = &self.selftest;
-        if i64::from(fletcher32(b"abcde")) != s.fletcher32_check_abcde {
-            e.push(format!(
-                "selftest.fletcher32_check_abcde {:#010x} != computed {:#010x}",
-                s.fletcher32_check_abcde,
-                fletcher32(b"abcde")
-            ));
-        }
-        if i64::from(fletcher32(b"abcdef")) != s.fletcher32_check_abcdef {
-            e.push(format!(
-                "selftest.fletcher32_check_abcdef {:#010x} != computed {:#010x}",
-                s.fletcher32_check_abcdef,
-                fletcher32(b"abcdef")
-            ));
+        for (input, want) in s.checks() {
+            let got = fletcher32(input.as_bytes());
+            if i64::from(got) != want {
+                e.push(format!("selftest.fletcher32_check_{input} {want:#010x} != computed {got:#010x}"));
+            }
         }
 
         if e.is_empty() {
@@ -765,13 +773,16 @@ impl Spec {
         w!("/// Per-lane base delay of the W skew unit in STRIP mode (lane j total delay = base[j] + (j % COLS)).");
         w!("pub const W_SKEW_BASE_STRIP: [usize; {}] = {:?};", self.w_lanes(), self.w_skew_base_strip());
         w!("");
-        w!("// ---- latencies in cycles (SPEC §4). *_PROVISIONAL = true until rtl-designer confirms.");
+        w!("// ---- latencies in cycles (SPEC §4). *_PROVISIONAL = true until the RTL confirms the value.");
         for n in LATENCY_NAMES {
             let l = self.lat(n);
             w!("/// {}", l.doc);
             w!("pub const {n}: u64 = {};", l.value);
             w!("pub const {n}_PROVISIONAL: bool = {};", l.provisional);
         }
+        w!("/// Cycles from STREAM start s to operand word k at the array input port: s + OPERAND_PORT_OFFSET + k.");
+        w!("/// Derived: L_RD + 1 (one register between BRAM output and the array). SPEC §3.5.");
+        w!("pub const OPERAND_PORT_OFFSET: u64 = {};", self.operand_port_offset());
         w!("");
         w!("/// One row of the latency table.");
         w!("#[derive(Debug, Clone, Copy, PartialEq, Eq)]");
@@ -815,7 +826,9 @@ impl Spec {
             }
             w!("pub const {pfx}_WORD_BYTES: usize = {};", b.word_bytes);
             w!("pub const {pfx}_BYTES: usize = {};", b.words * b.word_bytes);
-            w!("pub const {pfx}_ADDR_BITS: u32 = {};", clog2(b.words));
+            w!("pub const {pfx}_WORD_BITS: usize = {};", b.word_bytes * 8);
+            w!("/// Word address bits (clog2 of the depth).");
+            w!("pub const {pfx}_AW: u32 = {};", clog2(b.words));
         }
         w!("/// (name, region id, words, word bytes) in region-id order.");
         w!("pub const REGIONS: [(&str, u8, usize, usize); {}] = [", BUFFER_NAMES.len());
@@ -857,7 +870,7 @@ impl Spec {
         w!("pub const OVERSAMPLE: u64 = {};", u.oversample);
         w!("/// round(CLK_HZ / (BAUD * OVERSAMPLE)): oversample tick divider.");
         w!("pub const BAUD_DIV: u64 = {};", self.baud_div());
-        w!("/// Inter-byte idle cycles inside a frame before the parser resets.");
+        w!("/// Max core cycles between rx_valid strobes of consecutive bytes of one frame (SPEC §3.8).");
         w!("pub const RX_TIMEOUT: u64 = {};", u.rx_timeout);
         w!("");
         w!("// ---- protocol (SPEC §3.8)");
@@ -868,6 +881,11 @@ impl Spec {
         w!("pub const CRC8_INIT: u8 = {:#04x};", p.crc8_init);
         w!("/// CRC-8 of ASCII \"123456789\" under CRC8_POLY/CRC8_INIT (MSB-first, no reflection, no xorout).");
         w!("pub const CRC8_CHECK: u8 = {:#04x};", p.crc8_check);
+        let magic = p.ping_magic.as_bytes();
+        let magic_le = u32::from_le_bytes([magic[0], magic[1], magic[2], magic[3]]);
+        w!("/// PING magic as sent on the wire, as a little-endian u32 (wire byte i = bits 8i..8i+7).");
+        w!("pub const PING_MAGIC_LE: u32 = 0x{magic_le:08X};");
+        w!("/// Rust-only convenience: the same magic as wire bytes.");
         w!("pub const PING_MAGIC: [u8; 4] = *b\"{}\";", p.ping_magic);
         for (n, v) in Self::sorted_by_value(&self.opcodes) {
             w!("pub const OP_{n}: u8 = {v:#04x};");
@@ -903,8 +921,9 @@ impl Spec {
         }
         w!("");
         w!("// ---- self-test reference values (SPEC §3.9 Fletcher-32 definition)");
-        w!("pub const FLETCHER32_CHECK_ABCDE: u32 = {:#010X};", self.selftest.fletcher32_check_abcde);
-        w!("pub const FLETCHER32_CHECK_ABCDEF: u32 = {:#010X};", self.selftest.fletcher32_check_abcdef);
+        for (input, v) in self.selftest.checks() {
+            w!("pub const FLETCHER32_CHECK_{}: u32 = {v:#010X};", input.to_uppercase());
+        }
         w!("");
         w!("// ---- benchmark GEMMs (SPEC §1.1): one list for golden, cycle, and host");
         w!("/// A benchmark GEMM shape; M comes from BENCH_M_SWEEP / BENCH_M_DECODE / BENCH_M_PREFILL.");
@@ -989,12 +1008,19 @@ impl Spec {
         w!("  // Per-lane STRIP W skew base, lane j at [8*j +: 8].");
         w!("  localparam logic [{}:0] W_SKEW_BASE_STRIP = {{{}}};", 8 * n - 1, lanes.join(", "));
         w!("");
-        w!("  // ---- latencies in cycles (SPEC §4); provisional until rtl-designer confirms");
+        w!("  // ---- latencies in cycles (SPEC §4); *_PROVISIONAL = 1 until the RTL confirms the value");
         for nm in LATENCY_NAMES {
             let l = self.lat(nm);
             let tag = if l.provisional { "PROVISIONAL: " } else { "" };
             lp(&mut o, nm, l.value, &format!("{tag}{}", l.doc));
+            w!("  localparam bit {nm}_PROVISIONAL = 1'b{};", u8::from(l.provisional));
         }
+        lp(
+            &mut o,
+            "OPERAND_PORT_OFFSET",
+            self.operand_port_offset(),
+            "STREAM start s -> word k at array input port in s + OPERAND_PORT_OFFSET + k (= L_RD + 1)",
+        );
         w!("");
         w!("  // ---- drain (SPEC §3.5)");
         lp(&mut o, "T_DRAIN_FULL", self.drain.t_drain_full, "");
@@ -1034,6 +1060,9 @@ impl Spec {
         for f in &d.fields {
             lp(&mut o, &format!("DESC_OFF_{}", f.name.to_uppercase()), f.offset, &format!("{} byte(s)", f.size));
         }
+        for f in &d.fields {
+            lp(&mut o, &format!("DESC_SIZE_{}", f.name.to_uppercase()), f.size, "bytes");
+        }
         w!("  localparam logic [7:0] FLAG_REQUANT_EN = {};", byte(d.flag_requant_en));
         w!("  localparam logic [7:0] FLAG_OUT_INT32 = {};", byte(d.flag_out_int32));
         w!("  localparam logic [7:0] FLAGS_INT8 = {};  // legal flags value: int8 requant", byte(d.flag_requant_en));
@@ -1056,7 +1085,7 @@ impl Spec {
         lp(&mut o, "BAUD", u.baud, "");
         lp(&mut o, "OVERSAMPLE", u.oversample, "");
         lp(&mut o, "BAUD_DIV", self.baud_div(), "round(CLK_HZ / (BAUD * OVERSAMPLE))");
-        lp(&mut o, "RX_TIMEOUT", u.rx_timeout, "idle cycles inside a frame before parser reset");
+        lp(&mut o, "RX_TIMEOUT", u.rx_timeout, "max cycles between byte strobes of one frame (SPEC §3.8)");
         w!("");
         w!("  // ---- protocol (SPEC §3.8)");
         lp(&mut o, "PROTO_VERSION", self.meta.proto_version, "PING version byte");
@@ -1093,8 +1122,9 @@ impl Spec {
         }
         w!("");
         w!("  // ---- self-test reference values (SPEC §3.9)");
-        w!("  localparam logic [31:0] FLETCHER32_CHECK_ABCDE = 32'h{:08X};", self.selftest.fletcher32_check_abcde);
-        w!("  localparam logic [31:0] FLETCHER32_CHECK_ABCDEF = 32'h{:08X};", self.selftest.fletcher32_check_abcdef);
+        for (input, v) in self.selftest.checks() {
+            w!("  localparam logic [31:0] FLETCHER32_CHECK_{} = 32'h{v:08X};  // \"{input}\"", input.to_uppercase());
+        }
         w!("");
         w!("  /* verilator lint_on UNUSEDPARAM */");
         w!("");

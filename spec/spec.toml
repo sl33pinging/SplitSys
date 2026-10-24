@@ -28,8 +28,8 @@ STRIP = 1
 INDEP = 2
 
 # ---------------------------------------------------------------- latencies (SPEC §4)
-# All in core clock cycles. provisional = true until rtl-designer confirms the
-# real RTL value (then perf-modeler reviews). See SPEC §4 for which counter each
+# All in core clock cycles. provisional = true until the RTL confirms the
+# real value (then perf-modeler reviews). See SPEC §4 for which counter each
 # term lands in.
 [latency.L_PE]
 value = 3
@@ -43,27 +43,27 @@ doc = "BRAM read latency on the array port (address to data, output register on)
 
 [latency.L_SETUP]
 value = 16
-provisional = true
+provisional = false   # confirmed by RTL 3786ad1 (D-017)
 doc = "TILE_SETUP state length per tile (load up to 16 requant params, one per cycle)"
 
 [latency.L_RQ]
 value = 7
-provisional = true    # measured 7; final once the sequencer lands (D-016)
+provisional = false   # confirmed by RTL 3786ad1 (D-017)
 doc = "DRAIN presenting drain_row to requant output valid: 1 registered drain-read mux + 6 requant stages (first part of WRITEBACK, per tile)"
 
 [latency.L_WB]
 value = 1
-provisional = true
+provisional = false   # confirmed by RTL 3786ad1 (D-017)
 doc = "OBUF write latency after requant (second part of WRITEBACK state, per tile)"
 
 [latency.L_ACCEPT]
 value = 1
-provisional = true
+provisional = false   # confirmed by RTL 3786ad1 (D-017)
 doc = "Cycles from descriptor accept to first TILE_SETUP cycle, counted in cycles_total only"
 
 [latency.L_DONE]
 value = 1
-provisional = true
+provisional = false   # confirmed by RTL 3786ad1 (D-017)
 doc = "Cycles from last WRITEBACK cycle to DONE (counters frozen), counted in cycles_total only"
 
 # ---------------------------------------------------------------- drain (SPEC §3.5, §4)
@@ -256,3 +256,4 @@ order = [
 [selftest]
 fletcher32_check_abcde = 0xF04FC729     # Fletcher-32 of ASCII "abcde" (LE words, zero-pad)
 fletcher32_check_abcdef = 0x56502D2A    # Fletcher-32 of ASCII "abcdef"
+fletcher32_check_abcdefgh = 0xEBE19591  # Fletcher-32 of ASCII "abcdefgh"

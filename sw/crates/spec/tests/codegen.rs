@@ -88,15 +88,16 @@ fn consts_match_spec() {
         assert_eq!(ss::COUNTER_NAMES[i], n);
     }
     assert_eq!(ss::LATENCIES.len(), 7);
-    // D-016: L_PE and L_RD confirmed by rtl-designer; the rest stay provisional until the sequencer lands.
+    // D-016/D-017: all seven latencies confirmed by RTL (3786ad1, 283-job smoke, counters == cycle model).
     for l in ss::LATENCIES {
-        let confirmed = matches!(l.name, "L_PE" | "L_RD");
-        assert_eq!(l.provisional, !confirmed, "{} provisional flag", l.name);
+        assert!(!l.provisional, "{} should be confirmed", l.name);
         assert_eq!(l.provisional, s.lat(l.name).provisional);
     }
-    const { assert!(!ss::L_PE_PROVISIONAL && !ss::L_RD_PROVISIONAL && ss::L_RQ_PROVISIONAL) };
-    assert_eq!(ss::L_RQ, 7);
-    assert_eq!(ss::L_WB, 1);
+    assert_eq!(
+        [ss::L_PE, ss::L_RD, ss::L_SETUP, ss::L_RQ, ss::L_WB, ss::L_ACCEPT, ss::L_DONE],
+        [3, 2, 16, 7, 1, 1, 1]
+    );
+    assert_eq!(ss::OPERAND_PORT_OFFSET, ss::L_RD + 1);
     // FLUSH = (R-1)+(C-1)+L_PE = 17 confirmed by rtl-designer.
     assert_eq!((ss::ROWS as u64 - 1) + (ss::COLS as u64 - 1) + ss::L_PE, 17);
     // Legacy INT32_DRAIN_FACTOR was removed (D-016).
@@ -454,4 +455,67 @@ fn rejects_bench_shape_out_of_range_or_duplicate() {
     assert_rejects(&errs, "bench shape qkv (K=300");
     assert_rejects(&errs, "\"ffn_up\" must be a unique");
     assert_rejects(&errs, "bench M 128 outside");
+}
+
+/// Scalar constant names emitted in SV (localparams and enum members).
+fn sv_names(sv: &str) -> std::collections::BTreeSet<String> {
+    let mut out = std::collections::BTreeSet::new();
+    for line in sv.lines() {
+        let t = line.trim();
+        if let Some(rest) = t.strip_prefix("localparam ") {
+            // localparam <type...> NAME = value;
+            let lhs = rest.split('=').next().unwrap().trim();
+            out.insert(lhs.rsplit(' ').next().unwrap().to_string());
+        } else if t.contains(" = 8'h") && !t.starts_with("//") {
+            out.insert(t.split(' ').next().unwrap().to_string());
+        }
+    }
+    out
+}
+
+/// Constant names emitted in Rust (`pub const NAME:`).
+fn rs_names(rs: &str) -> std::collections::BTreeSet<String> {
+    rs.lines()
+        .filter_map(|l| l.strip_prefix("pub const "))
+        .map(|r| r.split(':').next().unwrap().trim().to_string())
+        .collect()
+}
+
+#[test]
+fn sv_and_rust_names_match() {
+    // D-015/D-018: identical names in both languages; documented Rust-only extras.
+    const RUST_ONLY: [&str; 11] = [
+        "SPEC_VERSION",
+        "PING_MAGIC",
+        "LATENCIES",
+        "REGIONS",
+        "OPCODES",
+        "STATUSES",
+        "COUNTER_NAMES",
+        "BENCH_SHAPES",
+        "BENCH_M_SWEEP",
+        "BENCH_M_DECODE",
+        "BENCH_M_PREFILL",
+    ];
+    let s = Spec::load_default().unwrap();
+    let sv = sv_names(&s.render_sv());
+    let rs = rs_names(&s.render_rust());
+    assert!(sv.len() > 100, "SV name scan found only {}", sv.len());
+    let sv_only: Vec<&String> = sv.difference(&rs).collect();
+    assert!(sv_only.is_empty(), "SV names missing from Rust: {sv_only:?}");
+    let rs_only: Vec<&String> = rs.difference(&sv).filter(|n| !RUST_ONLY.contains(&n.as_str())).collect();
+    assert!(rs_only.is_empty(), "Rust names missing from SV (not in the documented Rust-only list): {rs_only:?}");
+    for n in RUST_ONLY {
+        assert!(rs.contains(n), "documented Rust-only name {n} no longer exists; update D-018");
+    }
+}
+
+#[test]
+fn fletcher_constants_match_reference() {
+    assert_eq!(ss::FLETCHER32_CHECK_ABCDE, ss::fletcher32(b"abcde"));
+    assert_eq!(ss::FLETCHER32_CHECK_ABCDEF, ss::fletcher32(b"abcdef"));
+    assert_eq!(ss::FLETCHER32_CHECK_ABCDEFGH, ss::fletcher32(b"abcdefgh"));
+    assert_eq!(ss::FLETCHER32_CHECK_ABCDEFGH, 0xEBE1_9591);
+    assert_eq!(ss::PING_MAGIC_LE.to_le_bytes(), ss::PING_MAGIC);
+    assert_eq!((ss::WBUF_AW, ss::ABUF_AW, ss::OBUF_AW, ss::RQ_AW), (12, 11, 10, 8));
 }

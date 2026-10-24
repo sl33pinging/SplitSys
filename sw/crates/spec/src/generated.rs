@@ -33,7 +33,7 @@ pub const STRIP_W_SKEW_BASE: usize = 4;
 /// Per-lane base delay of the W skew unit in STRIP mode (lane j total delay = base[j] + (j % COLS)).
 pub const W_SKEW_BASE_STRIP: [usize; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 4, 4, 4, 4];
 
-// ---- latencies in cycles (SPEC §4). *_PROVISIONAL = true until rtl-designer confirms.
+// ---- latencies in cycles (SPEC §4). *_PROVISIONAL = true until the RTL confirms the value.
 /// PE: operands at the PE input port to acc_out updated (DSP A/B, M, P regs)
 pub const L_PE: u64 = 3;
 pub const L_PE_PROVISIONAL: bool = false;
@@ -42,19 +42,22 @@ pub const L_RD: u64 = 2;
 pub const L_RD_PROVISIONAL: bool = false;
 /// TILE_SETUP state length per tile (load up to 16 requant params, one per cycle)
 pub const L_SETUP: u64 = 16;
-pub const L_SETUP_PROVISIONAL: bool = true;
+pub const L_SETUP_PROVISIONAL: bool = false;
 /// DRAIN presenting drain_row to requant output valid: 1 registered drain-read mux + 6 requant stages (first part of WRITEBACK, per tile)
 pub const L_RQ: u64 = 7;
-pub const L_RQ_PROVISIONAL: bool = true;
+pub const L_RQ_PROVISIONAL: bool = false;
 /// OBUF write latency after requant (second part of WRITEBACK state, per tile)
 pub const L_WB: u64 = 1;
-pub const L_WB_PROVISIONAL: bool = true;
+pub const L_WB_PROVISIONAL: bool = false;
 /// Cycles from descriptor accept to first TILE_SETUP cycle, counted in cycles_total only
 pub const L_ACCEPT: u64 = 1;
-pub const L_ACCEPT_PROVISIONAL: bool = true;
+pub const L_ACCEPT_PROVISIONAL: bool = false;
 /// Cycles from last WRITEBACK cycle to DONE (counters frozen), counted in cycles_total only
 pub const L_DONE: u64 = 1;
-pub const L_DONE_PROVISIONAL: bool = true;
+pub const L_DONE_PROVISIONAL: bool = false;
+/// Cycles from STREAM start s to operand word k at the array input port: s + OPERAND_PORT_OFFSET + k.
+/// Derived: L_RD + 1 (one register between BRAM output and the array). SPEC §3.5.
+pub const OPERAND_PORT_OFFSET: u64 = 3;
 
 /// One row of the latency table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,11 +71,11 @@ pub struct LatencyInfo {
 pub const LATENCIES: [LatencyInfo; 7] = [
     LatencyInfo { name: "L_PE", value: 3, provisional: false, doc: "PE: operands at the PE input port to acc_out updated (DSP A/B, M, P regs)" },
     LatencyInfo { name: "L_RD", value: 2, provisional: false, doc: "BRAM read latency on the array port (address to data, output register on)" },
-    LatencyInfo { name: "L_SETUP", value: 16, provisional: true, doc: "TILE_SETUP state length per tile (load up to 16 requant params, one per cycle)" },
-    LatencyInfo { name: "L_RQ", value: 7, provisional: true, doc: "DRAIN presenting drain_row to requant output valid: 1 registered drain-read mux + 6 requant stages (first part of WRITEBACK, per tile)" },
-    LatencyInfo { name: "L_WB", value: 1, provisional: true, doc: "OBUF write latency after requant (second part of WRITEBACK state, per tile)" },
-    LatencyInfo { name: "L_ACCEPT", value: 1, provisional: true, doc: "Cycles from descriptor accept to first TILE_SETUP cycle, counted in cycles_total only" },
-    LatencyInfo { name: "L_DONE", value: 1, provisional: true, doc: "Cycles from last WRITEBACK cycle to DONE (counters frozen), counted in cycles_total only" },
+    LatencyInfo { name: "L_SETUP", value: 16, provisional: false, doc: "TILE_SETUP state length per tile (load up to 16 requant params, one per cycle)" },
+    LatencyInfo { name: "L_RQ", value: 7, provisional: false, doc: "DRAIN presenting drain_row to requant output valid: 1 registered drain-read mux + 6 requant stages (first part of WRITEBACK, per tile)" },
+    LatencyInfo { name: "L_WB", value: 1, provisional: false, doc: "OBUF write latency after requant (second part of WRITEBACK state, per tile)" },
+    LatencyInfo { name: "L_ACCEPT", value: 1, provisional: false, doc: "Cycles from descriptor accept to first TILE_SETUP cycle, counted in cycles_total only" },
+    LatencyInfo { name: "L_DONE", value: 1, provisional: false, doc: "Cycles from last WRITEBACK cycle to DONE (counters frozen), counted in cycles_total only" },
 ];
 
 // ---- drain (SPEC §3.5, §4)
@@ -93,22 +96,30 @@ pub const REGION_WBUF: u8 = 0;
 pub const WBUF_WORDS: usize = 4096;
 pub const WBUF_WORD_BYTES: usize = 16;
 pub const WBUF_BYTES: usize = 65536;
-pub const WBUF_ADDR_BITS: u32 = 12;
+pub const WBUF_WORD_BITS: usize = 128;
+/// Word address bits (clog2 of the depth).
+pub const WBUF_AW: u32 = 12;
 pub const REGION_ABUF: u8 = 1;
 pub const ABUF_WORDS: usize = 2048;
 pub const ABUF_WORD_BYTES: usize = 8;
 pub const ABUF_BYTES: usize = 16384;
-pub const ABUF_ADDR_BITS: u32 = 11;
+pub const ABUF_WORD_BITS: usize = 64;
+/// Word address bits (clog2 of the depth).
+pub const ABUF_AW: u32 = 11;
 pub const REGION_OBUF: u8 = 2;
 pub const OBUF_WORDS: usize = 1024;
 pub const OBUF_WORD_BYTES: usize = 16;
 pub const OBUF_BYTES: usize = 16384;
-pub const OBUF_ADDR_BITS: u32 = 10;
+pub const OBUF_WORD_BITS: usize = 128;
+/// Word address bits (clog2 of the depth).
+pub const OBUF_AW: u32 = 10;
 pub const REGION_RQPARAM: u8 = 3;
 pub const RQ_ENTRIES: usize = 256;
 pub const RQ_WORD_BYTES: usize = 4;
 pub const RQ_BYTES: usize = 1024;
-pub const RQ_ADDR_BITS: u32 = 8;
+pub const RQ_WORD_BITS: usize = 32;
+/// Word address bits (clog2 of the depth).
+pub const RQ_AW: u32 = 8;
 /// (name, region id, words, word bytes) in region-id order.
 pub const REGIONS: [(&str, u8, usize, usize); 4] = [
     ("WBUF", 0, 4096, 16),
@@ -163,7 +174,7 @@ pub const BAUD: u64 = 115200;
 pub const OVERSAMPLE: u64 = 16;
 /// round(CLK_HZ / (BAUD * OVERSAMPLE)): oversample tick divider.
 pub const BAUD_DIV: u64 = 54;
-/// Inter-byte idle cycles inside a frame before the parser resets.
+/// Max core cycles between rx_valid strobes of consecutive bytes of one frame (SPEC §3.8).
 pub const RX_TIMEOUT: u64 = 1000000;
 
 // ---- protocol (SPEC §3.8)
@@ -174,6 +185,9 @@ pub const CRC8_POLY: u8 = 0x07;
 pub const CRC8_INIT: u8 = 0x00;
 /// CRC-8 of ASCII "123456789" under CRC8_POLY/CRC8_INIT (MSB-first, no reflection, no xorout).
 pub const CRC8_CHECK: u8 = 0xf4;
+/// PING magic as sent on the wire, as a little-endian u32 (wire byte i = bits 8i..8i+7).
+pub const PING_MAGIC_LE: u32 = 0x544C5053;
+/// Rust-only convenience: the same magic as wire bytes.
 pub const PING_MAGIC: [u8; 4] = *b"SPLT";
 pub const OP_PING: u8 = 0x01;
 pub const OP_WRITE_MEM: u8 = 0x10;
@@ -244,6 +258,7 @@ pub const CTR_TILES: usize = 11;
 // ---- self-test reference values (SPEC §3.9 Fletcher-32 definition)
 pub const FLETCHER32_CHECK_ABCDE: u32 = 0xF04FC729;
 pub const FLETCHER32_CHECK_ABCDEF: u32 = 0x56502D2A;
+pub const FLETCHER32_CHECK_ABCDEFGH: u32 = 0xEBE19591;
 
 // ---- benchmark GEMMs (SPEC §1.1): one list for golden, cycle, and host
 /// A benchmark GEMM shape; M comes from BENCH_M_SWEEP / BENCH_M_DECODE / BENCH_M_PREFILL.

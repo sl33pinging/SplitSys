@@ -36,14 +36,22 @@ package splitsys_pkg;
   // Per-lane STRIP W skew base, lane j at [8*j +: 8].
   localparam logic [127:0] W_SKEW_BASE_STRIP = {8'd4, 8'd4, 8'd4, 8'd4, 8'd4, 8'd4, 8'd4, 8'd4, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0};
 
-  // ---- latencies in cycles (SPEC §4); provisional until rtl-designer confirms
+  // ---- latencies in cycles (SPEC §4); *_PROVISIONAL = 1 until the RTL confirms the value
   localparam int unsigned L_PE = 3;  // PE: operands at the PE input port to acc_out updated (DSP A/B, M, P regs)
+  localparam bit L_PE_PROVISIONAL = 1'b0;
   localparam int unsigned L_RD = 2;  // BRAM read latency on the array port (address to data, output register on)
-  localparam int unsigned L_SETUP = 16;  // PROVISIONAL: TILE_SETUP state length per tile (load up to 16 requant params, one per cycle)
-  localparam int unsigned L_RQ = 7;  // PROVISIONAL: DRAIN presenting drain_row to requant output valid: 1 registered drain-read mux + 6 requant stages (first part of WRITEBACK, per tile)
-  localparam int unsigned L_WB = 1;  // PROVISIONAL: OBUF write latency after requant (second part of WRITEBACK state, per tile)
-  localparam int unsigned L_ACCEPT = 1;  // PROVISIONAL: Cycles from descriptor accept to first TILE_SETUP cycle, counted in cycles_total only
-  localparam int unsigned L_DONE = 1;  // PROVISIONAL: Cycles from last WRITEBACK cycle to DONE (counters frozen), counted in cycles_total only
+  localparam bit L_RD_PROVISIONAL = 1'b0;
+  localparam int unsigned L_SETUP = 16;  // TILE_SETUP state length per tile (load up to 16 requant params, one per cycle)
+  localparam bit L_SETUP_PROVISIONAL = 1'b0;
+  localparam int unsigned L_RQ = 7;  // DRAIN presenting drain_row to requant output valid: 1 registered drain-read mux + 6 requant stages (first part of WRITEBACK, per tile)
+  localparam bit L_RQ_PROVISIONAL = 1'b0;
+  localparam int unsigned L_WB = 1;  // OBUF write latency after requant (second part of WRITEBACK state, per tile)
+  localparam bit L_WB_PROVISIONAL = 1'b0;
+  localparam int unsigned L_ACCEPT = 1;  // Cycles from descriptor accept to first TILE_SETUP cycle, counted in cycles_total only
+  localparam bit L_ACCEPT_PROVISIONAL = 1'b0;
+  localparam int unsigned L_DONE = 1;  // Cycles from last WRITEBACK cycle to DONE (counters frozen), counted in cycles_total only
+  localparam bit L_DONE_PROVISIONAL = 1'b0;
+  localparam int unsigned OPERAND_PORT_OFFSET = 3;  // STREAM start s -> word k at array input port in s + OPERAND_PORT_OFFSET + k (= L_RD + 1)
 
   // ---- drain (SPEC §3.5)
   localparam int unsigned T_DRAIN_FULL = 8;
@@ -95,6 +103,16 @@ package splitsys_pkg;
   localparam int unsigned DESC_OFF_OUT_BASE = 16;  // 4 byte(s)
   localparam int unsigned DESC_OFF_RQ_BASE = 20;  // 2 byte(s)
   localparam int unsigned DESC_OFF_RESERVED = 22;  // 2 byte(s)
+  localparam int unsigned DESC_SIZE_MODE = 1;  // bytes
+  localparam int unsigned DESC_SIZE_FLAGS = 1;  // bytes
+  localparam int unsigned DESC_SIZE_M = 2;  // bytes
+  localparam int unsigned DESC_SIZE_K = 2;  // bytes
+  localparam int unsigned DESC_SIZE_N = 2;  // bytes
+  localparam int unsigned DESC_SIZE_A_BASE = 4;  // bytes
+  localparam int unsigned DESC_SIZE_W_BASE = 4;  // bytes
+  localparam int unsigned DESC_SIZE_OUT_BASE = 4;  // bytes
+  localparam int unsigned DESC_SIZE_RQ_BASE = 2;  // bytes
+  localparam int unsigned DESC_SIZE_RESERVED = 2;  // bytes
   localparam logic [7:0] FLAG_REQUANT_EN = 8'h01;
   localparam logic [7:0] FLAG_OUT_INT32 = 8'h02;
   localparam logic [7:0] FLAGS_INT8 = 8'h01;  // legal flags value: int8 requant
@@ -117,7 +135,7 @@ package splitsys_pkg;
   localparam int unsigned BAUD = 115200;
   localparam int unsigned OVERSAMPLE = 16;
   localparam int unsigned BAUD_DIV = 54;  // round(CLK_HZ / (BAUD * OVERSAMPLE))
-  localparam int unsigned RX_TIMEOUT = 1000000;  // idle cycles inside a frame before parser reset
+  localparam int unsigned RX_TIMEOUT = 1000000;  // max cycles between byte strobes of one frame (SPEC §3.8)
 
   // ---- protocol (SPEC §3.8)
   localparam int unsigned PROTO_VERSION = 1;  // PING version byte
@@ -170,8 +188,9 @@ package splitsys_pkg;
   localparam int unsigned CTR_TILES = 11;
 
   // ---- self-test reference values (SPEC §3.9)
-  localparam logic [31:0] FLETCHER32_CHECK_ABCDE = 32'hF04FC729;
-  localparam logic [31:0] FLETCHER32_CHECK_ABCDEF = 32'h56502D2A;
+  localparam logic [31:0] FLETCHER32_CHECK_ABCDE = 32'hF04FC729;  // "abcde"
+  localparam logic [31:0] FLETCHER32_CHECK_ABCDEF = 32'h56502D2A;  // "abcdef"
+  localparam logic [31:0] FLETCHER32_CHECK_ABCDEFGH = 32'hEBE19591;  // "abcdefgh"
 
   /* verilator lint_on UNUSEDPARAM */
 
