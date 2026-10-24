@@ -185,7 +185,20 @@ pub fn run_batch(
                     s.invariant_failures += u64::from(!r.check.invariants_ok);
                     let mut why = Vec::new();
                     if r.check.mismatches > 0 {
-                        why.push(format!("{} output mismatches (first at index {:?})", r.check.mismatches, r.check.first_mismatch));
+                        let at = r.check.first_mismatch.map(|idx| {
+                            let (m, n) = ((idx as usize) / bj.spec.n, (idx as usize) % bj.spec.n);
+                            let off = if bj.spec.requant {
+                                golden::pack::c_i8_offset(bj.spec.m, m, n)
+                            } else {
+                                golden::pack::c_i32_offset(bj.spec.m, m, n)
+                            };
+                            crate::diag::locate(&bj.job.desc, off).to_string()
+                        });
+                        why.push(format!(
+                            "{} output mismatches (first: {})",
+                            r.check.mismatches,
+                            at.unwrap_or_else(|| "?".into())
+                        ));
                     }
                     if cm {
                         why.push(format!("counters: {}", r.check.counter_diffs.join("; ")));

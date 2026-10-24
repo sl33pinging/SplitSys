@@ -7,6 +7,7 @@
 
 pub mod batch;
 pub mod client;
+pub mod diag;
 pub mod frame;
 pub mod memtest;
 pub mod mock;

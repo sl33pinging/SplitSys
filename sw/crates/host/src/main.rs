@@ -37,7 +37,29 @@ enum Cmd {
     /// Print build_id and protocol version.
     Ping,
     /// Run the on-board self-test (one FULL and one STRIP GEMM from ROM).
-    Selftest,
+    Selftest {
+        /// Afterwards read back each job's checked OBUF range and diff it against golden.
+        #[arg(long)]
+        dump: bool,
+        /// Differing bytes printed per job with --dump.
+        #[arg(long, default_value_t = 16)]
+        max_diffs: usize,
+    },
+    /// Read a buffer region via READ_MEM (chunked) and print or save it.
+    Dump {
+        /// wbuf | abuf | obuf | rqparam (or 0..3)
+        #[arg(long)]
+        region: String,
+        /// Byte address in the region.
+        #[arg(long, default_value_t = 0)]
+        addr: usize,
+        /// Bytes to read (default: to the end of the region).
+        #[arg(long)]
+        len: Option<usize>,
+        /// Write to a file: .bin raw bytes, anything else the hex dump text.
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
     /// Run one GEMM: a gemm.json file, or --name <benchmark> --m <M> --mode full|strip|both.
     Run {
         /// JSON file: {"name","M","K","N","mode","requant"?,"seed"?}
@@ -142,14 +164,62 @@ fn real_main(cli: &Cli) -> Result<ExitCode, String> {
             );
             Ok(ExitCode::SUCCESS)
         }
-        Cmd::Selftest => {
+        Cmd::Selftest { dump, max_diffs } => {
             let mut b = open_board(cli)?;
             let s = b.selftest().map_err(|e| e.to_string())?;
             let pf = |p: bool| if p { "PASS" } else { "FAIL" };
             println!("SELFTEST FULL : {} (fletcher32 {:08x})", pf(s.pass_full), s.fletcher_full);
             println!("SELFTEST STRIP: {} (fletcher32 {:08x})", pf(s.pass_strip), s.fletcher_strip);
             println!("source {} via {}", b.source().as_str(), b.describe());
-            Ok(if s.pass_full && s.pass_strip { ExitCode::SUCCESS } else { ExitCode::FAILURE })
+            let mut ok = s.pass_full && s.pass_strip;
+            if *dump {
+                if splitsys_host::diag::selftest_ranges_overlap() {
+                    println!("WARNING: self-test OBUF ranges overlap; the earlier job's read-back is not meaningful");
+                }
+                for j in splitsys_host::diag::selftest_diff(&mut b, *max_diffs).map_err(|e| e.to_string())? {
+                    println!(
+                        "{} job: OBUF bytes [{:#06x}, {:#06x}) {} bytes: {} differ; fletcher32 readback {:08x} ROM {:08x}",
+                        if j.mode == splitsys_spec::MODE_STRIP { "STRIP" } else { "FULL " },
+                        j.out_byte_addr,
+                        j.out_byte_addr + j.len,
+                        j.len,
+                        j.mismatches,
+                        j.readback_fletcher,
+                        j.stored_fletcher
+                    );
+                    for d in &j.diffs {
+                        println!("   {}: got {:#04x} want {:#04x}", d.loc, d.got, d.want);
+                    }
+                    if j.mismatches > j.diffs.len() {
+                        println!("   ... {} more", j.mismatches - j.diffs.len());
+                    }
+                    ok &= j.mismatches == 0;
+                }
+            }
+            Ok(if ok { ExitCode::SUCCESS } else { ExitCode::FAILURE })
+        }
+        Cmd::Dump { region, addr, len, out } => {
+            let r = splitsys_host::diag::parse_region(region)?;
+            let size = splitsys_host::diag::region_bytes(r);
+            let len = len.unwrap_or(size.saturating_sub(*addr));
+            if *addr + len > size || len == 0 {
+                return Err(format!("dump: [{addr}, {}) outside region {region} (size {size})", addr + len));
+            }
+            let mut b = open_board(cli)?;
+            let bytes = b.read_mem(r, *addr, len).map_err(|e| e.to_string())?;
+            let text = splitsys_host::diag::hexdump(r, *addr, &bytes);
+            match out {
+                Some(p) if p.extension().is_some_and(|e| e == "bin") => {
+                    std::fs::write(p, &bytes).map_err(|e| format!("{}: {e}", p.display()))?;
+                    println!("wrote {len} bytes to {}", p.display());
+                }
+                Some(p) => {
+                    std::fs::write(p, &text).map_err(|e| format!("{}: {e}", p.display()))?;
+                    println!("wrote hex dump of {len} bytes to {}", p.display());
+                }
+                None => print!("{text}"),
+            }
+            Ok(ExitCode::SUCCESS)
         }
         Cmd::Run { gemm, name, m, mode, seed, int32, no_poison, random, max_m, max_k, max_n } => {
             if let Some(n) = random {
