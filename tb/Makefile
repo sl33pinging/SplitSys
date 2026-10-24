@@ -56,7 +56,7 @@ SEED   ?= 1
 SCALE  ?= 1
 SEEDS  ?= 1 2 3
 
-.PHONY: units quick all oracle clean rtl_export vec $(ALL_UNITS)
+.PHONY: units quick all oracle clean rtl_export vec cycle $(ALL_UNITS)
 
 units: $(UNITS)
 	@echo "== units passed: $(UNITS) (SEED=$(SEED) SCALE=$(SCALE) RTL=$(RTL_SHA))"
@@ -80,10 +80,16 @@ ifneq ($(RTL_REV),worktree)
 	@if [ ! -f $(RTL_DIR)/.exported ]; then rm -rf $(RTL_DIR); mkdir -p $(dir $(RTL_DIR)); 	  git -C $(TB)/.. archive $(RTL_SHA) rtl | tar -x -C $(dir $(RTL_DIR)) && touch $(RTL_DIR)/.exported; fi
 endif
 
+# Cycle model binary (counter expectations), built from the working sw/ tree.
+CARGO_TARGET_DIR ?= $(SPLITSYS_CACHE)/target
+export SPLITSYS_CYCLE_BIN := $(CARGO_TARGET_DIR)/release/splitsys-cycle
+cycle:
+	cd $(TB)/../sw && cargo build -q --release -p splitsys-cycle
+
 vec:
 	@for u in $(VEC_UNITS); do [ -f $(VEC_DIR)/unit/$$u.json ] || 	  (cd $(TB)/../sw && cargo run -q --release -p splitsys-vec -- unit $$u --seed $(SEED) --n 100000 --out $(VEC_DIR)) || exit 1; done
 
-$(ALL_UNITS): oracle rtl_export vec
+$(ALL_UNITS): oracle rtl_export vec cycle
 	@echo "== [$@] SEED=$(SEED) SCALE=$(SCALE) RTL=$(RTL_SHA) ($(RTL_DIR))"
 	@start=$$(date +%s); \
 	$(MAKE) -C $(TB)/$@ SEED=$(SEED) SCALE=$(SCALE) RTL_DIR=$(RTL_DIR) VEC_DIR=$(VEC_DIR) SIM_BUILD_TAG=-$(RTL_SHA) > $(SPLITSYS_CACHE)/tb-$@.log 2>&1; rc=$$?; \
