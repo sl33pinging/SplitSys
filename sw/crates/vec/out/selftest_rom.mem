@@ -1,4 +1,4 @@
-// splitsys-vec 0.1.0 kind=selftest_rom seed=1579122263 git=d8d5eb17d112 spec=1.1
+// splitsys-vec 0.1.0 kind=selftest_rom seed=1579122263 git=7140392b50b2 spec=1.1
 // command: selftest
 // 464 words x 32 bit, little-endian bytes within a word
 // format: sw/crates/vec/README.md (header, job table, load table, data)
