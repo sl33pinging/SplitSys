@@ -191,7 +191,7 @@ All sums are evaluated without wraparound (the bases are u32; RTL may first requ
 ### 3.6 Drain and requantization (`rtl/requant.sv`)
 
 - 16 lanes, each implementing §1.2 bit-exactly. A 32×15 multiply needs **two DSP48E1 per lane**, or use LUT multipliers if the DSP budget is tight. The DSP budget is 64 (PE) + up to 32 (requant) = 96 ≤ 120.
-- Pipeline latency `L_RQ` **[spec.toml]**.
+- Pipeline latency `L_RQ` **[spec.toml]** is measured at sequencer level: from DRAIN presenting `drain_row` to requant output valid, including the 1-cycle registered drain-read mux in the array (D-016). The standalone `requant.sv` latency is therefore `L_RQ - 1`.
 - **int8 path:** one 128-bit write per drained row (FULL uses byte enables for 8 lanes).
 - **int32 bypass:** per the §1.3 int32 layout one 16-column block row is 4 OBUF words (`INT32_WORDS_PER_ROW`). A STRIP row covers all 16 columns → **4** full 128-bit writes; a FULL row covers 8 columns (half-block `p = nb8 mod 2`) → **2** full 128-bit writes, words `q = 2p, 2p+1` (D-004). This is slower, used only for bring-up, and its extra cycles are counted as `cycles_drain` (`T_DRAIN_FULL_INT32 = T_DRAIN_STRIP_INT32 = 16`).
 
