@@ -24,6 +24,10 @@
 #          (FPGA RX = A16, TX = B16) instead of fpga/xdc/urbana_uart.xdc (RX =
 #          B16, TX = A16, the schematic reading). Fallback for H-2; give the
 #          build its own tag, e.g. ... -tclargs top_uartswap top UART_SWAP=1
+#   PHYS_OPT=<directive>  build option: phys_opt_design -directive after
+#          placement (default: Vivado's Default). e.g. PHYS_OPT=AggressiveFanoutOpt
+#   POST_ROUTE_PHYS_OPT=1 build option: run phys_opt_design again after
+#          route_design (default 0). Both are recorded in summary.json.
 #
 # Sources
 #   Bring-up top (fpga/bringup/<top>/ exists): the repo-relative files listed in
@@ -122,6 +126,17 @@ set build_id_hex [string toupper $git_hash]
 # ------------------------------------------------------------------- generics
 set generics [list BUILD_ID "32'h$git_hash"]
 set gen_dict [dict create BUILD_ID "32'h$git_hash"]
+set phys_opt_dir Default
+if {[dict exists $user_generics PHYS_OPT]} {
+    set phys_opt_dir [dict get $user_generics PHYS_OPT]
+    set user_generics [dict remove $user_generics PHYS_OPT]
+}
+set post_route_po 0
+if {[dict exists $user_generics POST_ROUTE_PHYS_OPT]} {
+    set post_route_po [dict get $user_generics POST_ROUTE_PHYS_OPT]
+    set user_generics [dict remove $user_generics POST_ROUTE_PHYS_OPT]
+    if {$post_route_po ni {0 1}} { die "POST_ROUTE_PHYS_OPT must be 0 or 1" }
+}
 set uart_swap 0
 if {[dict exists $user_generics UART_SWAP]} {
     set uart_swap [dict get $user_generics UART_SWAP]
@@ -214,8 +229,9 @@ report_utilization -file [file join $rpt_dir post_synth_utilization.rpt]
 
 opt_design
 place_design
-phys_opt_design
+phys_opt_design -directive $phys_opt_dir
 route_design
+if {$post_route_po} { phys_opt_design }
 
 report_utilization      -file [file join $rpt_dir utilization.rpt]
 report_timing_summary   -max_paths 10 -report_unconstrained -file [file join $rpt_dir timing_summary.rpt]
@@ -284,7 +300,7 @@ dict for {k v} $gen_dict { lappend gj "[jstr $k]:[jstr $v]" }
 set fj [list]
 foreach f $failures { lappend fj [jstr $f] }
 set es [expr {$enable_strip eq "null" ? "null" : [jstr $enable_strip]}]
-set json "\{\"tag\":[jstr $tag],\"top\":[jstr $top],\"part\":[jstr $PART],\"build_id\":[jstr 0x$build_id_hex],\"git_hash\":[jstr $git_hash],\"git_dirty\":[jstr $dirty],\"vivado\":[jstr [version -short]],\"clk_period_ns\":[jnum $period],\"wns_ns\":[jnum $wns],\"whs_ns\":[jnum $whs],\"lut\":$lut,\"ff\":$ff,\"dsp\":$dsp,\"bram\":$bram,\"fmax_est_mhz\":[jnum $fmax],\"enable_strip\":$es,\"uart_swap\":$uart_swap,\"rom_file\":[jstr [expr {$rom_file eq "" ? "" : [string map [list "$ROOT/" ""] $rom_file]}]],\"min_dsp\":$min_dsp,\"latches\":$n_latch,\"drc_errors\":$n_drc_err,\"generics\":\{[join $gj ,]\},\"bitfile\":[jstr $bitfile],\"pass\":[expr {$pass ? "true" : "false"}],\"failures\":\[[join $fj ,]\]\}"
+set json "\{\"tag\":[jstr $tag],\"top\":[jstr $top],\"part\":[jstr $PART],\"build_id\":[jstr 0x$build_id_hex],\"git_hash\":[jstr $git_hash],\"git_dirty\":[jstr $dirty],\"vivado\":[jstr [version -short]],\"clk_period_ns\":[jnum $period],\"wns_ns\":[jnum $wns],\"whs_ns\":[jnum $whs],\"lut\":$lut,\"ff\":$ff,\"dsp\":$dsp,\"bram\":$bram,\"fmax_est_mhz\":[jnum $fmax],\"enable_strip\":$es,\"uart_swap\":$uart_swap,\"phys_opt\":[jstr $phys_opt_dir],\"post_route_phys_opt\":$post_route_po,\"rom_file\":[jstr [expr {$rom_file eq "" ? "" : [string map [list "$ROOT/" ""] $rom_file]}]],\"min_dsp\":$min_dsp,\"latches\":$n_latch,\"drc_errors\":$n_drc_err,\"generics\":\{[join $gj ,]\},\"bitfile\":[jstr $bitfile],\"pass\":[expr {$pass ? "true" : "false"}],\"failures\":\[[join $fj ,]\]\}"
 set fh [open [file join $rpt_dir summary.json] w]
 puts $fh $json
 close $fh
