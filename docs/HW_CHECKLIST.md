@@ -59,7 +59,7 @@ Sources: master XDC `fpga/xdc/urbana_master.xdc` ("URBANA BOARD CONSTRAINTS V2I1
 | Bitstream | same as H-1 (`fpga/build/heartbeat_uart_echo/top.bit`, build_id `0x2148101A`); no reprogram needed if H-1 just passed. |
 | Program command | (only if power-cycled) `scripts/vivado -mode batch -source fpga/tcl/program.tcl -tclargs fpga/build/heartbeat_uart_echo/top.bit` |
 | Physical action | none |
-| Host command | Windows (strategy b): `splitsys-host --port COM__ echo --bytes 10000` — **PENDING: `host-dashboard` has not written the `echo` subcommand yet; exact flags to be confirmed by `host-dashboard` before S4.** Link settings: 115200 baud, 8N1, no flow control. <br>Fallback sanity check if the host is not ready: PuTTY (Serial, COM__, 115200, 8N1, flow control None); type characters. |
+| Host command | Windows (strategy b): `splitsys-host --transport serial:COM__ echo --bytes 10000` (the subcommand exists in `sw/crates/host/src/main.rs`; default baud 115200 from the spec; the Windows build of the host is pending, see S4). Link settings: 115200 baud, 8N1, no flow control. <br>Fallback sanity check if the host is not ready: PuTTY (Serial, COM__, 115200, 8N1, flow control None); type characters. |
 | Expected observation | Host prints 10,000 bytes sent, 10,000 received, **0 mismatches, 0 missing** (and the measured throughput, ~11.5 kB/s at 115200). LED3 lit during the transfer. LED4 (frame error) and LED5 (FIFO overflow) stay **off**. In PuTTY: each typed character appears once. |
 | Board facts used | FPGA **receives on B16** (schematic net `UART_TXD` = FTDI TXD) and **transmits on A16** (net `UART_RXD` = FTDI RXD); see Board facts (sch p10, p12). Effective baud = 100 MHz / (54 × 16) = 115,741 (+0.47 %); the echo top has a 64-byte FIFO, and RX tolerates about ±4 %. |
 | Failure branch | Capture: host console output (`> h2_echo.log`), first 64 bytes sent vs received in hex, LED3/4/5 states, a photo. Likely causes, in order: (1) nothing received and LED3 **never** lights while sending → wrong COM port, or the port is held by another program. A pin swap is unlikely, since the schematic settles the direction, but as a last resort swap the two `PACKAGE_PIN`s in `fpga/xdc/urbana_splitsys.xdc`, rebuild, retest, and record the result in docs/ENV.md; (2) LED3 lights but nothing comes back → TX pin wrong (same swap) ; (3) garbage bytes → baud mismatch (host not at 115200, or clock not 100 MHz: compare H-1 heartbeat rate); (4) occasional drops with LED5 on → host sending far faster than 115200 or the FIFO too small (report to lead); (5) LED4 on after opening the port only → a glitch on port open; press and release BTN1 (clears LED4/LED5) and retry. |
@@ -67,7 +67,17 @@ Sources: master XDC `fpga/xdc/urbana_master.xdc` ("URBANA BOARD CONSTRAINTS V2I1
 
 ## H-3 — Packet layer and memory round trips
 
-TODO (owner: `fpga-integrator` with `host-dashboard`). Bitstream `packet_mem` (`fpga/bringup/packet_mem/`, not built yet). Check: `ping` returns the build_id; WRITE/READ_MEM round trip of 10,000 frames on every region (WBUF, ABUF, OBUF, RQPARAM).
+| Field | Value |
+| --- | --- |
+| Bitstream | `fpga/build/packet_mem/top.bit` (top `fpga/bringup/packet_mem/packet_mem.sv`: production uart_rx/tx + packet + 4× buffers + board_io; sequencer, self-test and counters are **stubs**) |
+| Build | `scripts/vivado -mode batch -source fpga/tcl/build.tcl -tclargs packet_mem` (Phase S result: `fpga/reports/packet_mem/summary.json`: WNS +2.692 ns, 1316 LUT, 1216 FF, 25 BRAM) |
+| build_id | `0x9FD6577E` (git `9fd6577e`; bit md5 `a3d969551ee39c018312fc2b23ad7bd5`). Re-read `summary.json` if rebuilt. |
+| Program command | `scripts/vivado -mode batch -source fpga/tcl/program.tcl -tclargs fpga/build/packet_mem/top.bit` |
+| Physical action | none |
+| Host command | 1. `splitsys-host --transport serial:COM__ ping`<br>2. Memory round trip, 10,000 frames over all four regions: **PENDING: `host-dashboard` to add a `memtest --frames N` subcommand** (the driver already has `write_mem`/`read_mem` in `sw/crates/host/src/client.rs`). It should do random region, random unaligned address and random length (1..1019 bytes, within the region), WRITE_MEM then READ_MEM, compare, and print the counts. |
+| Expected observation | 1. `PING ok: build_id 9fd6577e  proto v1`.<br>2. memtest: 10,000 frames, 0 mismatches, 0 NACK/timeouts, every region exercised. LED15 1 Hz heartbeat, LED3 flickers during traffic. The 7-segment display shows `-` on every digit (board_io before the first SET_DISPLAY). |
+| Do NOT use with this bitstream | `selftest` (the stub answers pass = 0 with zero checksums), `run` / `bench` (RUN_GEMM is accepted but nothing is computed), `READ_COUNTERS` (all zeros). |
+| Failure branch | Capture: host console with `RUST_LOG`/verbose output if available, the failing frame (region, address, length, first differing byte), a photo. Likely causes, in order: (1) PING times out but H-2 echo passed → packet-layer bug: reproduce with `bash fpga/bringup/packet_mem/sim/run.sh` and the same bytes (`verification-engineer`); (2) NACK_CRC bursts → link noise or baud mismatch: rerun H-2; (3) data mismatches in one region only → buffers or mux for that region; (4) mismatches at word boundaries → byte-enable handling. |
 
 ## H-4 — Self-test (BTN0 and SELFTEST opcode)
 
