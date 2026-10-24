@@ -1,0 +1,109 @@
+{
+  "generator": "results/plots/make_plots.py",
+  "headline_facts": {
+    "bench_ratio_M1": {
+      "range": [
+        2.024712,
+        2.070866
+      ],
+      "source": "MODEL"
+    },
+    "bench_ratio_M64": {
+      "range": [
+        1.0132,
+        1.036033
+      ],
+      "source": "MODEL"
+    },
+    "cost": {
+      "array_plus_sequencer_lut": 663,
+      "delta_dsp": 16,
+      "delta_ff": 1523,
+      "delta_lut": 2197,
+      "delta_lut_pct": 0.424049,
+      "fmax_full_only": 122.5,
+      "fmax_split": 105.6,
+      "git_hash": "35fb363f",
+      "source": "hw-build"
+    },
+    "roofline": {
+      "ai_M1": {
+        "FULL": 0.5,
+        "STRIP": 0.8
+      },
+      "bw": {
+        "FULL": 16,
+        "STRIP": 20
+      },
+      "peak": 64,
+      "points_above_roof": 0,
+      "worst_fraction_of_roof": 0.555315
+    },
+    "util_all_M1_ratio_range": {
+      "range": [
+        2.024712,
+        2.070866
+      ],
+      "source": "MODEL"
+    },
+    "util_headline": {
+      "M1_FULL": 0.069527,
+      "M1_STRIP": 0.143982,
+      "M1_ratio": 2.070866,
+      "M64_FULL": 0.556484,
+      "M64_STRIP": 0.576536,
+      "M64_ratio": 1.036033,
+      "gemm": "ffn_up",
+      "source": "MODEL"
+    }
+  },
+  "inputs": [
+    {
+      "path": "results/model/sweep.json",
+      "sha256": "811627503a36ce09e37cd3a4325f4f6580e91100fc70991fbdfa1e9c507b8352"
+    },
+    {
+      "path": "results/model/roofline.json",
+      "sha256": "1f66a4bf0956bd46b031a5ec4755b0c375cac241e284fc51480ef736349054bd"
+    },
+    {
+      "path": "results/cost.json",
+      "sha256": "49dd5f674aa73346f10f360760f3a47290ae43b8b5f5b4ca29794877eb2d5f2c"
+    }
+  ],
+  "latencies_provisional": false,
+  "matplotlib": "3.9.2",
+  "measured_requested": [
+    "hw"
+  ],
+  "missing": [
+    "results/hw/*.json (no hardware runs yet)"
+  ],
+  "model_git_hash": "72da65248adf",
+  "plots": [
+    "bench_bars_dark.png",
+    "bench_bars_dark.svg",
+    "bench_bars_light.png",
+    "bench_bars_light.svg",
+    "cost_dark.png",
+    "cost_dark.svg",
+    "cost_light.png",
+    "cost_light.svg",
+    "roofline_dark.png",
+    "roofline_dark.svg",
+    "roofline_light.png",
+    "roofline_light.svg",
+    "util_vs_m_all_dark.png",
+    "util_vs_m_all_dark.svg",
+    "util_vs_m_all_light.png",
+    "util_vs_m_all_light.svg",
+    "util_vs_m_dark.png",
+    "util_vs_m_dark.svg",
+    "util_vs_m_light.png",
+    "util_vs_m_light.svg"
+  ],
+  "sources_present": [
+    "model",
+    "cost"
+  ]
+}
