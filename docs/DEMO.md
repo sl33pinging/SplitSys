@@ -138,37 +138,124 @@ It then jumps to Scene 2 with the newest points highlighted.
 
 ---
 
+
 ## 7. Two-minute pitch
 
-**Default (general judges):**
-1. *(10 s)* "LLM chips are built around big systolic arrays. When a model generates text one token at a time, those matmuls are one row tall, and most of the array sits idle."
-2. *(25 s)* Run `ffn_up` M = 1 in FULL. "Here's the array on a real decode-shaped matmul. Most PEs are dark, and utilization is the number on screen."
-3. *(25 s)* Switch to STRIP. "Same hardware, rewired at runtime into a 4×16 shape. Utilization doubles, and the result is still bit-exact against our golden model."
-4. *(20 s)* Scene 2. "Across batch sizes, the split wins in the decode regime, and both modes converge at prefill. Hollow markers are our cycle model's predictions; they match the hardware counters."
-5. *(20 s)* Scene 3. "It isn't free: the split costs 25% more operand bandwidth per cycle and this many LUTs. That's the real design tradeoff."
-6. *(20 s)* "Every number here was measured on this board. Over a thousand GEMMs verified, zero mismatches. Happy to go deeper."
+<!--
+Owner: demo-storyteller. Sources for every number in §7–§8:
+  [M] MODEL results/model/sweep.json @ model_git_hash 72da65248adf (also results/plots/manifest.json)
+  [B] BUILD results/cost.json @ git 35fb363f (post-route, both builds; refresh after the reset-tree change)
+  [V] tb/SIGNOFF.md, DECISIONS D-016/D-017   [S] SPEC v1.1 constants
+  ⟦HW: …⟧ / ⟦SIM: …⟧ = fill from results/hw or results/sim only. If a value never arrives, say so; never guess.
+Word counts (≤ 280 each, ~150 wpm → under 2:00) include the stage directions, so the spoken
+part is shorter. Check: see the "Pitch word counts" command in §9.
+-->
 
-**MatX variant (emphasis):** the prefill vs decode regimes and why array shape matters for LLM-specific silicon; the splittable-array idea at small scale; the operand-bandwidth cost of small arrays; the model-first methodology in the spirit of Pope et al., *Efficiently Scaling Transformer Inference*. Do not claim to know MatX's internal design. Say "a small-scale exploration of the splittable-array idea."
+**Delivery rules.**
+- Lead with the visible effect: dark PEs, then lit PEs. Then give the number, then the cost.
+- Say "model" or "measured" every time a number is spoken.
+- If the board is in REPLAY or SIM, say so in the first sentence.
 
-**Annapurna Labs variant (emphasis):** systolic matmul engine utilization; on-chip SRAM feeding the array and whether it keeps up (`cycles_stall`, bytes/cycle); explicit, sequencer-controlled data movement; DV rigor (golden model, invariants, counters equal to the model). Frame it as a question they deal with: "what does reconfigurability cost in area and timing, and when does it pay?"
+### 7.1 Default (Cal Hacks judges)
+
+<!-- pitch:general -->
+*[Scene 1, point at the board.]* LLM chips are built around big grids of multipliers called systolic arrays. When a model writes text one token at a time, each matrix multiply is a single row tall, and most of the grid sits idle.
+
+*[Run `ffn_up` M=1, FULL.]* This is our 8-by-8 array on a Spartan-7 FPGA, running one transformer layer at decode size. Watch the grid: only the top row lights up. The hardware counters measure ⟦HW: ffn_up M=1 FULL util⟧ utilization.
+
+*[Same job, STRIP.]* Same hardware, rewired at runtime into a 4-by-16 shape. The bottom half now computes extra output columns instead of idling. Measured: ⟦HW: ffn_up M=1 STRIP util⟧, which is ⟦HW: STRIP/FULL ratio⟧ times higher. Every output still matches our Rust reference bit for bit.
+
+*[Scene 2.]* Across batch sizes, the split pays off when generating one token at a time, and the two modes converge once the batch fills the array. The hollow markers are our cycle model's predictions, written before the board was touched. They match the counters to within ⟦HW: max model error⟧.
+
+*[Scene 3.]* It isn't free. The split needs 25% more operand bandwidth every cycle and about two thousand more lookup tables, most of them in the wider output path. That's the real tradeoff, and we measured it.
+
+*[Verified panel.]* ⟦HW: GEMMs verified⟧ matrix multiplies on this board, ⟦HW: mismatches⟧ mismatches. Everything was simulated first, including the real host software driving the simulated chip. Happy to go deeper.
+<!-- /pitch -->
+
+<!-- "about two thousand more lookup tables" = cost.json delta.total.lut 2197 [B]. "25%" = 20 vs 16 B/cycle [S]. -->
+
+### 7.2 MatX variant
+
+**Framing:** a small-scale, measured exploration of the splittable-array idea. Claim nothing about MatX's design. What MatX has said publicly is that it builds LLM-specific chips with a splittable systolic array and hybrid HBM+SRAM memory, and Reiner Pope is first author of *Efficiently Scaling Transformer Inference*.
+
+<!-- pitch:matx -->
+*[Scene 1.]* Decode and prefill want different array shapes. This is a small-scale, measured exploration of the splittable-array idea: an 8-by-8 int8 output-stationary array that rewires at row 4 into 4-by-16, per job, with no reconfiguration.
+
+*[Run `ffn_up` M=1, FULL then STRIP.]* At one row, the mapping caps FULL at 12.5% and STRIP at 25%. Fixed per-tile setup, flush, and drain bring our model to 7.0% and 14.4%. The counters read ⟦HW: FULL util⟧ and ⟦HW: STRIP util⟧.
+
+*[Scene 2.]* At prefill both shapes fill the array. The model still has STRIP slightly ahead, 57.7% against 55.6%, but that's drain, four rows per tile instead of eight, not mapping. Overlap the drain and the gap goes away.
+
+The method is model-first, in the spirit of *Efficiently Scaling Transformer Inference*. A cycle model predicts all twelve hardware counters before measurement. Worst per-counter error on the board: ⟦HW: max error⟧.
+
+*[Scene 3.]* The cost of splitting: STRIP streams 20 operand bytes per cycle against 16, so 25% more. In area, post-route, it's +2,197 LUTs and 16 DSPs. Only about 660 LUTs are the split muxing. The rest is the 16-lane requantizer that a 16-wide tile needs. In our design, the expensive part of splitting wasn't the array, it was the edges.
+
+Next experiment: stream weights from DRAM, where FULL's lower bandwidth might be the better choice.
+<!-- /pitch -->
+
+<!-- 12.5/25 = SPEC §4 ceilings [S]; 7.0/14.4, 57.7/55.6 [M]; 2,197 LUT, 16 DSP, 663 = 374+289 LUT [B]. -->
+
+### 7.3 Annapurna Labs variant
+
+**Framing:** utilization, SRAM feeding the array, explicit data movement, the area cost of flexibility, and DV rigor. The public facts about Trainium are a systolic tensor engine, a large on-chip SRAM, and software-controlled data movement. Claim nothing beyond those.
+
+<!-- pitch:annapurna -->
+*[Scene 1.]* A systolic engine is only as good as the fraction of cycles its PEs do useful work, and that depends on whether the SRAM keeps it fed. SplitSys is an 8-by-8 int8 array on a Spartan-7, with on-chip BRAM buffers and a sequencer that moves every operand explicitly: setup, stream, flush, drain, writeback.
+
+*[Run `ffn_up` M=1, FULL then STRIP.]* On a one-row decode matmul, FULL keeps one row of eight busy: ⟦HW: FULL util⟧ measured. Rewired as 4-by-16: ⟦HW: STRIP util⟧, still bit-exact.
+
+The price is feed bandwidth: 20 operand bytes per cycle instead of 16. The BRAM ports are sized for both, and we measured ⟦HW: cycles_stall⟧ stall cycles. Twelve hardware counters split every cycle into setup, stream, flush, drain, and stall. A cycle model predicts each one, with a worst error of ⟦HW: max error⟧.
+
+*[Scene 3.]* Area, post-route: +2,197 LUTs and +16 DSPs, with timing met at 100 MHz in both builds. About 660 of those LUTs are the split itself. Most of the rest is the 16-lane requantizer the wider tile needs.
+
+Verification: a Rust golden model checks every run bit-exactly. Eight unit suites are signed off at two seeds, with injected-bug mutants caught in every one. The real host also ran against the simulated RTL. On this board: ⟦HW: GEMMs verified⟧ GEMMs, ⟦HW: mismatches⟧ mismatches.
+
+So, what does reconfigurability cost, and when does it pay? Here it pays at decode and barely matters at prefill.
+<!-- /pitch -->
 
 ---
 
 ## 8. Q&A bank (rehearse these)
 
+Each answer takes under 30 seconds. Rows marked ⟦HW⟧ get their number from `results/hw` before judging; if the number never arrives, say "we didn't measure that".
+
+### 8.1 Core
+
 | Question | Answer (short) |
 | --- | --- |
-| Why not just batch decode requests? | Batching raises M and fixes utilization for throughput serving. It doesn't help latency-bound single-stream decode or small per-head attention matmuls. STRIP targets small M at the cost of more operand bandwidth. |
-| What does the split cost? | The cost panel: ΔLUT, ΔFF, ΔFmax from the `ENABLE_STRIP=0` build, plus 25% more operand bytes per cycle. |
-| Is the SRAM keeping up? | Show the measured `cycles_stall` and operand bytes/cycle. The BRAM ports are sized to supply 20 B/cycle, so stalls are expected to be 0; quote what was measured. Explain what would change with a narrower buffer or DDR-fed weights. |
-| How do you know it's correct? | Rust golden model, bit-exact compare on every run, invariants (`mac_useful == M·N·K`), cocotb unit and system tests, self-test ROM. |
-| How accurate is the model? | The per-counter error table. Calibrated once against hardware, then frozen before measurement. |
-| Why output-stationary? | Accumulators stay in the DSP P register, no partial-sum traffic, simple drain. Weight-stationary would favor weight reuse across many rows, which decode lacks. |
-| Why int8? | One DSP48E1 per MAC, matches inference quantization practice, and keeps the result bit-exact and checkable. |
-| Why is end-to-end slow? | UART. On-chip cycles are what we measure; wall time is dominated by the link. |
-| What would you do with more time? | INDEP mode for per-head attention; shadow accumulators to overlap drain; DDR3 weight streaming to study memory-bound decode; automatic mode selection in the sequencer. |
-| How does this scale? | Utilization ceilings scale with array height versus M. Bandwidth per MAC grows as arrays shrink. The model predicts both; show the formula. |
-| What was hardest? | Pick one real bug (for example, the STRIP lower-half skew alignment) and explain how a test caught it. |
+| Why not just batch decode requests? | Batching raises M and fixes utilization for throughput serving. It doesn't help latency-bound single-stream decode, or small per-head attention matmuls. STRIP targets small M, at the cost of more operand bandwidth. |
+| What does the split cost? | Post-route: +2,197 LUTs (+42%), +1,523 FFs, +16 DSPs, BRAM unchanged [B]. The STRIP muxes in the array and sequencer are only +663 LUTs. Most of the rest is requant lanes 8–15, which the FULL-only build drops because FULL drains 8 lanes. Bandwidth: +25% operand bytes per cycle [S]. |
+| Is the SRAM keeping up? | Measured `cycles_stall` = ⟦HW: cycles_stall⟧. The BRAM ports supply 20 B/cycle, so the model assumes zero stalls [S]. With a narrower buffer or DRAM-fed weights, STRIP would stall first, because it needs 25% more bytes. |
+| How do you know it's correct? | A Rust golden model checks every run bit-exactly. The invariants `mac_useful == M·N·K` and Σquadrants == total are checked on every run. Eight cocotb unit suites signed off at two seeds, with mutants caught in every suite [V]. The core ran 283 golden jobs [V]. There's a self-test ROM in the bitstream. On hardware: ⟦HW: GEMMs / mismatches⟧. |
+| How accurate is the model? | Per-counter error on the board: ⟦HW: max per-counter error⟧. In simulation the counters equal the model exactly [V]. That's expected: the sequencer is deterministic and stall-free, so the model and RTL implement the same state lengths. The model's value is that it's independent code, so any disagreement is a bug. |
+| Why output-stationary? | Accumulators stay in the DSP P register, there's no partial-sum traffic, and drain is simple. Weight-stationary favors weight reuse across many rows, which decode lacks. |
+| Why int8? | One DSP48E1 per MAC, the same as common inference quantization practice, and the result stays bit-exact and checkable. |
+| Why is end-to-end slow? | The UART at 115200 baud. We measure on-chip cycles from the counters and never present wall time as accelerator speed. |
+| What would you do with more time? | Shadow accumulators to overlap drain. Load requant parameters during STREAM instead of a 16-cycle setup. INDEP mode for per-head attention. DDR3 weight streaming to study memory-bound decode. |
+| How does this scale? | The utilization ceiling is about M over the array height, until M reaches the height. Bandwidth per MAC grows as arrays get shorter and wider. The model predicts both; show the T_tile formula (SPEC §4). |
+| What was hardest? | The STRIP lower-half alignment, below. |
+
+### 8.2 Questions the results raise
+
+| Question | Answer (short) |
+| --- | --- |
+| STRIP is faster even at prefill. Isn't FULL pointless? | In the model, STRIP is never slower: 1.013–1.036× at M ≥ 8 [M]. That edge is drain, 4 rows per tile against 8, not mapping, and it's paid for by the 16-lane output path. FULL wins when operand bandwidth is the limit, because it needs 16 B/cycle instead of 20. We didn't build that regime (no DRAM). |
+| Why is decode at 7% / 14%, not 12.5% / 25%? | Those are mapping ceilings [S]. Each tile also spends fixed cycles on setup (16), flush (17), and drain plus writeback. For `ffn_up` that's 115 cycles per FULL tile against 64 cycles of useful streaming, so 7.0% and 14.4% [M]. |
+| Why does prefill top out around 56%? | The same per-tile overhead. Stages don't overlap, so the array idles during drain. With K = 64, the useful K cycles are about 56–58% of a tile [M]. `ffn_down` (K = 256) reaches 83.4% (FULL) and 84.5% (STRIP) [M]. |
+| Is the 2× just the mapping ceiling restated? | The ceiling explains the direction. The measured number includes every overhead cycle, and STRIP also halves the tile count (16 vs 32 for `ffn_up`) [M]. Measured: ⟦HW: ratio⟧ against a model of 2.07× [M]. |
+| Why +42% LUTs for a mux? | It isn't for the mux. The muxes are about 660 LUTs [B]. The FULL-only build also drops 8 of the 16 requant lanes (16 DSPs, about 1,500 LUTs). That's the honest bill for a 16-wide output tile. |
+| Did splitting cost Fmax? | Both builds meet 100 MHz [B]. The Fmax estimates from WNS (122.5 vs 105.6 MHz) are not a sweep. The split build's worst path was a reset net (0 logic levels, 95% routing), not STRIP logic, and the reset tree has since been restructured. ⟦BUILD: refreshed WNS⟧. |
+| What if hardware disagrees with the model? | Then it's a bug in one of them, and we reproduce it in simulation before touching the board again. ⟦HW: if it happened, what it was⟧. |
+| Is d_model = 64 a toy? | Yes, by design: it fits on-chip and every run is checkable. Utilization depends on M against the array height and on K against the per-tile overhead, not on d_model. That's why K = 256 `ffn_down` reaches 83% at prefill in the model [M]. |
+| Is the data real model weights? | No. It's synthetic int8 from a fixed seed, with real LLM shapes. Bit-exactness doesn't depend on the values. Utilization doesn't either, because the counters count in-bounds MACs, not nonzero values. |
+
+### 8.3 War stories (real, from the logs; pick one)
+
+| Story | 30-second version |
+| --- | --- |
+| STRIP lower-half skew | The spec gave two formulas for the delay of W lanes 8–15 entering at row 4: `4 + c` in one section and `12 + c` in another. `12 + c` would have fed the lower half operands 8 cycles late. A smoke test caught it, and the spec, RTL, and tests were fixed together (D-008). The skew unit test still fails on the old RTL, which proves it's sensitive [V]. |
+| UART pins | The vendor constraints file names the UART pins from the USB bridge's side. The schematic showed the FPGA's RX and TX had to be swapped before any hardware test. One link in that reasoning came from a datasheet recalled from memory, so we also prebuilt a bitstream with the pins swapped back. ⟦HW: which one worked at H-2⟧. |
+| Latency surprise | The requant pipeline measured 7 cycles, not the provisional 4 (D-016). Every latency lives in one spec file, so the RTL, the model, and the tests changed together, and the tests assert measured latency == the spec constant [V]. |
+| The harness that lied | Under `make -j`, cocotb could skip a simulation and still exit 0. We fixed it so every run must produce a fresh results file, and re-ran every suite [V]. |
 
 ---
 
@@ -179,3 +266,15 @@ It then jumps to Scene 2 with the newest points highlighted.
 3. Backup video.
 
 Say which mode you are in. Never present replayed or simulated data as live.
+
+**What to say in each mode.**
+- **REPLAY:** "This is a recording of the hardware session from ⟦HW: time⟧. The board is running its self-test live." Show LED0 and LED1.
+- **SIM only (PLAN cut rule):** "STRIP on hardware isn't working yet; these STRIP numbers are from co-simulation of the same RTL, labeled SIM." Never round SIM into HW.
+- **Board dead:** give the self-test and video pitch. The numbers come from the README tables with their source labels.
+
+**Storyteller pre-judging checks** (in addition to the §6 booth checklist):
+- [ ] `scripts/wsl 'python results/plots/make_plots.py --check'`: plots regenerated with `results/hw` present. The titles now say `HW`, not `MODEL`.
+- [ ] No placeholder left in public text: `grep -c '⟦' README.md docs/devpost.md` prints 0 for both. Strip the DEMO.md placeholders before rehearsal.
+- [ ] Every spoken number has been re-read from `results/` that morning. The model hash in the plots matches `results/model`.
+- [ ] Pitch word counts (each ≤ 280): `awk '/<!-- pitch:/{f=1;n=$0;next}/<!-- \/pitch -->/{print n, c; c=0; f=0} f{c+=NF}' docs/DEMO.md`
+- [ ] Each pitch has been rehearsed once against a skeptical-engineer Q&A from §8.2.
