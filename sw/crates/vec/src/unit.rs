@@ -645,12 +645,21 @@ pub fn packet(seed: u64, n: usize, meta: &Meta) -> Vec<OutFile> {
             _ => frames.push(frame_json("good", "req", op, &p, &good)),
         }
     }
-    // Back-to-back: 8 good frames concatenated without idle time.
+    // Back-to-back: 8 good frames concatenated without idle time (parser-level only),
+    // and the same frames as a request/response sequence (what the device sees).
     let mut b2b = Vec::new();
+    let mut seq = Vec::new();
     for _ in 0..8 {
         let op = *r.pick(&opcodes);
         let p = rand_payload(&mut r, 64);
-        b2b.extend_from_slice(&request_frame(op, &p));
+        let f = request_frame(op, &p);
+        b2b.extend_from_slice(&f);
+        seq.push(json!({
+            "code": op,
+            "payload_hex": hex(&p),
+            "bytes_hex": hex(&f),
+            "events": events_json(&rx_reference(&f, SYNC_REQ, max_payload)),
+        }));
     }
     let doc = json!({
         "meta": meta.json(seed, "unit/packet"),
@@ -663,8 +672,14 @@ pub fn packet(seed: u64, n: usize, meta: &Meta) -> Vec<OutFile> {
         ],
         "frames": frames,
         "back_to_back": {
+            "scope": "parser-level only (host waits for each response on the real device)",
+            "note": "rtl/packet.sv is strictly request/response: bytes arriving while a command is executing or its response is being sent are discarded, so this stream is valid only for a frame-parser unit test that accepts frames back to back. For the device use request_response.",
             "bytes_hex": hex(&b2b),
             "events": events_json(&rx_reference(&b2b, SYNC_REQ, max_payload)),
+        },
+        "request_response": {
+            "scope": "device-level: send frames[i], wait for its complete response, then send frames[i+1]",
+            "frames": seq,
         },
     });
     vec![OutFile::json_compact("unit/packet.json", &doc)]
