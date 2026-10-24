@@ -7,13 +7,16 @@
 #
 # 1. Captures HEAD once ($head) and refuses to start unless rtl/, spec/,
 #    sw/crates/vec/out and fpga/ (except the generated fpga/reports) are clean.
-#    Every build gets GIT_HASH=$head, so BUILD_ID is $head for all six tags even
+#    Every build gets GIT_HASH=$head, so BUILD_ID is $head for all four tags even
 #    if someone commits during the run (build.tcl then also requires every file
 #    it reads to equal $head). At the end HEAD must still be $head.
-# 2. Builds six tags with the canonical flow (PHYS_OPT=AggressiveFanoutOpt
-#    POST_ROUTE_PHYS_OPT=1 for all, so there is one flow), three Vivado runs at a
-#    time. Old fpga/build/<tag> directories are deleted first so a failed build
-#    can never leave an older top.bit behind.
+# 2. Builds four tags with the canonical flow (PHYS_OPT=AggressiveFanoutOpt
+#    POST_ROUTE_PHYS_OPT=1 for all, so there is one flow), at most three Vivado
+#    runs at a time. The *_uartswap tags were dropped on 2026-10-24: H-2
+#    confirmed the default UART pins (FPGA RX B16 / TX A16); their 52a66216
+#    reports stay committed in fpga/reports/ for history. Old fpga/build/<tag>
+#    directories are deleted first so a failed build can never leave an older
+#    top.bit behind.
 # 3. Checks every summary.json: pass, git_dirty false, git_hash == HEAD; and
 #    that every "DIV_OVERRIDE bound to" line in every log is 0.
 # 4. Copies each Vivado console log to fpga/reports/<tag>/build.log, runs
@@ -34,9 +37,7 @@ JOBS=(
   "top|top|"
   "top_nostrip|top|ENABLE_STRIP=0"
   "heartbeat_uart_echo|heartbeat_uart_echo|"
-  "heartbeat_uart_echo_uartswap|heartbeat_uart_echo|UART_SWAP=1"
   "packet_mem|packet_mem|"
-  "packet_mem_uartswap|packet_mem|UART_SWAP=1"
 )
 
 fail() { echo "S4_REBUILD_FAIL: $*" >&2; exit 1; }
@@ -56,7 +57,7 @@ run_job() {  # tag top extra
 }
 
 mkdir -p fpga/build
-for wave in "0 1 2" "3 4 5"; do
+for wave in "0 1 2" "3"; do
   for i in $wave; do
     IFS='|' read -r tag top extra <<< "${JOBS[$i]}"
     run_job "$tag" "$top" "$extra" &
@@ -96,7 +97,7 @@ PY="$(command -v python || command -v python3)"
 if [ "$commit" = 1 ]; then
   paths=(fpga/reports results/cost.json docs/HW_CHECKLIST.md)
   git add "${paths[@]}" || fail "git add"
-  git commit -q -m "[fpga-integrator] S4 freeze rebuild: 6 bitstreams at $head, cost.json, manifest — bash fpga/tcl/s4_rebuild.sh passed" \
+  git commit -q -m "[fpga-integrator] S4 freeze rebuild: ${#JOBS[@]} bitstreams at $head, cost.json, manifest — bash fpga/tcl/s4_rebuild.sh passed" \
     -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- "${paths[@]}" || fail "git commit"
   echo "S4: committed $(git log --oneline -1)"
 fi
