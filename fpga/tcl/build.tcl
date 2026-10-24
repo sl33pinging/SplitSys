@@ -26,6 +26,10 @@
 #          build its own tag, e.g. ... -tclargs top_uartswap top UART_SWAP=1
 #   PHYS_OPT=<directive>  build option: phys_opt_design -directive after
 #          placement (default: Vivado's Default). e.g. PHYS_OPT=AggressiveFanoutOpt
+#   GIT_HASH=<8 hex>  build option: pin BUILD_ID / git_hash to this commit
+#          instead of reading HEAD (used by fpga/tcl/s4_rebuild.sh so that a
+#          commit landing mid-run cannot split the build ids). The build is then
+#          "dirty" unless every file it reads is identical to that commit.
 #   POST_ROUTE_PHYS_OPT=1 build option: run phys_opt_design again after
 #          route_design (default 0). Both are recorded in summary.json.
 #
@@ -114,14 +118,30 @@ proc git_short_hash {root} {
 }
 # "true" if any file this build reads (sources, XDC, this script) differs from
 # HEAD or is untracked, i.e. BUILD_ID does not fully identify the bitstream.
-proc git_dirty {root files} {
+proc git_dirty {root files {pin ""}} {
     if {[catch {exec git -C $root status --porcelain --untracked-files=all -- {*}$files} s]} {
         return "unknown"
     }
-    return [expr {[string trim $s] eq "" ? "false" : "true"}]
+    if {[string trim $s] ne ""} { return "true" }
+    if {$pin ne ""} {
+        # working tree must also equal the pinned commit for these files
+        if {[catch {exec git -C $root diff --name-only $pin -- {*}$files} d]} { return "unknown" }
+        if {[string trim $d] ne ""} { return "true" }
+    }
+    return "false"
 }
 set git_hash [git_short_hash $ROOT]
 set build_id_hex [string toupper $git_hash]
+
+set git_pin ""
+if {[dict exists $user_generics GIT_HASH]} {
+    set git_pin [string tolower [dict get $user_generics GIT_HASH]]
+    set user_generics [dict remove $user_generics GIT_HASH]
+    if {![regexp {^[0-9a-f]{8}$} $git_pin]} { die "GIT_HASH must be 8 hex digits" }
+    if {[catch {exec git -C $ROOT rev-parse --verify --quiet "${git_pin}^{commit}"}]} { die "GIT_HASH $git_pin is not a commit" }
+    set git_hash $git_pin
+    set build_id_hex [string toupper $git_hash]
+}
 
 # ------------------------------------------------------------------- generics
 set generics [list BUILD_ID "32'h$git_hash"]
@@ -196,7 +216,7 @@ if {[llength $xdcs] == 0} {
 foreach f [concat $srcs $xdcs] { if {![file exists $f]} { die "missing source $f" } }
 set dirty_files [concat $srcs $xdcs [list [file normalize [info script]]]]
 if {$rom_file ne ""} { lappend dirty_files $rom_file }
-set dirty [git_dirty $ROOT $dirty_files]
+set dirty [git_dirty $ROOT $dirty_files $git_pin]
 
 set rpt_dir [file join $ROOT fpga reports $tag]
 set out_dir [file join $ROOT fpga build $tag]

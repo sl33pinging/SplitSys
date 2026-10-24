@@ -5,8 +5,11 @@
 #   bash fpga/tcl/s4_rebuild.sh            # build, check, report, commit
 #   bash fpga/tcl/s4_rebuild.sh --no-commit
 #
-# 1. Refuses to start unless rtl/, fpga/bringup, fpga/xdc, fpga/tcl and
-#    sw/crates/vec/out are clean, so every bitstream is from ONE commit.
+# 1. Captures HEAD once ($head) and refuses to start unless rtl/, spec/,
+#    sw/crates/vec/out and fpga/ (except the generated fpga/reports) are clean.
+#    Every build gets GIT_HASH=$head, so BUILD_ID is $head for all six tags even
+#    if someone commits during the run (build.tcl then also requires every file
+#    it reads to equal $head). At the end HEAD must still be $head.
 # 2. Builds six tags with the canonical flow (PHYS_OPT=AggressiveFanoutOpt
 #    POST_ROUTE_PHYS_OPT=1 for all, so there is one flow), three Vivado runs at a
 #    time. Old fpga/build/<tag> directories are deleted first so a failed build
@@ -38,16 +41,16 @@ JOBS=(
 
 fail() { echo "S4_REBUILD_FAIL: $*" >&2; exit 1; }
 
-dirty="$(git status --porcelain -- rtl fpga/bringup fpga/xdc fpga/tcl sw/crates/vec/out)"
-[ -z "$dirty" ] || fail "working tree not clean:"$'\n'"$dirty"
 head="$(git rev-parse --short=8 HEAD)"
+dirty="$(git status --porcelain -- rtl spec sw/crates/vec/out fpga ':(exclude)fpga/reports')"
+[ -z "$dirty" ] || fail "working tree not clean:"$'\n'"$dirty"
 echo "S4: rebuilding ${#JOBS[@]} bitstreams at $head ($(date))"
 
 run_job() {  # tag top extra
   local tag="$1" top="$2" extra="$3"
   rm -rf "fpga/build/$tag"
   # shellcheck disable=SC2086
-  scripts/vivado -mode batch -source fpga/tcl/build.tcl -tclargs "$tag" "$top" $extra $OPTS \
+  scripts/vivado -mode batch -source fpga/tcl/build.tcl -tclargs "$tag" "$top" $extra $OPTS GIT_HASH="$head" \
     > "fpga/build/s4_$tag.txt" 2>&1
   echo "S4: $tag exit $?"
 }
@@ -79,6 +82,8 @@ for j in "${JOBS[@]}"; do
   echo "S4: $tag $(grep -o '"wns_ns":[^,]*,"whs_ns":[^,]*' "$s")"
 done
 [ "$errs" = 0 ] || fail "see above; nothing committed"
+now="$(git rev-parse --short=8 HEAD)"
+[ "$now" = "$head" ] || fail "HEAD MOVED during the run: started at $head, now $now. Nothing committed. Inspect 'git diff $head $now -- rtl spec sw/crates/vec/out fpga' and rerun."
 
 for tag in top top_nostrip; do
   scripts/vivado -mode batch -source fpga/tcl/report_paths.tcl -tclargs "$tag" > "fpga/build/s4_paths_$tag.txt" 2>&1 \
