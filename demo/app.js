@@ -66,7 +66,6 @@ function renderChrome() {
   const bn = $('banner'); bn.textContent = banner; bn.className = bcls;
   document.body.classList.toggle('has-banner', !!banner);
   $('watermark').classList.toggle('on', !!S.demo_data);
-  if (S.demo_data) $('wm-corner').textContent = 'DEMO DATA · mock board, model numbers, not hardware';
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', +t.dataset.s === S.scene));
   for (let i = 1; i <= 3; i++) $('scene' + i).classList.toggle('on', S.scene === i);
 }
@@ -118,8 +117,9 @@ function renderGrid(active) {
   const yseam = y0 + 4 * pitch - gap / 2;
   if (mode === 'STRIP' && g) {
     svg.appendChild(el('line', { x1: x0 - 20, y1: yseam, x2: x0 + 8 * pitch + 6, y2: yseam, stroke: C.strip, 'stroke-width': 4, 'stroke-dasharray': '10 6' }));
-    svg.appendChild(el('text', { x: x0 + 8 * pitch + 10, y: yseam - 6, fill: C.strip, 'font-size': 20 }, 'W lanes 8–15'));
-    svg.appendChild(el('text', { x: x0 + 8 * pitch + 10, y: yseam + 20, fill: C.strip, 'font-size': 20 }, 'injected here'));
+    const lw = 300, lx0 = x0 + 8 * pitch - lw - 6;
+    svg.appendChild(el('rect', { x: lx0, y: yseam - 18, width: lw, height: 36, rx: 6, fill: '#0B0D10', stroke: C.strip, 'stroke-width': 2 }));
+    svg.appendChild(el('text', { x: lx0 + lw / 2, y: yseam + 7, 'text-anchor': 'middle', fill: C.strip, 'font-size': 20 }, 'W lanes 8–15 injected here'));
   }
   // per-quadrant HW utilization from mac_useful_q
   if (run && !active) {
@@ -252,9 +252,9 @@ function renderBreakdown(svg, r) {
 function renderVerified() {
   const s = S.session || {};
   setBadge('ver-badge', srcLabel());
-  const where = { hw: 'ON HARDWARE', sim: 'IN RTL CO-SIM', model: 'ON THE MOCK BOARD', replay: 'ON HARDWARE (REPLAY)' }[srcLabel()] || '';
+  const where = { hw: 'on hardware', sim: 'in RTL co-sim', model: 'on the mock board', replay: 'on hardware (replay)' }[srcLabel()] || '';
   const mm = s.mismatches || 0;
-  $('ver-title').textContent = `Verified ${where.toLowerCase()}: ${mm === 0 ? 'zero mismatches' : mm + ' mismatches'}`;
+  $('ver-title').textContent = `Verified ${where}:${mm === 0 ? 'zero mismatches' : mm + ' mismatches'}`;
   $('ver-body').innerHTML = `
     <div class="mid">${int(s.gemms_verified || 0)} <span style="font-size:26px" class="muted">GEMMs</span></div>
     <div class="mid" style="font-size:38px;margin-top:6px">${int(s.macs_verified || 0)} <span style="font-size:24px" class="muted">MACs bit-exact</span></div>
@@ -327,7 +327,11 @@ function renderSweep() {
     const col = modeColor(mode);
     const pts = ms.map((m) => [m, measuredPoint(name, m, mode)]).filter((p) => p[1]);
     if (pts.length) anyMeasured = true;
-    if (pts.length > 1) svg.appendChild(el('polyline', { points: pts.map(([m, r]) => `${xi(m)},${yv(r.derived.util)}`).join(' '), fill: 'none', stroke: col, 'stroke-width': 4 }));
+    // Connect only adjacent sweep points that were both measured (no interpolation across gaps).
+    for (let i = 0; i + 1 < ms.length; i++) {
+      const a = measuredPoint(name, ms[i], mode), b = measuredPoint(name, ms[i + 1], mode);
+      if (a && b) svg.appendChild(el('line', { x1: xi(ms[i]), y1: yv(a.derived.util), x2: xi(ms[i + 1]), y2: yv(b.derived.util), stroke: col, 'stroke-width': 4 }));
+    }
     for (const [m, r] of pts) {
       const hl = highlight.has(r.run_id);
       svg.appendChild(el('circle', { cx: xi(m), cy: yv(r.derived.util), r: hl ? 13 : 9, fill: col, stroke: hl ? '#fff' : 'none', 'stroke-width': 3 }));
@@ -447,7 +451,7 @@ function renderBlock() {
   [['Q0', 0, 0], ['Q1', 1, 0], ['Q2', 0, 1], ['Q3', 1, 1]].forEach(([q, i, j]) => svg.appendChild(el('text', { x: ax + aw / 4 + i * aw / 2, y: ay + ah / 4 + j * ah / 2 + 8, 'text-anchor': 'middle', 'font-size': 24, fill: C.muted }, q)));
   svg.appendChild(el('text', { x: ax + aw / 2, y: ay - 10, 'text-anchor': 'middle', 'font-size': 20 }, '8×8 PE array · 64 DSP48E1'));
   arrow(430, 163, 478, 163, C.full);
-  svg.appendChild(el('text', { x: 440, y: 150, 'font-size': 18, fill: C.full }, 'W 0–7'));
+  svg.appendChild(el('text', { x: 432, y: 148, 'font-size': 18, fill: C.full }, 'W0–7'));
   arrow(430, 263, 478, 263);
   // STRIP mux at row 4
   box(260, 330, 170, 76, 'row-4 W mux', C.strip, 'STRIP only');
@@ -455,7 +459,6 @@ function renderBlock() {
   svg.appendChild(el('text', { x: 140, y: 350, 'font-size': 18, fill: C.strip }, 'W 8–15'));
   svg.appendChild(el('text', { x: 140, y: 372, 'font-size': 18, fill: C.strip }, 'delay 4 + c'));
   arrow(430, 368, ax + 6, ay + ah / 2 + 6, C.strip);
-  svg.appendChild(el('text', { x: ax + aw + 12, y: ay + ah / 2 + 6, 'font-size': 18, fill: C.strip }, 'seam: row 4'));
   // drain path
   box(820, 150, 126, 66, 'drain mux', null, '8 / 4 rows');
   box(820, 250, 126, 66, 'requant', null, '×16 lanes');
@@ -484,7 +487,8 @@ function renderRoof() {
     const col = modeColor(bwr.mode), b = bwr.bytes_per_cycle;
     const xk = peak / b;
     svg.appendChild(el('polyline', { points: `${lx(xmin)},${ly(Math.max(ymin, xmin * b))} ${lx(xk)},${ly(peak)} ${lx(xmax)},${ly(peak)}`, fill: 'none', stroke: col, 'stroke-width': 2.5, 'stroke-dasharray': '8 5' }));
-    svg.appendChild(el('text', { x: lx(0.9 * xk / 4), y: ly(peak / 4.6) + (bwr.mode === 'STRIP' ? -16 : 26), 'font-size': 19, fill: col, 'text-anchor': 'middle' }, `${b} B/cycle (${bwr.mode})`));
+    const ax0 = 0.09;
+    svg.appendChild(el('text', { x: lx(ax0), y: ly(ax0 * b) + (bwr.mode === 'STRIP' ? -40 : 34), 'font-size': 19, fill: col }, `${b} B/cycle (${bwr.mode})`));
   }
   svg.appendChild(el('text', { x: L + W - 6, y: ly(peak) - 10, 'text-anchor': 'end', 'font-size': 19 }, `compute roof ${peak} MACs/cycle`));
   for (const p of R.points) {
@@ -566,7 +570,8 @@ const qs = new URLSearchParams(location.search);
 const forcedScene = +qs.get('scene') || 0;
 const _origRender = renderChrome;
 renderChrome = function () { if (forcedScene && S) S.scene = forcedScene; _origRender(); };
+// ?shot=1 (headless screenshots): no SSE / polling, so the page reaches network idle.
+const shot = qs.has("shot");
 fit();
 refresh();
-connectEvents();
-setInterval(refresh, 5000);
+if (!shot) { connectEvents(); setInterval(refresh, 5000); }

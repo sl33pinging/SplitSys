@@ -260,9 +260,11 @@ fn run_specs(
     suite: Option<&str>,
 ) -> Result<bool, String> {
     let mut b = open_board(cli)?;
-    let src = b.source().as_str();
+    let ping = b.ping().map_err(|e| format!("{e} via {}", b.describe()))?;
+    let src = runner::effective_source(b.source(), Some(&format!("{:08x}", ping.build_id)));
     let mut ctx = Context::new(results.to_path_buf(), root);
     ctx.poison = poison;
+    ctx.build_id = Some(format!("{:08x}", ping.build_id));
     let mut cache = LoadCache::default();
     let mut session = Session::load_or_new(&session_path(results, src), src);
     let mut all_ok = true;

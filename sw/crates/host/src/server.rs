@@ -223,7 +223,25 @@ fn worker(opts_t: TransportSpec, baud: u32, scale: Option<u32>, root: PathBuf, s
         }
     };
     let mut queue: VecDeque<Cmd> = VecDeque::new();
+    let mut last_scan = Instant::now();
     loop {
+        // Pick up runs and session totals written by other processes (e.g. `bench`).
+        if last_scan.elapsed() > Duration::from_secs(5) {
+            last_scan = Instant::now();
+            let src = sh.app.lock().expect("app").source.clone();
+            let mut disk: VecDeque<RunRecord> = load_runs(&runs_dir(&sh.results, &src)).into();
+            while disk.len() > MAX_RUNS {
+                disk.pop_front();
+            }
+            let sess = Session::load_or_new(&session_path(&sh.results, &src), &src);
+            let mut a = sh.app.lock().expect("app");
+            if disk.len() >= a.runs.len() {
+                a.runs = disk;
+            }
+            if sess.gemms_run >= a.session.gemms_run {
+                a.session = sess;
+            }
+        }
         // Gather commands.
         match rx.recv_timeout(Duration::from_millis(250)) {
             Ok(c) => queue.push_back(c),
@@ -246,6 +264,9 @@ fn worker(opts_t: TransportSpec, baud: u32, scale: Option<u32>, root: PathBuf, s
                             cache.clear();
                             {
                                 let mut a = sh.app.lock().expect("app");
+                                if id == runner::MOCK_BUILD_ID_HEX {
+                                    a.source = "model".into();
+                                }
                                 a.build_id = Some(id);
                                 a.proto_version = Some(p.version);
                                 a.transport = b.describe();
@@ -325,8 +346,13 @@ fn worker(opts_t: TransportSpec, baud: u32, scale: Option<u32>, root: PathBuf, s
                     let sess_v;
                     {
                         let mut a = sh.app.lock().expect("app");
-                        a.session.add(&rec);
                         let sp = session_path(&sh.results, &a.source);
+                        // Re-read first: another process may have added runs since.
+                        let disk = Session::load_or_new(&sp, &a.source);
+                        if disk.gemms_run > a.session.gemms_run {
+                            a.session = disk;
+                        }
+                        a.session.add(&rec);
                         let _ = write_json(&sp, &a.session);
                         a.runs.push_back(rec.clone());
                         while a.runs.len() > MAX_RUNS {

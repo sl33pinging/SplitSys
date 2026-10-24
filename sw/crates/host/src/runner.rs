@@ -193,6 +193,30 @@ pub fn model_for(g: &GemmSpec) -> Result<(cycle::Descriptor, cycle::Counters), S
     Ok((d, c))
 }
 
+/// The `source` tag for a run. A board that answers PING with the mock build id
+/// is the mock (e.g. `mock-bridge` over tcp:), so its numbers are MODEL, never SIM/HW.
+pub fn effective_source(t: crate::transport::Source, build_id_hex: Option<&str>) -> &'static str {
+    if build_id_hex == Some(MOCK_BUILD_ID_HEX) {
+        "model"
+    } else {
+        t.as_str()
+    }
+}
+
+/// `MOCK_BUILD_ID` as the 8-hex-digit string used in records.
+pub const MOCK_BUILD_ID_HEX: &str = "4d4f434b";
+
+/// Measured utilization in permille for SET_DISPLAY: round-half-up of
+/// `1000 · mac_useful / (64 · cycles_total)`, integer-only, clamped to 0..=1000.
+pub fn util_permille(c: &cycle::Counters) -> u16 {
+    let den = u128::from(c.cycles_total) * spec::N_PES as u128;
+    if den == 0 {
+        return 0;
+    }
+    let p = (u128::from(c.mac_useful) * 2000 + den) / (2 * den);
+    p.min(1000) as u16
+}
+
 /// Run one GEMM end to end and return its record (written to disk if enabled).
 pub fn run_gemm(
     board: &mut Board,
@@ -234,6 +258,8 @@ pub fn run_gemm(
     board.wait_done(Duration::from_secs(10))?;
     let counters = board.read_counters()?;
     let readback = board.read_mem(spec::REGION_OBUF, job.out_byte_addr(), job.obuf_image.len())?;
+    // The 7-segment display has no divider: the host sends what it shows (e.g. `S 21.4`).
+    board.set_display(util_permille(&counters), job.desc.mode)?;
 
     // Bit-exact compare of every in-bounds output element (D-006: padding is unspecified).
     let (m, n) = (g.m, g.n);
@@ -260,7 +286,7 @@ pub fn run_gemm(
     let streamed = cycle::operand_bytes_streamed(&cd, &counters) as f64;
     let ct = counters.cycles_total as f64;
     let now = now_unix();
-    let src = board.source().as_str();
+    let src = effective_source(board.source(), ctx.build_id.as_deref());
     let mut run_id = format!(
         "{}-{}-m{}-{}",
         iso_utc(now),
@@ -430,6 +456,30 @@ mod tests {
         assert!(!r2.check.golden_match);
         assert!(r2.check.mismatches > 0);
         assert!(!r2.verified());
+    }
+
+    #[test]
+    fn mock_over_tcp_is_tagged_model_not_sim() {
+        use crate::transport::{fake::spawn_tcp_bridge, open, TransportSpec};
+        let addr = spawn_tcp_bridge(MockConfig::default(), 64);
+        let t = open(&TransportSpec::Tcp(addr), 115200, Some(1), MockConfig::default()).unwrap();
+        let mut b = Board::new(t);
+        let mut c = ctx();
+        let mut cache = LoadCache::default();
+        let g = GemmSpec::named("attn_out", 1, "STRIP", 1).unwrap();
+        let (r, _) = run_gemm(&mut b, &mut c, &mut cache, &g).unwrap();
+        assert_eq!(r.source, "model");
+        assert_eq!(MOCK_BUILD_ID_HEX, format!("{:08x}", crate::mock::MOCK_BUILD_ID));
+    }
+
+    #[test]
+    fn util_permille_rounding() {
+        let c = |mac: u64, cyc: u64| cycle::Counters { mac_useful: mac, cycles_total: cyc, ..Default::default() };
+        assert_eq!(util_permille(&c(0, 0)), 0);
+        assert_eq!(util_permille(&c(64, 1)), 1000);
+        assert_eq!(util_permille(&c(16384, 1730)), 148); // 14.798% -> 148
+        assert_eq!(util_permille(&c(1, 128)), 0); // 0.122 permille -> 0
+        assert_eq!(util_permille(&c(32, 1000)), 1); // exactly 0.5 permille rounds up
     }
 
     #[test]

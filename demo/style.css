@@ -33,14 +33,13 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
 .tab b { font-family: var(--mono); }
 
 /* banners */
-#banner { position: absolute; left: 0; top: 76px; width: 1920px; height: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 700; letter-spacing: 1px; }
-#banner.down { height: 48px; background: var(--fail); color: #fff; }
-#banner.replay { height: 48px; background: var(--amber); color: #111; }
+#banner { position: absolute; left: 0; top: 0; width: 1920px; height: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 700; letter-spacing: 1px; z-index: 5; }
+#banner.down { height: 76px; background: var(--fail); color: #fff; }
+#banner.replay { height: 76px; background: var(--amber); color: #111; }
 
 /* scenes */
 .scene { position: absolute; left: 0; top: 76px; width: 1920px; height: 1004px; display: none; }
 .scene.on { display: block; }
-body.has-banner .scene { top: 124px; height: 956px; }
 
 .panel { position: absolute; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 22px; overflow: hidden; }
 .panel h2 { margin: 0 0 12px 0; font-size: 28px; font-weight: 600; line-height: 1.2; padding-right: 110px; }
@@ -86,7 +85,7 @@ table.err td.hot { color: var(--fail); font-weight: 700; }
 #watermark { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; pointer-events: none; display: none; overflow: hidden; }
 #watermark.on { display: block; }
 #watermark .wm { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-18deg); font-family: var(--mono); font-weight: 800; font-size: 210px; color: rgba(255, 92, 92, 0.13); white-space: nowrap; letter-spacing: 12px; }
-#watermark .corner { position: absolute; right: 24px; bottom: 108px; background: var(--fail); color: #fff; font-weight: 800; font-size: 22px; padding: 6px 14px; border-radius: 6px; letter-spacing: 1px; }
+#watermark .corner { position: absolute; left: 1010px; top: 19px; background: var(--fail); color: #fff; font-weight: 800; font-size: 22px; padding: 6px 14px; border-radius: 6px; letter-spacing: 1px; }
 
 .legend { display: flex; gap: 22px; font-size: 20px; color: var(--muted); align-items: center; flex-wrap: wrap; }
 .sw { display: inline-block; width: 18px; height: 18px; border-radius: 3px; vertical-align: -2px; margin-right: 6px; }
