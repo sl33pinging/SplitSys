@@ -1,0 +1,16 @@
+{
+  "source": "hw",
+  "gemms_run": 256,
+  "gemms_verified": 256,
+  "macs_verified": 118801362,
+  "mismatches": 0,
+  "failed_runs": 0,
+  "started_utc": "2026-10-24T20:26:48Z",
+  "updated_utc": "2026-10-24T20:41:07Z",
+  "uptime_s": 859,
+  "started_unix": 1792873608.0,
+  "build_ids": [
+    "52a66216"
+  ],
+  "derived_from": "256 run records in results\\hw/ (top level)"
+}
