@@ -31,7 +31,32 @@ create_clock -period 10.000 -name clk_100 [get_ports {CLK_100MHZ}]
 set_property CFGBVS VCCO [current_design]
 set_property CONFIG_VOLTAGE 3.3 [current_design]
 set_property BITSTREAM.Config.SPI_buswidth 4 [current_design]
-set_property BITSTREAM.CONFIG.UNUSEDPIN PULLUP [current_design]
+# UNUSEDPIN: PULLDOWN, deliberately NOT the master's PULLUP (master:465).
+# Phase H H-1 (2026-10-24, build 52a66216): with PULLUP the unused RGB0/RGB1
+# pins (C9 A9 A10 / A11 C10 B11, master:54-59) are pulled high and both RGB LEDs
+# glow at full brightness. sch p4: each RGBn_x net drives the IN pin of a
+# low-side switch (Q5-Q10, GND/IN/OUT) on a VCCp5V0 LED, so IN high = lit.
+# Why PULLDOWN is safe (it is also the Vivado default for this property):
+#  - Dedicated config/JTAG pins (CCLK, DONE, INIT_B, PROGRAM_B, M0-M2, TCK/TMS/
+#    TDI/TDO, CFGBVS) are not user I/O, so UNUSEDPIN does not apply to them.
+#  - The pull applies only after configuration (DONE high). During any later
+#    configuration (power-on QSPI boot or JTAG reprogram) the pins are under
+#    PUDC_B / config control, so this setting cannot affect booting.
+#  - Multi-function bank-14 pins that become user I/O after config do get the
+#    pull-down: QSPI FCS_B M13, D00-D03 K17/K18/L14/M15, QSPI_RESET_B N13,
+#    PUDC_B L15. sch p11: QSPI_CS_B (R168, 4.7k), DQ2 (R165), DQ3 (R166) and
+#    QSPI_RESET_B (R167, 4.7k) have external pull-ups to VCCp3V3 (same net as
+#    the IC14 SN74AVC1T45 supply pins). A k-ohm external pull-up overrides the
+#    FPGA's weak (tens of uA) pull-down, so the flash stays deselected and out
+#    of reset. D00/D01 have no pull-up; they are don't-care while CS_B is high.
+#  - Other unused peripherals only see a weak pull to 0: USB_RESET_B V13 low
+#    holds the unused MAX3421E USB host in reset; DDR3 (bank 34) RESET_B/CKE low
+#    keep the unused DDR3 in reset/power-down; SPKL/SPKR low = silent. No pin
+#    in the master XDC is an active-low enable or a power-switch control
+#    (checked by name; the schematic was read from extracted text, not drawn).
+# Takes effect only in bitstreams built after this commit; every bitstream at
+# 52a66216 (incl. KG1) still has PULLUP and still lights the RGB LEDs.
+set_property BITSTREAM.CONFIG.UNUSEDPIN PULLDOWN [current_design]
 set_property BITSTREAM.GENERAL.COMPRESS TRUE [current_design]
 
 # ---- LEDs (master:30-45, "On-board LEDs"). ACTIVE HIGH: sch p4, each net LDn
@@ -98,8 +123,8 @@ set_property -dict {PACKAGE_PIN J4 IOSTANDARD LVCMOS25} [get_ports {D1_SEG[7]}]
 
 # ---- USB-UART pins are NOT in this file. fpga/tcl/build.tcl reads exactly one of:
 #   urbana_uart.xdc       (default) FPGA RX = B16, TX = A16, per the schematic
-#   urbana_uart_swap.xdc  (UART_SWAP=1) FPGA RX = A16, TX = B16: fallback if H-2
-#                         echoes nothing (see docs/HW_CHECKLIST.md H-2)
+#   urbana_uart_swap.xdc  (UART_SWAP=1) FPGA RX = A16, TX = B16: was the fallback if H-2
+#                         echoed nothing. NOT NEEDED: H-2 (2026-10-24) confirmed the default.
 
 # No set_input_delay/set_output_delay: BTN and UART_RXD are asynchronous and
 # 2-FF synchronized in RTL; LED/7-seg/UART_TXD are driven from flops and are

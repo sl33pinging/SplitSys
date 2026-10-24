@@ -2,7 +2,7 @@
 """Bitstream manifest for Phase H (owner: fpga-integrator).
 
     python fpga/tcl/manifest.py [tag ...]
-    default tags: the seven Phase H bitstreams (see TAGS)
+    default tags: the six bitstreams fpga/tcl/s4_rebuild.sh builds (see TAGS)
 
 For each tag, reads fpga/reports/<tag>/summary.json and hashes
 fpga/build/<tag>/top.bit (gitignored, so the hash is the link between the
@@ -18,8 +18,13 @@ import pathlib
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+# top_uartswap is no longer a default tag: H-2 (2026-10-24) confirmed the
+# default UART pins (FPGA RX = B16, TX = A16), so the swapped full top is never
+# programmed and fpga/tcl/s4_rebuild.sh does not build it. Its 52a66216 reports
+# stay committed in fpga/reports/top_uartswap/ for history; list it explicitly
+# (python fpga/tcl/manifest.py ... top_uartswap) only if it is rebuilt.
 TAGS = ["heartbeat_uart_echo", "heartbeat_uart_echo_uartswap", "packet_mem",
-        "packet_mem_uartswap", "top", "top_uartswap", "top_nostrip"]
+        "packet_mem_uartswap", "top", "top_nostrip"]
 USE = {
     "heartbeat_uart_echo": "H-1, H-2",
     "heartbeat_uart_echo_uartswap": "H-2 fallback (UART pins swapped)",
