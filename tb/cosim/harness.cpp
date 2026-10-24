@@ -17,6 +17,10 @@
 //   step <n>         -> "ok <cycle>"   advance n clocks (UART engines keep running)
 //   idle             -> "ok <cycle>"   advance until quiescent (see `active()`)
 //   stats            -> "ok <rx_bytes> <tx_bytes> <frame_errors> <cycle>"
+//   freerun <0/1>    -> "ok"   1 (default): time also advances while LED2 (busy) is lit;
+//                    0: only UART traffic (+LINGER) advances time, so a running job
+//                    progresses a bounded, wall-clock-independent number of cycles
+//   linger <n>       -> "ok <previous>"   set LINGER (clocks kept running after each UART byte)
 //   quit             -> "ok", then exit
 // Time only advances while something is in flight (RX queue/driver, TX decoder,
 // LED2 = busy, or within LINGER clocks of the last UART byte). While idle the
@@ -75,6 +79,7 @@ struct Harness {
     uint64_t cyc = 0;
     uint64_t linger_cyc = 0, linger = 0;
     uint8_t btn_mask = 0;
+    bool free_run = true;  // advance while LED2 (busy) even without UART traffic
 
     // RX driver (host -> FPGA)
     std::deque<uint8_t> rxq;
@@ -183,7 +188,7 @@ struct Harness {
 
     bool busy_led() const { return (top->LED >> 2) & 1; }
     bool active() const {
-        return !rxq.empty() || drv_busy || mon_busy || busy_led() || linger != 0;
+        return !rxq.empty() || drv_busy || mon_busy || (free_run && busy_led()) || linger != 0;
     }
 };
 
@@ -344,6 +349,11 @@ int main(int argc, char** argv) {
             else if (c == "seg")
                 snprintf(out, sizeof out, "ok %x %02x %x %02x\n", (unsigned)h.top->D0_AN, (unsigned)h.top->D0_SEG,
                          (unsigned)h.top->D1_AN, (unsigned)h.top->D1_SEG);
+            else if (c == "freerun" && na == 2) { h.free_run = arg != 0; snprintf(out, sizeof out, "ok\n"); }
+            else if (c == "linger" && na == 2) {
+                snprintf(out, sizeof out, "ok %llu\n", (unsigned long long)h.linger_cyc);
+                h.linger_cyc = arg;
+            }
             else if (c == "btn" && na == 2) { h.btn_mask = (uint8_t)arg; snprintf(out, sizeof out, "ok\n"); }
             else if (c == "step" && na == 2) {
                 for (unsigned long long i = 0; i < arg; i++) h.tick();

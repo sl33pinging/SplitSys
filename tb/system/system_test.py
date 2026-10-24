@@ -611,18 +611,30 @@ class Runner:
         fr = req_frames(items)
         for i in range(nw):
             b.xact(fr[i], what="load")
+        # Deterministic while-busy window: from here on, simulated time advances only with UART
+        # traffic (+ a short linger), never with host wall-clock time. Without this the job
+        # (78,594 cycles = ~0.16 s of sim) could finish while Python/oracle are slow under load.
+        b.ctl("freerun 0")
+        old_linger = int(b.ctl("linger 1024")[0])
+        c_run = b.cycle()
         b.xact(fr[nw], what="RUN_GEMM")
         b.xact(fr[nw + 1], ST["BUSY"], "RUN_GEMM while busy")
         b.xact(b.const["selftest"], ST["BUSY"], "SELFTEST while busy")
         b.xact(fr[nw + 2], ST["BUSY"], "WRITE_MEM while busy")
         b.xact(fr[nw + 3], ST["BUSY"], "READ_MEM while busy")
         self.ping(b, "busy")
-        if b.poll() != POLL_BUSY:
-            raise Fail("POLL during a 64x256x256 job is not BUSY")
+        st = b.poll()
         live = b.counters()
+        elapsed = b.cycle() - c_run
         final_exp = model_vector(pred)
+        if elapsed >= final_exp[0]:
+            raise Fail(f"test window too long: {elapsed} sim cycles since RUN_GEMM >= job length {final_exp[0]}")
+        if st != POLL_BUSY:
+            raise Fail(f"POLL during a 64x256x256 job = {st}, expected BUSY ({elapsed} cycles after RUN_GEMM, job {final_exp[0]})")
         if not (0 < live[0] < final_exp[0]):
             raise Fail(f"live cycles_total {live[0]} not in (0, {final_exp[0]})")
+        b.ctl(f"linger {old_linger}")
+        b.ctl("freerun 1")
         b.ctl("idle")
         if b.poll() != POLL_DONE:
             raise Fail("POLL after job is not DONE")

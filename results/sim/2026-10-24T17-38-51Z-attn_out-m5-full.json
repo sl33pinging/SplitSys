@@ -1,8 +1,8 @@
 {
-  "run_id": "2026-10-24T17:24:35Z-attn_out-m5-full",
+  "run_id": "2026-10-24T17:38:51Z-attn_out-m5-full",
   "source": "sim",
-  "build_id": "0d1867c8",
-  "git_hash": "d1867c8",
+  "build_id": "034cbc27",
+  "git_hash": "34cbc27-dirty",
   "clock_mhz": 100,
   "gemm": {
     "name": "attn_out",
@@ -61,9 +61,9 @@
     "invariants_ok": true
   },
   "provenance": {
-    "transport": "tcp:127.0.0.1:42687 (co-sim)",
+    "transport": "tcp:127.0.0.1:33089 (co-sim)",
     "seed": 1,
-    "wall_ms_end_to_end": 2507.8951429999997,
+    "wall_ms_end_to_end": 8019.786652000001,
     "latencies_provisional": false
   }
 }
