@@ -124,6 +124,15 @@ enum Cmd {
         #[arg(long)]
         seed: Option<u64>,
     },
+    /// Session totals (results/session.json etc.), derived from the run records.
+    Session {
+        /// Recompute and write session.json from results/<source>/ (top level only).
+        #[arg(long)]
+        rebuild: bool,
+        /// hw | sim | model
+        #[arg(long, default_value = "hw")]
+        source: String,
+    },
     /// Validate run-record JSON files against the DEMO.md §4 schema.
     CheckJson { files: Vec<PathBuf> },
     /// Serve the mock board over TCP, like the co-sim bridge (for testing tcp:).
@@ -308,6 +317,30 @@ fn real_main(cli: &Cli) -> Result<ExitCode, String> {
             }
             Ok(if r.ok() { ExitCode::SUCCESS } else { ExitCode::FAILURE })
         }
+        Cmd::Session { rebuild, source } => {
+            if !["hw", "sim", "model"].contains(&source.as_str()) {
+                return Err(format!("--source {source}: expected hw | sim | model"));
+            }
+            let s = if *rebuild {
+                Session::rebuild_and_write(&results, source).map_err(|e| e.to_string())?
+            } else {
+                Session::rebuild(&results, source)
+            };
+            println!(
+                "SESSION {source}: {} GEMMs run, {} verified, {} MACs verified, {} mismatches, {} failed; {} .. {}; builds {}; {}{}",
+                s.gemms_run,
+                s.gemms_verified,
+                s.macs_verified,
+                s.mismatches,
+                s.failed_runs,
+                s.started_utc,
+                s.updated_utc,
+                s.build_ids.join(","),
+                s.derived_from.clone().unwrap_or_default(),
+                if *rebuild { format!("; wrote {}", session_path(&results, source).display()) } else { String::new() }
+            );
+            Ok(ExitCode::SUCCESS)
+        }
         Cmd::CheckJson { files } => {
             let mut ok = true;
             for f in files {
@@ -393,7 +426,6 @@ fn run_specs(
     ctx.poison = poison;
     ctx.build_id = Some(format!("{:08x}", ping.build_id));
     let mut cache = LoadCache::default();
-    let mut session = Session::load_or_new(&session_path(results, src), src);
     let mut all_ok = true;
     let mut rows = Vec::new();
     let t0 = Instant::now();
@@ -407,7 +439,6 @@ fn run_specs(
     for g in specs {
         match runner::run_gemm(&mut b, &mut ctx, &mut cache, g) {
             Ok((r, path)) => {
-                session.add(&r);
                 let ok = r.verified();
                 all_ok &= ok;
                 println!(
@@ -439,7 +470,8 @@ fn run_specs(
             }
         }
     }
-    write_json(&session_path(results, src), &session).map_err(|e| e.to_string())?;
+    // Totals are derived from the run records on disk (never accumulated).
+    let session = Session::rebuild_and_write(results, src).map_err(|e| e.to_string())?;
     if let Some(suite) = suite {
         let now = now_unix();
         let p = runs_dir(results, src).join(format!("bench_{}_{}.json", suite, iso_utc(now).replace(':', "-")));
@@ -488,7 +520,6 @@ fn random_batch(
     let mut ctx = Context::new(results.to_path_buf(), root);
     ctx.poison = poison;
     ctx.build_id = Some(id);
-    let mut session = Session::load_or_new(&session_path(results, src), src);
     println!(
         "random batch: {n} jobs × {} mode(s), seed {seed}, max M/K/N {}/{}/{}, via {} (source {src})",
         modes.len(),
@@ -506,7 +537,6 @@ fn random_batch(
         k += 1;
         match res {
             Ok((r, path)) => {
-                session.add(r);
                 let ok = r.verified() && r.check.counter_diffs.is_empty();
                 println!(
                     "  {:>4} {:<18} M={:<3} K={:<3} N={:<3} {:<5} {} util {:>6.2}% cycles {:>7} {} {}",
@@ -529,7 +559,15 @@ fn random_batch(
             Err(e) => println!("  {:>4} {:<18} ERROR: {e}", k, bj.name),
         }
     })?;
-    write_json(&session_path(results, src), &session).map_err(|e| e.to_string())?;
+    // Totals are derived from the run records on disk (never accumulated).
+    let session = Session::rebuild_and_write(results, src).map_err(|e| e.to_string())?;
+    println!(
+        "session {}: {} GEMMs verified, {} mismatches (derived from {})",
+        session_path(results, src).display(),
+        session.gemms_verified,
+        session.mismatches,
+        session.derived_from.as_deref().unwrap_or("records")
+    );
     println!("{}", s.line());
     if let Some(f) = &s.first_failure {
         println!("first failure: {f}");

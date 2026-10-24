@@ -10,7 +10,7 @@
 
 use crate::client::Board;
 use crate::mock::MockConfig;
-use crate::record::{iso_utc, now_unix, runs_dir, session_path, write_json, RunRecord, Session};
+use crate::record::{iso_utc, load_runs, now_unix, runs_dir, RunRecord, Session};
 use crate::runner::{self, Context, GemmSpec, LoadCache};
 use crate::transport::{self, TransportSpec};
 use serde_json::{json, Value};
@@ -102,23 +102,6 @@ fn broadcast(subs: &Subs, event: &str, data: &Value) {
 
 fn read_json(p: &Path) -> Option<Value> {
     std::fs::read(p).ok().and_then(|b| serde_json::from_slice(&b).ok())
-}
-
-/// Load run records from a directory (sorted by run_id), skipping non-records.
-pub fn load_runs(dir: &Path) -> Vec<RunRecord> {
-    let mut v: Vec<RunRecord> = std::fs::read_dir(dir)
-        .map(|rd| {
-            rd.filter_map(|e| e.ok())
-                .map(|e| e.path())
-                .filter(|p| p.extension().is_some_and(|x| x == "json"))
-                .filter_map(|p| read_json(&p))
-                .filter(|v| crate::record::validate_run_json(v).is_ok())
-                .filter_map(|v| serde_json::from_value::<RunRecord>(v).ok())
-                .collect()
-        })
-        .unwrap_or_default();
-    v.sort_by(|a, b| a.run_id.cmp(&b.run_id));
-    v
 }
 
 impl Shared {
@@ -233,14 +216,12 @@ fn worker(opts_t: TransportSpec, baud: u32, scale: Option<u32>, root: PathBuf, s
             while disk.len() > MAX_RUNS {
                 disk.pop_front();
             }
-            let sess = Session::load_or_new(&session_path(&sh.results, &src), &src);
+            let sess = Session::rebuild(&sh.results, &src);
             let mut a = sh.app.lock().expect("app");
             if disk.len() >= a.runs.len() {
                 a.runs = disk;
             }
-            if sess.gemms_run >= a.session.gemms_run {
-                a.session = sess;
-            }
+            a.session = sess;
         }
         // Gather commands.
         match rx.recv_timeout(Duration::from_millis(250)) {
@@ -346,14 +327,11 @@ fn worker(opts_t: TransportSpec, baud: u32, scale: Option<u32>, root: PathBuf, s
                     let sess_v;
                     {
                         let mut a = sh.app.lock().expect("app");
-                        let sp = session_path(&sh.results, &a.source);
-                        // Re-read first: another process may have added runs since.
-                        let disk = Session::load_or_new(&sp, &a.source);
-                        if disk.gemms_run > a.session.gemms_run {
-                            a.session = disk;
+                        // Totals are derived from the records on disk (this run's
+                        // record is already written), so concurrent hosts never lose updates.
+                        if let Ok(sess) = Session::rebuild_and_write(&sh.results, &a.source) {
+                            a.session = sess;
                         }
-                        a.session.add(&rec);
-                        let _ = write_json(&sp, &a.session);
                         a.runs.push_back(rec.clone());
                         while a.runs.len() > MAX_RUNS {
                             a.runs.pop_front();
@@ -631,7 +609,7 @@ pub fn serve(o: ServeOpts) -> Result<(), String> {
         TransportSpec::Tcp(_) => "sim",
         TransportSpec::Serial(_) => "hw",
     };
-    let session = Session::load_or_new(&session_path(&o.results, source), source);
+    let session = Session::rebuild(&o.results, source);
     let mut runs: VecDeque<RunRecord> = load_runs(&runs_dir(&o.results, source)).into();
     while runs.len() > MAX_RUNS {
         runs.pop_front();
@@ -641,7 +619,11 @@ pub fn serve(o: ServeOpts) -> Result<(), String> {
         Replay {
             dir: d.display().to_string(),
             recorded_utc: runs.last().map(|r| r.run_id.chars().take(20).collect()).unwrap_or_default(),
-            session: read_json(&d.join("session.json")).or_else(|| read_json(&d.join("../session.json"))),
+            session: serde_json::to_value(Session::from_records(
+                runs.first().map_or("hw", |r| r.source.as_str()),
+                &runs,
+            ))
+            .ok(),
             runs,
         }
     });

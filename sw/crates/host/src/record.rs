@@ -278,7 +278,11 @@ pub fn write_json(path: &Path, v: &impl Serialize) -> std::io::Result<()> {
     if let Some(d) = path.parent() {
         std::fs::create_dir_all(d)?;
     }
-    let tmp = path.with_extension("json.tmp");
+    // Unique temp name per writer, then rename: concurrent writers never see or
+    // produce a torn file (the last complete rename wins).
+    static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let tmp = path.with_extension(format!("json.tmp.{}.{n}", std::process::id()));
     std::fs::write(&tmp, serde_json::to_vec_pretty(v)?)?;
     std::fs::rename(&tmp, path)
 }
@@ -300,44 +304,114 @@ pub struct Session {
     pub started_unix: f64,
     #[serde(default)]
     pub build_ids: Vec<String>,
+    /// Provenance: totals are recomputed from these records, never accumulated.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub derived_from: Option<String>,
 }
 
 impl Session {
-    pub fn load_or_new(path: &Path, source: &str) -> Self {
-        std::fs::read(path)
-            .ok()
-            .and_then(|b| serde_json::from_slice::<Session>(&b).ok())
-            .filter(|s| s.source == source)
-            .unwrap_or_else(|| {
-                let now = now_unix();
-                Session {
-                    source: source.into(),
-                    started_utc: iso_utc(now),
-                    updated_utc: iso_utc(now),
-                    started_unix: now,
-                    ..Default::default()
-                }
-            })
+    /// Totals derived from run records (never accumulated, so concurrent writers
+    /// cannot lose updates). Mock records count as runs but never as verified.
+    pub fn from_records(source: &str, runs: &[RunRecord]) -> Self {
+        let mut s = Session {
+            source: source.into(),
+            ..Default::default()
+        };
+        let mut first: Option<&str> = None;
+        let mut last: Option<&str> = None;
+        for r in runs.iter().filter(|r| r.source == source) {
+            s.gemms_run += 1;
+            if r.mock {
+                // Circular check (mock output comes from golden): never verified.
+            } else if r.verified() {
+                s.gemms_verified += 1;
+                s.macs_verified += r.counters.mac_useful;
+            } else {
+                s.failed_runs += 1;
+            }
+            s.mismatches += r.check.mismatches;
+            if !s.build_ids.contains(&r.build_id) {
+                s.build_ids.push(r.build_id.clone());
+            }
+            let t = r.run_id.get(..20).unwrap_or("");
+            if first.is_none_or(|f| t < f) {
+                first = Some(t);
+            }
+            if last.is_none_or(|l| t > l) {
+                last = Some(t);
+            }
+        }
+        let now = iso_utc(now_unix());
+        s.started_utc = first.map(str::to_string).unwrap_or_else(|| now.clone());
+        s.updated_utc = last.map(str::to_string).unwrap_or(now);
+        let (a, b) = (parse_iso_utc(&s.started_utc), parse_iso_utc(&s.updated_utc));
+        s.started_unix = a.unwrap_or(0.0);
+        s.uptime_s = match (a, b) {
+            (Some(a), Some(b)) => (b - a).max(0.0) as u64,
+            _ => 0,
+        };
+        s.derived_from = Some(format!("{} run records", s.gemms_run));
+        s
     }
 
-    pub fn add(&mut self, r: &RunRecord) {
-        self.gemms_run += 1;
-        if r.mock {
-            // Circular check (mock output comes from golden): never counted as verified.
-        } else if r.verified() {
-            self.gemms_verified += 1;
-            self.macs_verified += r.counters.mac_useful;
-        } else {
-            self.failed_runs += 1;
-        }
-        self.mismatches += r.check.mismatches;
-        if !self.build_ids.contains(&r.build_id) {
-            self.build_ids.push(r.build_id.clone());
-        }
-        let now = now_unix();
-        self.updated_utc = iso_utc(now);
-        self.uptime_s = (now - self.started_unix).max(0.0) as u64;
+    /// Recompute from `runs_dir(results, source)` (top level only: sub-directories
+    /// such as `archive_dirty/` are never read).
+    pub fn rebuild(results: &Path, source: &str) -> Self {
+        let runs = load_runs(&runs_dir(results, source));
+        let mut s = Self::from_records(source, &runs);
+        s.derived_from = Some(format!(
+            "{} run records in {}/ (top level)",
+            s.gemms_run,
+            runs_dir(Path::new("results"), source).display()
+        ));
+        s
     }
+
+    /// Rebuild and write `session_path(results, source)` atomically.
+    pub fn rebuild_and_write(results: &Path, source: &str) -> std::io::Result<Self> {
+        let s = Self::rebuild(results, source);
+        write_json(&session_path(results, source), &s)?;
+        Ok(s)
+    }
+}
+
+/// Load run records from a directory (top level, sorted by run_id), skipping
+/// anything that is not a valid DEMO.md §4 record (bench summaries, session.json).
+pub fn load_runs(dir: &Path) -> Vec<RunRecord> {
+    let mut v: Vec<RunRecord> = std::fs::read_dir(dir)
+        .map(|rd| {
+            rd.filter_map(|e| e.ok())
+                .map(|e| e.path())
+                .filter(|p| p.is_file() && p.extension().is_some_and(|x| x == "json"))
+                .filter_map(|p| std::fs::read(&p).ok())
+                .filter_map(|b| serde_json::from_slice::<Value>(&b).ok())
+                .filter(|v| validate_run_json(v).is_ok())
+                .filter_map(|v| serde_json::from_value::<RunRecord>(v).ok())
+                .collect()
+        })
+        .unwrap_or_default();
+    v.sort_by(|a, b| a.run_id.cmp(&b.run_id));
+    v
+}
+
+/// Parse `YYYY-MM-DDTHH:MM:SSZ` to Unix seconds.
+pub fn parse_iso_utc(s: &str) -> Option<f64> {
+    let b = s.as_bytes();
+    if b.len() < 20 || b[4] != b'-' || b[10] != b'T' || b[19] != b'Z' {
+        return None;
+    }
+    let n = |r: std::ops::Range<usize>| s.get(r)?.parse::<i64>().ok();
+    let (y, mo, d) = (n(0..4)?, n(5..7)?, n(8..10)?);
+    let (h, mi, se) = (n(11..13)?, n(14..16)?, n(17..19)?);
+    // Days from civil (Howard Hinnant).
+    let y2 = if mo <= 2 { y - 1 } else { y };
+    let era = y2.div_euclid(400);
+    let yoe = y2 - era * 400;
+    let mp = (mo + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146_097 + doe - 719_468;
+    Some((days * 86400 + h * 3600 + mi * 60 + se) as f64)
 }
 
 #[cfg(test)]
@@ -395,6 +469,74 @@ mod tests {
         let mut v = ex;
         v["gemm"]["mode"] = "INDEP".into();
         assert!(validate_run_json(&v).is_err());
+    }
+
+    fn rec(id: &str, source: &str, mismatches: u64, mock: bool) -> RunRecord {
+        let mut r: RunRecord = serde_json::from_value(demo_example()).unwrap();
+        r.run_id = id.into();
+        r.source = source.into();
+        r.mock = mock;
+        r.counters.mac_useful = 100;
+        r.check.mismatches = mismatches;
+        r.check.golden_match = mismatches == 0;
+        r
+    }
+
+    #[test]
+    fn session_is_derived_from_records() {
+        let runs = vec![
+            rec("2026-10-24T10:00:00Z-a", "sim", 0, false),
+            rec("2026-10-24T10:00:30Z-b", "sim", 2, false),
+            rec("2026-10-24T10:01:00Z-c", "sim", 0, false),
+            rec("2026-10-24T10:02:00Z-d", "hw", 0, false),
+        ];
+        let s = Session::from_records("sim", &runs);
+        assert_eq!((s.gemms_run, s.gemms_verified, s.failed_runs, s.mismatches), (3, 2, 1, 2));
+        assert_eq!(s.macs_verified, 200);
+        assert_eq!(s.started_utc, "2026-10-24T10:00:00Z");
+        assert_eq!(s.updated_utc, "2026-10-24T10:01:00Z");
+        assert_eq!(s.uptime_s, 60);
+        let m = Session::from_records("model", &[rec("2026-10-24T10:00:00Z-m", "model", 0, true)]);
+        assert_eq!((m.gemms_run, m.gemms_verified), (1, 0));
+    }
+
+    #[test]
+    fn rebuild_reads_top_level_only_and_survives_concurrent_writers() {
+        let dir = std::env::temp_dir().join(format!("splitsys_sess_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let sim = dir.join("sim");
+        std::fs::create_dir_all(sim.join("archive_dirty")).unwrap();
+        for (i, id) in ["2026-10-24T10:00:00Z-a", "2026-10-24T10:00:05Z-b"].iter().enumerate() {
+            write_json(&sim.join(run_file_name(id)), &rec(id, "sim", 0, false)).unwrap();
+            write_json(&sim.join("archive_dirty").join(format!("x{i}.json")), &rec(id, "sim", 9, false)).unwrap();
+        }
+        std::fs::write(sim.join("bench_x.json"), br#"{"kind":"bench_summary"}"#).unwrap();
+        // Many concurrent rebuild+write calls: every result is complete and correct.
+        let hs: Vec<_> = (0..8)
+            .map(|_| {
+                let d = dir.clone();
+                std::thread::spawn(move || Session::rebuild_and_write(&d, "sim").unwrap())
+            })
+            .collect();
+        for h in hs {
+            let s = h.join().unwrap();
+            assert_eq!((s.gemms_run, s.gemms_verified, s.mismatches), (2, 2, 0));
+        }
+        let on_disk: Session =
+            serde_json::from_slice(&std::fs::read(sim.join("session.json")).unwrap()).unwrap();
+        assert_eq!(on_disk.gemms_verified, 2);
+        assert!(std::fs::read_dir(&sim)
+            .unwrap()
+            .all(|e| !e.unwrap().file_name().to_string_lossy().contains(".tmp")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn parse_iso_roundtrip() {
+        for t in [0.0, 951_782_400.0, 1_792_854_131.0] {
+            assert_eq!(parse_iso_utc(&iso_utc(t)), Some(t));
+        }
+        assert_eq!(parse_iso_utc("garbage"), None);
     }
 
     #[test]
