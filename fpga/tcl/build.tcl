@@ -86,14 +86,15 @@ proc git_short_hash {root} {
     }
     return [string range $head 0 7]
 }
-proc git_dirty {root} {
-    if {[catch {exec git -C $root status --porcelain --untracked-files=no -- rtl fpga/bringup fpga/xdc fpga/tcl} s]} {
+# "true" if any file this build reads (sources, XDC, this script) differs from
+# HEAD or is untracked, i.e. BUILD_ID does not fully identify the bitstream.
+proc git_dirty {root files} {
+    if {[catch {exec git -C $root status --porcelain --untracked-files=all -- {*}$files} s]} {
         return "unknown"
     }
     return [expr {[string trim $s] eq "" ? "false" : "true"}]
 }
 set git_hash [git_short_hash $ROOT]
-set dirty    [git_dirty $ROOT]
 set build_id_hex [string toupper $git_hash]
 
 # ------------------------------------------------------------------- generics
@@ -135,6 +136,7 @@ if {[file isdirectory $top_bringup]} {
 }
 if {[llength $xdcs] == 0} { set xdcs [list [file join $ROOT fpga xdc urbana_splitsys.xdc]] }
 foreach f [concat $srcs $xdcs] { if {![file exists $f]} { die "missing source $f" } }
+set dirty [git_dirty $ROOT [concat $srcs $xdcs [list [file normalize [info script]]]]]
 
 set rpt_dir [file join $ROOT fpga reports $tag]
 set out_dir [file join $ROOT fpga build $tag]
