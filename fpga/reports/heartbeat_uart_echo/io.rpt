@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version              : Vivado v.2025.2.1 (win64) Build 6403652 Thu Mar 19 19:48:24 GMT 2026
-| Date                      : Sat Oct 24 11:58:35 2026
+| Date                      : Sat Oct 24 14:00:19 2026
 | Host                      : Someones_Laptop running 64-bit major release  (build 9200)
 | Command                   : report_io -file C:/Users/danie/FPGA_Projects/Calhack2026/fpga/reports/heartbeat_uart_echo/io.rpt
 | Design                    : heartbeat_uart_echo

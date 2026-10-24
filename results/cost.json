@@ -1,25 +1,25 @@
 {
   "source": "hw-build",
   "full_only": {
-    "lut": 5142,
+    "lut": 5146,
     "ff": 6346,
     "dsp": 80,
     "bram": 26,
-    "fmax_mhz": 126.5,
-    "wns_ns": 2.097
+    "fmax_mhz": 128.0,
+    "wns_ns": 2.188
   },
   "split": {
     "lut": 7389,
     "ff": 7936,
     "dsp": 96,
     "bram": 26,
-    "fmax_mhz": 105.5,
-    "wns_ns": 0.523
+    "fmax_mhz": 108.0,
+    "wns_ns": 0.744
   },
-  "git_hash": "52a66216",
+  "git_hash": "38a3950a",
   "build_id": {
-    "split": "0x52A66216",
-    "full_only": "0x52A66216"
+    "split": "0x38A3950A",
+    "full_only": "0x38A3950A"
   },
   "part": "xc7s50csga324-2",
   "vivado": "2025.2.1",
@@ -27,24 +27,24 @@
   "fmax_note": "fmax_mhz = 1000/(10 ns - WNS) from the post-route timing at the 100 MHz constraint; an estimate, not a swept Fmax. Check worst_path before attributing the Fmax delta to splitting: a routing-dominated control net (reset, mux select) is placement, not STRIP logic",
   "worst_path": {
     "split": {
-      "slack_ns": 0.523,
-      "source": "u_board/rst_r_reg_rep__1/C",
-      "destination": "rst_core_reg_rep__29/D",
+      "slack_ns": 0.744,
+      "source": "rst_core_reg_rep__7/C",
+      "destination": "u_core/u_rq/g_lane[0].q_e5_reg[39]/R",
       "logic_levels": 0,
-      "route_pct": 96.189
+      "route_pct": 94.967
     },
     "full_only": {
-      "slack_ns": 2.097,
-      "source": "u_core/u_seq/FSM_sequential_state_reg[1]/C",
-      "destination": "u_core/u_seq/cnt_reg[6]/R",
-      "logic_levels": 7,
-      "route_pct": 77.319
+      "slack_ns": 2.188,
+      "source": "u_core/u_seq/int32_q_reg/C",
+      "destination": "u_core/u_rq/g_lane[4].mult_e1_reg[7]/R",
+      "logic_levels": 1,
+      "route_pct": 92.814
     }
   },
   "breakdown": {
     "split": {
       "array": {
-        "lut": 1102,
+        "lut": 1104,
         "ff": 1488,
         "dsp": 64,
         "bram36": 0,
@@ -65,7 +65,7 @@
         "bram18": 0
       },
       "core": {
-        "lut": 5223,
+        "lut": 5222,
         "ff": 4409,
         "dsp": 96,
         "bram36": 25,
@@ -95,7 +95,7 @@
         "bram18": 0
       },
       "sequencer": {
-        "lut": 383,
+        "lut": 384,
         "ff": 409,
         "dsp": 0,
         "bram36": 0,
@@ -109,7 +109,7 @@
         "bram18": 0
       },
       "total": {
-        "lut": 5142,
+        "lut": 5146,
         "ff": 6346,
         "dsp": 80,
         "bram36": 25,
@@ -118,7 +118,7 @@
     },
     "delta": {
       "array": {
-        "lut": 376,
+        "lut": 378,
         "ff": 264,
         "dsp": 0
       },
@@ -128,17 +128,17 @@
         "dsp": 16
       },
       "sequencer": {
-        "lut": 290,
+        "lut": 289,
         "ff": 70,
         "dsp": 0
       },
       "core": {
-        "lut": 2243,
+        "lut": 2242,
         "ff": 1549,
         "dsp": 16
       },
       "total": {
-        "lut": 2247,
+        "lut": 2243,
         "ff": 1590,
         "dsp": 16
       }

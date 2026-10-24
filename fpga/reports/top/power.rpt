@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 -------------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version     : Vivado v.2025.2.1 (win64) Build 6403652 Thu Mar 19 19:48:24 GMT 2026
-| Date             : Sat Oct 24 12:04:58 2026
+| Date             : Sat Oct 24 14:06:34 2026
 | Host             : Someones_Laptop running 64-bit major release  (build 9200)
 | Command          : report_power -file C:/Users/danie/FPGA_Projects/Calhack2026/fpga/reports/top/power.rpt
 | Design           : top
@@ -30,7 +30,7 @@ Table of Contents
 ----------
 
 +--------------------------+--------------+
-| Total On-Chip Power (W)  | 0.140        |
+| Total On-Chip Power (W)  | 0.141        |
 | Design Power Budget (W)  | Unspecified* |
 | Power Budget Margin (W)  | NA           |
 | Dynamic (W)              | 0.065        |
@@ -60,12 +60,12 @@ Table of Contents
 |   LUT as Shift Register |    <0.001 |      146 |      9600 |            1.52 |
 |   F7/F8 Muxes           |    <0.001 |       15 |     32600 |            0.05 |
 |   Others                |     0.000 |      227 |       --- |             --- |
-| Signals                 |     0.007 |    17600 |       --- |             --- |
+| Signals                 |     0.008 |    17598 |       --- |             --- |
 | Block RAM               |    <0.001 |       26 |        75 |           34.67 |
 | DSPs                    |     0.016 |       96 |       120 |           80.00 |
 | I/O                     |     0.001 |       45 |       210 |           21.43 |
 | Static Power            |     0.076 |          |           |                 |
-| Total                   |     0.140 |          |           |                 |
+| Total                   |     0.141 |          |           |                 |
 +-------------------------+-----------+----------+-----------+-----------------+
 
 
@@ -75,7 +75,7 @@ Table of Contents
 +-----------+-------------+-----------+-------------+------------+-------------+-------------+------------+
 | Source    | Voltage (V) | Total (A) | Dynamic (A) | Static (A) | Powerup (A) | Budget (A)  | Margin (A) |
 +-----------+-------------+-----------+-------------+------------+-------------+-------------+------------+
-| Vccint    |       1.000 |     0.073 |       0.063 |      0.010 |       NA    | Unspecified | NA         |
+| Vccint    |       1.000 |     0.074 |       0.064 |      0.010 |       NA    | Unspecified | NA         |
 | Vccaux    |       1.800 |     0.013 |       0.000 |      0.013 |       NA    | Unspecified | NA         |
 | Vcco33    |       3.300 |     0.001 |       0.000 |      0.001 |       NA    | Unspecified | NA         |
 | Vcco25    |       2.500 |     0.001 |       0.000 |      0.001 |       NA    | Unspecified | NA         |
@@ -143,11 +143,11 @@ Table of Contents
 | Name         | Power (W) |
 +--------------+-----------+
 | top          |     0.065 |
-|   u_board    |     0.001 |
-|   u_core     |     0.044 |
+|   u_board    |     0.002 |
+|   u_core     |     0.045 |
 |     u_array  |     0.030 |
 |     u_rq     |     0.012 |
-|     u_seq    |     0.002 |
+|     u_seq    |     0.003 |
 |   u_counters |     0.005 |
 |   u_packet   |     0.006 |
 |   u_selftest |     0.004 |
