@@ -1,0 +1,69 @@
+{
+  "run_id": "2026-10-24T23:23:16Z-gemm_strip_s1_31-m18-strip",
+  "source": "hw",
+  "build_id": "38a3950a",
+  "git_hash": "3976ec0",
+  "clock_mhz": 100,
+  "gemm": {
+    "name": "gemm_strip_s1_31",
+    "M": 18,
+    "K": 11,
+    "N": 196,
+    "mode": "STRIP",
+    "requant": true
+  },
+  "counters": {
+    "cycles_total": 3772,
+    "cycles_setup": 1040,
+    "cycles_stream": 845,
+    "cycles_flush": 1105,
+    "cycles_drain": 780,
+    "cycles_stall": 0,
+    "mac_useful": 38808,
+    "mac_useful_q": [
+      10296,
+      9504,
+      9504,
+      9504
+    ],
+    "tiles": 65
+  },
+  "model": {
+    "cycles_total": 3772,
+    "cycles_setup": 1040,
+    "cycles_stream": 845,
+    "cycles_flush": 1105,
+    "cycles_drain": 780,
+    "cycles_stall": 0,
+    "mac_useful": 38808,
+    "mac_useful_q": [
+      10296,
+      9504,
+      9504,
+      9504
+    ],
+    "tiles": 65,
+    "model_git_hash": "72da65248adf"
+  },
+  "derived": {
+    "util": 0.1607568928950159,
+    "util_model": 0.1607568928950159,
+    "operand_bytes_per_cycle": 20.0,
+    "model_err_total": 0.0,
+    "operand_bytes_per_cycle_avg": 3.7910922587486744,
+    "macs_per_cycle": 10.288441145281018,
+    "arithmetic_intensity": 2.713846153846154
+  },
+  "check": {
+    "golden_match": true,
+    "outputs_compared": 3528,
+    "mismatches": 0,
+    "invariants_ok": true
+  },
+  "provenance": {
+    "transport": "serial:COM3@115200",
+    "seed": 1,
+    "wall_ms_end_to_end": 1356.6381000000001,
+    "latencies_provisional": false
+  }
+}

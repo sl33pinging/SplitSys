@@ -1,16 +1,17 @@
 {
   "source": "hw",
-  "gemms_run": 272,
-  "gemms_verified": 272,
-  "macs_verified": 127321042,
+  "gemms_run": 473,
+  "gemms_verified": 473,
+  "macs_verified": 233654180,
   "mismatches": 0,
   "failed_runs": 0,
   "started_utc": "2026-10-24T20:26:48Z",
-  "updated_utc": "2026-10-24T21:14:14Z",
-  "uptime_s": 2846,
+  "updated_utc": "2026-10-24T23:29:49Z",
+  "uptime_s": 10981,
   "started_unix": 1792873608.0,
   "build_ids": [
-    "52a66216"
+    "52a66216",
+    "38a3950a"
   ],
-  "derived_from": "272 run records in results\\hw/ (top level)"
+  "derived_from": "473 run records in results\\hw/ (top level)"
 }
