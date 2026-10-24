@@ -11,7 +11,7 @@
 
 TB_DIR    := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 REPO_ROOT := $(abspath $(TB_DIR)/..)
-RTL_DIR   := $(REPO_ROOT)/rtl
+RTL_DIR   ?= $(REPO_ROOT)/rtl
 
 SIM           ?= verilator
 TOPLEVEL_LANG ?= verilog
@@ -42,5 +42,6 @@ BUILD_ARGS += -j 8
 # Python: tb/common on the path for splitsys_tb helpers.
 export PYTHONPATH := $(TB_DIR)/common:$(PYTHONPATH)
 export SPLITSYS_REPO_ROOT := $(REPO_ROOT)
+export SPLITSYS_RTL_DIR := $(RTL_DIR)
 
 include $(shell cocotb-config --makefiles)/Makefile.sim

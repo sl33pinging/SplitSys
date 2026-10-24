@@ -29,7 +29,8 @@ from cocotb.clock import Clock
 from cocotb.triggers import FallingEdge, RisingEdge
 
 REPO_ROOT = Path(os.environ.get("SPLITSYS_REPO_ROOT", Path(__file__).resolve().parents[2]))
-PKG_PATH = REPO_ROOT / "rtl" / "gen" / "splitsys_pkg.sv"
+RTL_DIR = Path(os.environ.get("SPLITSYS_RTL_DIR", REPO_ROOT / "rtl"))
+PKG_PATH = RTL_DIR / "gen" / "splitsys_pkg.sv"
 CLK_PERIOD_NS = 10
 
 
@@ -42,6 +43,21 @@ def pkg() -> dict[str, int]:
     pat = re.compile(r"localparam\s+[^=;]*?\b([A-Z][A-Z0-9_]*)\s*=\s*([^;]+);")
     for name, val in pat.findall(text):
         val = val.strip()
+        if val.startswith("{") and val.endswith("}"):
+            # concatenation of sized literals, MSB first: {8'd4, 8'd4, ...}
+            acc = 0
+            ok = True
+            for item in val[1:-1].split(","):
+                mi = re.fullmatch(r"\s*(\d+)'([hdbHDB])([0-9a-fA-F_]+)\s*", item)
+                if not mi:
+                    ok = False
+                    break
+                w = int(mi.group(1))
+                b = {"h": 16, "d": 10, "b": 2}[mi.group(2).lower()]
+                acc = (acc << w) | (int(mi.group(3).replace("_", ""), b) & ((1 << w) - 1))
+            if ok:
+                out[name] = acc
+            continue
         m = re.fullmatch(r"(\d+)?'([hdbHDB])([0-9a-fA-F_]+)", val)
         if m:
             base = {"h": 16, "d": 10, "b": 2}[m.group(2).lower()]
