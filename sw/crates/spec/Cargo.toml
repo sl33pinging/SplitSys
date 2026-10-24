@@ -1,10 +1,21 @@
 [package]
 name = "splitsys-spec"
+description = "SplitSys contract: parses spec/spec.toml, validates it, and generates rtl/gen/splitsys_pkg.sv and Rust consts"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
+
+[lib]
+name = "splitsys_spec"
+path = "src/lib.rs"
+
+[[bin]]
+name = "gen"
+path = "src/bin/gen.rs"
 
 [lints]
 workspace = true
 
 [dependencies]
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"

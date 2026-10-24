@@ -1,0 +1,229 @@
+# SplitSys machine-readable contract. Owner: spec-steward.
+#
+# This file is the single source of truth for every shared constant. Regenerate
+# the consumers after any edit:
+#
+#     cd sw && cargo run -p splitsys-spec --bin gen
+#
+# which writes rtl/gen/splitsys_pkg.sv and sw/crates/spec/src/generated.rs.
+# Codegen validates everything below and fails loudly on inconsistency.
+# Prose and rationale: docs/SPEC.md and docs/DECISIONS.md.
+# BUILD_ID is deliberately NOT here: it is a synthesis-time generic.
+
+[meta]
+spec_version = "1.1"
+proto_version = 1            # PING response "version" byte
+
+# ---------------------------------------------------------------- array (SPEC §3.2)
+[array]
+rows = 8
+cols = 8
+quad = 4                     # quadrant edge; COLS % QUAD == 0 and ROWS % QUAD == 0
+enable_strip = true          # default; the cost build overrides the RTL generic to 0
+
+# Mode encodings (descriptor byte 0). INDEP is reserved -> NACK_RANGE.
+[modes]
+FULL = 0
+STRIP = 1
+INDEP = 2
+
+# ---------------------------------------------------------------- latencies (SPEC §4)
+# All in core clock cycles. provisional = true until rtl-designer confirms the
+# real RTL value (then perf-modeler reviews). See SPEC §4 for which counter each
+# term lands in.
+[latency.L_PE]
+value = 3
+provisional = true
+doc = "PE: operand entry at the PE input to acc updated (DSP A/B, M, P regs)"
+
+[latency.L_RD]
+value = 2
+provisional = true
+doc = "BRAM read latency on the array port (address to data, output register on)"
+
+[latency.L_SETUP]
+value = 16
+provisional = true
+doc = "TILE_SETUP state length per tile (load up to 16 requant params, one per cycle)"
+
+[latency.L_RQ]
+value = 4
+provisional = true
+doc = "Requant pipeline latency (first part of WRITEBACK state, per tile)"
+
+[latency.L_WB]
+value = 1
+provisional = true
+doc = "OBUF write latency after requant (second part of WRITEBACK state, per tile)"
+
+[latency.L_ACCEPT]
+value = 1
+provisional = true
+doc = "Cycles from descriptor accept to first TILE_SETUP cycle, counted in cycles_total only"
+
+[latency.L_DONE]
+value = 1
+provisional = true
+doc = "Cycles from last WRITEBACK cycle to DONE (counters frozen), counted in cycles_total only"
+
+# ---------------------------------------------------------------- drain (SPEC §3.5, §4)
+[drain]
+t_drain_full = 8             # FULL: 8 rows drained, one per cycle
+t_drain_strip = 4            # STRIP: 4 rows drained, one per cycle
+int32_factor = 4             # int32 bypass: 4 OBUF writes per drained row
+
+# ---------------------------------------------------------------- buffers (SPEC §3.4)
+# Byte address within a region = word_index * word_bytes + lane.
+[buffers.WBUF]
+region = 0
+word_bytes = 16              # 16 lanes x int8 (W, 16-column blocks)
+words = 4096                 # 64 KiB
+
+[buffers.ABUF]
+region = 1
+word_bytes = 8               # 8 lanes x int8 (A, 8-row blocks)
+words = 2048                 # 16 KiB
+
+[buffers.OBUF]
+region = 2
+word_bytes = 16              # 16 lanes x int8, or 4 x int32 in bypass
+words = 1024                 # 16 KiB
+
+[buffers.RQPARAM]
+region = 3
+word_bytes = 4               # {8'h0, shift[7:0], mult[15:0]}
+words = 256
+
+# ---------------------------------------------------------------- descriptor (SPEC §3.5)
+[descriptor]
+bytes = 24
+flag_requant_en = 0x01
+flag_out_int32 = 0x02
+m_min = 1
+m_max = 64
+k_min = 1
+k_max = 256
+n_min = 1
+n_max = 256
+
+# Field map, in byte order. Offsets are checked to be contiguous and naturally aligned.
+[[descriptor.fields]]
+name = "mode"
+offset = 0
+size = 1
+
+[[descriptor.fields]]
+name = "flags"
+offset = 1
+size = 1
+
+[[descriptor.fields]]
+name = "m"
+offset = 2
+size = 2
+
+[[descriptor.fields]]
+name = "k"
+offset = 4
+size = 2
+
+[[descriptor.fields]]
+name = "n"
+offset = 6
+size = 2
+
+[[descriptor.fields]]
+name = "a_base"
+offset = 8
+size = 4
+
+[[descriptor.fields]]
+name = "w_base"
+offset = 12
+size = 4
+
+[[descriptor.fields]]
+name = "out_base"
+offset = 16
+size = 4
+
+[[descriptor.fields]]
+name = "rq_base"
+offset = 20
+size = 2
+
+[[descriptor.fields]]
+name = "reserved"
+offset = 22
+size = 2
+
+# ---------------------------------------------------------------- requant (SPEC §1.2)
+[requant]
+mult_min = 1
+mult_max = 32767
+shift_min = 1
+shift_max = 31
+
+# ---------------------------------------------------------------- UART + protocol (SPEC §3.8)
+[uart]
+clk_hz = 100_000_000
+baud = 115_200
+oversample = 16
+max_baud_error_permille = 20 # codegen rejects a CLK/BAUD/OVERSAMPLE combo worse than 2%
+rx_timeout = 1_000_000       # cycles of RX idle inside a frame before the parser resets (10 ms)
+
+[protocol]
+sync_req = 0xA5
+sync_rsp = 0x5A
+max_payload = 1024
+crc8_poly = 0x07
+crc8_init = 0x00
+crc8_check = 0xF4            # CRC-8 of ASCII "123456789" (non-reflected, no xorout)
+ping_magic = "SPLT"
+
+[opcodes]
+PING = 0x01
+WRITE_MEM = 0x10
+READ_MEM = 0x11
+RUN_GEMM = 0x20
+POLL = 0x21
+READ_COUNTERS = 0x30
+SELFTEST = 0x40
+SET_DISPLAY = 0x50
+
+[status]
+ACK = 0
+NACK_CRC = 1
+NACK_OPCODE = 2
+NACK_RANGE = 3
+BUSY = 4
+
+[poll]
+IDLE = 0
+BUSY = 1
+DONE = 2
+ERROR = 3
+
+# ---------------------------------------------------------------- counters (SPEC §3.7)
+# READ_COUNTERS returns these in exactly this order, each `bytes` bytes little-endian.
+[counters]
+bytes = 6
+order = [
+  "cycles_total",
+  "cycles_setup",
+  "cycles_stream",
+  "cycles_flush",
+  "cycles_drain",
+  "cycles_stall",
+  "mac_useful",
+  "mac_useful_q0",
+  "mac_useful_q1",
+  "mac_useful_q2",
+  "mac_useful_q3",
+  "tiles",
+]
+
+# ---------------------------------------------------------------- self-test (SPEC §3.9)
+[selftest]
+fletcher32_check_abcde = 0xF04FC729     # Fletcher-32 of ASCII "abcde" (LE words, zero-pad)
+fletcher32_check_abcdef = 0x56502D2A    # Fletcher-32 of ASCII "abcdef"
