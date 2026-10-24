@@ -172,9 +172,17 @@ def load_measured(source, include_untracked=False):
         if k not in out or rec["run_id"] > out[k]["run_id"]:
             out[k] = rec
         inputs.append((rel(f), sha256(f)))
+        st = RECORD_STATS.setdefault(source, {"records": 0, "counter_diffs": 0, "builds": set()})
+        st["records"] += 1
+        st["counter_diffs"] += 1 if counter_diffs else 0
+        st["builds"].add(str(r.get("build_id")))
     for f, why in rejected:
         print(f"[make_plots] {source}: excluded {f}: {why}", file=sys.stderr)
     return out, inputs
+
+
+# Per-source totals over every loaded record (not only the newest per key), for source lines.
+RECORD_STATS: dict = {}
 
 
 def load_cost():
@@ -224,12 +232,15 @@ def source_line(model, measured_sets):
     parts = []
     for label, recs in measured_sets:
         if recs:
-            builds = sorted({str(r["build_id"]) for r in recs.values()})
+            st = RECORD_STATS.get(label.lower(), {})
+            builds = sorted(st.get("builds") or {str(r["build_id"]) for r in recs.values()})
             n = len(recs)
+            nrec = st.get("records", n)
             dirty = any(r["git_hash"].endswith("-dirty") for r in recs.values())
-            ndiff = sum(1 for r in recs.values() if r["counter_diffs"])
+            ndiff = st.get("counter_diffs", sum(1 for r in recs.values() if r["counter_diffs"]))
             what = "co-sim, not HW" if label == "SIM" else "board"
-            parts.append(f"{label} ({what}): {n} run{'s' if n != 1 else ''}, build "
+            parts.append(f"{label} ({what}): {n} shape{'s' if n != 1 else ''} plotted from "
+                         f"{nrec} int8 record{'s' if nrec != 1 else ''}, build "
                          f"{','.join(builds)}{' (dirty tree)' if dirty else ''}, "
                          f"{ndiff} with a counter != model")
         elif label == "HW":
@@ -382,7 +393,7 @@ def plot_util_all(th, model, hw, sim, facts):
         ax.set_xlabel("M (log₂)")
     for ax in axes[:, 0]:
         ax.set_ylabel("utilization")
-    legend(axes[0, 0], th, util_handles(th, hw, sim), loc="upper left")
+    legend(axes[1, 1], th, util_handles(th, hw, sim), loc="lower right")
     lo, hi = min(ratios.values()), max(ratios.values())
     facts["util_all_M1_ratio_range"] = {"source": tag, "range": [lo, hi]}
     title_and_source(
@@ -505,7 +516,7 @@ def plot_roofline(th, model, hw, sim, facts):
         for (name, M, mode), r in recs.items():
             if (name, M, mode) in ai:
                 ax.plot(ai[(name, M, mode)], r["util"] * peak, linestyle="none", marker=mk,
-                        markersize=7, color=th[mode], markeredgecolor=th["bg"], zorder=5)
+                        markersize=4.5, color=th[mode], markeredgewidth=0, zorder=5)
     for mode in ("FULL", "STRIP"):
         q = next(q for q in pts if q["name"] == g and q["M"] == 1 and q["mode"] == mode)
         ax.annotate(f"{g} M=1 {mode}", (q["arithmetic_intensity"], q["macs_per_cycle"]),
@@ -551,7 +562,7 @@ def plot_cost(th, model, cost, facts):
     a, b = cost["full_only"], cost["split"]
     delta = cost.get("breakdown", {}).get("delta", {})
     fig = plt.figure(figsize=(11.0, 5.8), facecolor=th["bg"])
-    gs = fig.add_gridspec(1, 2, left=0.07, right=0.98, top=0.72, bottom=0.17, wspace=0.28,
+    gs = fig.add_gridspec(1, 2, left=0.07, right=0.98, top=0.68, bottom=0.15, wspace=0.28,
                           width_ratios=[1.0, 1.15])
     ax = fig.add_subplot(gs[0])
     style_axes(ax, th)
@@ -614,19 +625,24 @@ def plot_cost(th, model, cost, facts):
     wpa = cost.get("worst_path", {}).get("full_only", {})
     meets = ("Both builds meet timing (WNS ≥ 0)." if a.get("wns_ns", -1) >= 0
              and b.get("wns_ns", -1) >= 0 else "A build FAILS timing (WNS < 0).")
+    placement = (wp.get("logic_levels") == 0 and wp.get("route_pct", 0) >= 90)
+    why = ("a 0-logic-level net is placement, not STRIP logic, so the Fmax delta is not a "
+           "clean cost of splitting." if placement else
+           "check this path before attributing the Fmax delta to splitting.")
     fig.text(0.012, 0.975,
-             f"BUILD: splitting costs +{dl:,} LUT (+{100 * dl / a['lut']:.0f}%) and +{dd} DSP; "
-             f"only +{mux_lut:,} LUT is array/sequencer muxing",
+             f"BUILD: the split costs +{dl:,} LUT (+{100 * dl / a['lut']:.1f}%) and +{dd} DSP; "
+             f"only +{mux_lut:,} LUT is muxing",
              ha="left", va="top", fontsize=14, fontweight="bold", color=th["text"])
     fig.text(0.012, 0.915,
              "The FULL-only build also drops requant lanes 8–15 (FULL drains 8 lanes), so most "
              "of the delta is STRIP's 16-wide output path.\n"
              f"{meets} Fmax est. {a['fmax_mhz']} → {b['fmax_mhz']} MHz (1000/(period − WNS) "
              f"at {cost.get('clock_mhz', 100):g} MHz, not a sweep).\n"
-             f"Worst paths are routing-dominated ({wpa.get('route_pct', 0):.0f}% / "
-             f"{wp.get('route_pct', 0):.0f}% routing, {wpa.get('logic_levels', '?')} / "
-             f"{wp.get('logic_levels', '?')} logic levels), so the Fmax delta is not a clean "
-             f"cost of splitting.",
+             f"Split worst path: {wp.get('source', '?').rsplit('/', 1)[0]}"
+             f" → {wp.get('destination', '?').rsplit('/', 1)[0]}, {wp.get('logic_levels', '?')} logic "
+             f"levels, {wp.get('route_pct', 0):.0f}% routing (FULL-only: "
+             f"{wpa.get('logic_levels', '?')} levels, {wpa.get('route_pct', 0):.0f}% routing):\n"
+             f"{why}",
              ha="left", va="top", fontsize=9.5, color=th["muted"])
     fig.text(0.012, 0.015,
              f"source: BUILD ({cost.get('source', '?')}) results/cost.json, git {cost.get('git_hash')}, "
@@ -649,6 +665,7 @@ def save(fig, outdir, name, theme, written):
 
 
 def build(outdir, measured=("hw", "sim"), include_untracked=False):
+    RECORD_STATS.clear()
     matplotlib.rcParams.update({
         "svg.hashsalt": "splitsys", "svg.fonttype": "path", "font.family": "DejaVu Sans",
         "hatch.linewidth": 0.6, "path.simplify": False,
@@ -684,6 +701,9 @@ def build(outdir, measured=("hw", "sim"), include_untracked=False):
         "inputs": [{"path": p, "sha256": h} for p, h in model["inputs"] + hw_in + sim_in
                    + cost_in],
         "headline_facts": json.loads(json.dumps(facts), parse_float=lambda s: round(float(s), 6)),
+        "measured_records": {k: {"records": v["records"], "counter_diffs": v["counter_diffs"],
+                                 "builds": sorted(v["builds"])}
+                             for k, v in sorted(RECORD_STATS.items())},
         "plots": sorted(os.path.basename(p) for p in written),
         "missing": ([] if hw else ["results/hw/*.json (no hardware runs yet)"])
         + ([] if cost else ["results/cost.json (cost plot not drawn)"]),
@@ -718,7 +738,10 @@ def main():
     for p in written:
         print(rel(p))
     if args.check:
-        with tempfile.TemporaryDirectory() as td:
+        # Project rule: scratch output under ~/.cache, never /tmp.
+        cache = os.path.join(os.path.expanduser("~"), ".cache")
+        os.makedirs(cache, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="splitsys-plots-", dir=cache) as td:
             again = build(td, measured, args.include_untracked)
             a, b = digest_dir(written), digest_dir(again)
             diff = sorted(k for k in a if a[k] != b.get(k))
