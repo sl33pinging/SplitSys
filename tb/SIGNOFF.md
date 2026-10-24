@@ -65,3 +65,23 @@ Logs are in `~/.cache/splitsys/tb/ve1/logs/20261024-102904-4395/`. Later commits
 | packet | 12 | RUN_GEMM accept/reject expectations now come from golden `Descriptor::from_bytes` + `validate` (`oracle descvalid`); SPEC-text intent is cross-checked. New: POLL priority busy > error > done > idle (`seq_error` level). New: exact RX timeout (D-019): g = RX_TIMEOUT continues, g = RX_TIMEOUT+1 resets, at several split points; both off-by-one mutants are caught. New: strict request/response, i.e. frames arriving during execution or during the response are discarded with no side effect. |
 | packet_ns (packet with STRIP_EN=0) | 1 | All 52 RUN_GEMM descriptors with STRIP_EN=0 (golden + SPEC rule 1): STRIP gets NACK_RANGE. |
 | pe, skew, uart, counters, buffers, requant, array | 9/6/5/6/5/4/6 | Unchanged tests, re-run clean at b53783d. |
+
+## Sign-off for KG2 candidate RTL dc1dea0 (H-1 display-orientation defaults), 2026-10-24 13:44-13:46 PDT
+
+RTL change under test: `top.sv` / `board_io.sv` defaults `LEFT_IS_D1` 1->0 and `AN0_IS_RIGHT` 1->0 (hardware-confirmed
+at H-1: build 52a66216 showed `6.126 6A25` for BUILD_ID 0x52A66216, so D0 is the left display and AN[0] the leftmost
+digit). Last commit touching rtl/: dc1dea0. HEAD advanced to 7b3af2c during the runs by fpga/ and results/ commits only.
+
+**Command:** `scripts/wsl 'SPLITSYS_CACHE_TAG=ve make -C tb -j12 signoff'` passed **11/11 suites, 64/64 tests**
+(pe 9, skew 6, uart 5, counters 6, buffers 5, requant 4, packet 12, packet_ns 1, array 6, core 5, core_ns 5),
+SEED=1, SCALE=1, 0 failures, `sign-off eligible: YES`:
+
+```
+== provenance: head=7b3af2c rtl=7b3af2c tb=b020f8f golden=382bda8 vec=8b48b12 cycle=c8b8125 spec_rs=d4fda53 spec=8a4691f run=20261024-134407-25872 ns=ve
+== sign-off eligible: YES
+```
+
+The same command at HEAD dc1dea0 (tb tree 38ab06f, before the tb/system display suite was added) also passed
+11/11, 64/64: `head=dc1dea0 rtl=dc1dea0 tb=38ab06f golden=382bda8 vec=8b48b12 cycle=c8b8125 spec_rs=d4fda53 spec=8a4691f run=20261024-133210-14921 ns=ve`, eligible YES.
+Logs: `~/.cache/splitsys/tb/ve/logs/<run>/`. No unit suite instantiates `board_io` or `top`, so the orientation change
+is covered at system level (tb/system `display` suite, see tb/system/SIGNOFF_SYSTEM.md).

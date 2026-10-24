@@ -28,6 +28,7 @@ Expected values come only from Rust:
 | directed | all 262 jobs of `sw/crates/vec/out/directed.json`, both modes: extreme products at K=256 (bypass + requant), zeros, identity W, all-ones K=37, **single nonzero at every PE position** (FULL 8×16, STRIP 4×16 → covers the lower-half `4+c` alignment), **quadrant isolation Q0..Q3** (counters check `mac_useful_q` per quadrant), requant ties/saturation, edge shapes |
 | modeswitch | 4 chains F,S,F,S,…,F (13 jobs each) on one board, no reset |
 | selftest | (a) power-on POLL=IDLE, LED0/1 off; SELFTEST opcode ×2 → payload `01 01 fl_full fl_strip` exact, counters == STRIP self-test prediction, LED[2:0]=011; user STRIP+FULL jobs then SELFTEST again; BTN1 reset → LEDs clear, PING ok, POLL=IDLE. (b) BTN0 press ×2 → LED0+LED1, counters == STRIP prediction; then SELFTEST opcode agrees. (c) 64×256×256 job running: RUN_GEMM/SELFTEST/WRITE_MEM/READ_MEM → BUSY, PING ok, POLL=BUSY, live cycles_total in (0, final); then DONE, final counters exact, SELFTEST passes |
+| display | 7-segment image rebuilt from the **real `top` D0/D1 AN/SEG pins** (harness `seg`, stepped 1 clock at a time over > 2 scan frames), with the **H-1 hardware-confirmed rule** (Phase H step H-1, 2026-10-24, build 52a66216 showed `6.126 6A25` for 0x52A66216): D0 = left display, AN[0] = leftmost digit; segments/anodes active low per the XDC. Expected images are golden board/spec data (SPEC §3.9 `F  9.3` / `S 21.4` format): power-on `----\|----`, `S   \| 21.4` (214, STRIP), `F   \|  9.3`, `F   \|  0.0`, `S   \| 99.9`, `F   \|100.0`, SET_DISPLAY mode 2 -> NACK_RANGE and the image is unchanged, `S   \|  0.5`. Also checks one anode at a time and a stable pattern per cell. Sensitivity: RTL 80954ef (old defaults D1-left/AN0-right) fails 7/8 (power-on dashes are orientation-symmetric) |
 
 Sensitivity (mutants, stand-in build, 2026-10-24): STRIP W-mid skew base 4→3 → 5/8 STRIP jobs fail with
 `PE(4,c) Q2` hints, self-test STRIP fails (LED1 off, fletcher b10ae555), FULL unaffected; `tap_flush` also
@@ -78,3 +79,18 @@ Tree clean for rtl/ tb/ sw/ demo/ spec/ at HEAD f402cc7; splitsys-host rebuilt f
   that directory, because neither search is recursive.
 - results/sim/session.json is **not committed**: the sweep and cosim-check hosts updated it concurrently, so its totals lost
   updates (it reads 56 GEMMs instead of 66). The host has no command that rebuilds it from records.
+
+### SIGN-OFF for KG2 candidate RTL dc1dea0 (H-1 display-orientation defaults), 2026-10-24 13:37-13:46 PDT
+RTL: last commit touching rtl/ = dc1dea0 (`LEFT_IS_D1` 1->0, `AN0_IS_RIGHT` 1->0 in top.sv/board_io.sv). New in tb:
+`display` suite (bee1cec), see the table above. No earlier system/cosim test checked pin-level display orientation.
+- `scripts/wsl 'SPLITSYS_CACHE_TAG=ve make -C tb/system SIGNOFF=1 SEED=1 WORKERS=18'` -> **625/625 PASS**
+  (the previous 617 = selftest 3, strip 100, full 200, directed 262, modeswitch 52, all pass; plus display 8/8),
+  260 s, `sign-off eligible: YES`. Every one of the 12 counters equal to the model on every job (model_git_hash
+  72da65248adf, latencies L_PE 3, L_RD 2, L_SETUP 16, L_RQ 7, L_WB 1, L_ACCEPT 1, L_DONE 1, provisional=false).
+  Provenance: `head=bee1cec rtl=bee1cec tb=b020f8f golden=382bda8 vec=8b48b12 cycle=c8b8125 spec_rs=d4fda53 spec=8a4691f run=20261024-133733-19964 ns=ve`
+- `scripts/wsl 'SPLITSYS_CACHE_TAG=ve make -C tb cosim-check RESULTS=$HOME/.cache/splitsys/ve/results'` -> **8/8 host
+  steps PASS** (ping, selftest FULL 6c1d81af / STRIP 8b1c6e80, ffn_up M=1 strip, ffn_up M=1 full, qkv M=8 both,
+  attn_out M=5 both int32, bench smoke, ping), 10 GEMMs, 2,400,256 MACs, 0 mismatches, `sign-off eligible: YES`.
+  Records in `~/.cache/splitsys/ve/results/sim/` (not the repo). Provenance:
+  `head=7b3af2c rtl=7b3af2c tb=b020f8f golden=382bda8 vec=8b48b12 cycle=c8b8125 spec_rs=d4fda53 spec=8a4691f run=20261024-134230-25213 ns=ve`
+  (7b3af2c vs bee1cec: fpga/known_good and results/hw commits only; rtl/ and tb/ identical).
