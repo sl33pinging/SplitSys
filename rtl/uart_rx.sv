@@ -48,9 +48,9 @@ module uart_rx
   localparam logic [OSW-1:0] OS_MID  = OSW'(OVERSAMPLE / 2 - 1);
 
   // synthesis-time sanity checks (elaboration error if violated)
-  if (DIV < 1)                 $error("uart_rx: divisor must be >= 1");
-  if (OVERSAMPLE < 4)          $error("uart_rx: OVERSAMPLE must be >= 4");
-  if ((1 << OSW) != OVERSAMPLE) $error("uart_rx: OVERSAMPLE must be a power of 2");
+  if (DIV < 1 || OVERSAMPLE < 4 || (1 << OSW) != OVERSAMPLE) begin : g_chk_cfg
+    $error("uart_rx: need DIV >= 1 and OVERSAMPLE a power of 2 >= 4");
+  end
 
   logic [DW-1:0] div_cnt;
   logic          tick;

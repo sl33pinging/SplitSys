@@ -42,8 +42,9 @@ module uart_tx
   localparam int unsigned BIT_CYC = DIV * OVERSAMPLE;
   localparam int unsigned BW      = $clog2(BIT_CYC);
 
-  if (DIV < 1)     $error("uart_tx: divisor must be >= 1");
-  if (BIT_CYC < 2) $error("uart_tx: bit period must be >= 2 clocks");
+  if (DIV < 1 || BIT_CYC < 2) begin : g_chk_cfg
+    $error("uart_tx: need DIV >= 1 and a bit period >= 2 clocks");
+  end
 
   // ---------------------------------------------------------- holding register
   logic       hold_v;
