@@ -42,6 +42,13 @@ else
   RTL_FILES := $(notdir $(shell git -C $(TB)/.. ls-tree --name-only $(RTL_SHA) rtl/))
 endif
 export RTL_DIR
+
+# Unit vectors from sw/crates/vec, generated per SEED into the cache, keyed by the
+# committed sw/ tree hash (the JSON meta records git_hash and git_dirty; tests log it).
+SW_TREE := $(shell git -C $(TB)/.. rev-parse --short HEAD:sw)
+VEC_DIR := $(SPLITSYS_CACHE)/vec/sw-$(SW_TREE)/seed$(SEED)
+export VEC_DIR
+VEC_UNITS := requant
 present = $(and $(wildcard $(TB)/$(1)/Makefile),$(if $(strip $(foreach f,$(rtl_of_$(1)),$(if $(filter $(f),$(RTL_FILES)),,missing))),,yes))
 UNITS := $(foreach u,$(ALL_UNITS),$(if $(call present,$(u)),$(u)))
 
@@ -49,7 +56,7 @@ SEED   ?= 1
 SCALE  ?= 1
 SEEDS  ?= 1 2 3
 
-.PHONY: units quick all oracle clean rtl_export $(ALL_UNITS)
+.PHONY: units quick all oracle clean rtl_export vec $(ALL_UNITS)
 
 units: $(UNITS)
 	@echo "== units passed: $(UNITS) (SEED=$(SEED) SCALE=$(SCALE) RTL=$(RTL_SHA))"
@@ -73,10 +80,13 @@ ifneq ($(RTL_REV),worktree)
 	@if [ ! -f $(RTL_DIR)/.exported ]; then rm -rf $(RTL_DIR); mkdir -p $(dir $(RTL_DIR)); 	  git -C $(TB)/.. archive $(RTL_SHA) rtl | tar -x -C $(dir $(RTL_DIR)) && touch $(RTL_DIR)/.exported; fi
 endif
 
-$(ALL_UNITS): oracle rtl_export
+vec:
+	@for u in $(VEC_UNITS); do [ -f $(VEC_DIR)/unit/$$u.json ] || 	  (cd $(TB)/../sw && cargo run -q --release -p splitsys-vec -- unit $$u --seed $(SEED) --n 100000 --out $(VEC_DIR)) || exit 1; done
+
+$(ALL_UNITS): oracle rtl_export vec
 	@echo "== [$@] SEED=$(SEED) SCALE=$(SCALE) RTL=$(RTL_SHA) ($(RTL_DIR))"
 	@start=$$(date +%s); \
-	$(MAKE) -C $(TB)/$@ SEED=$(SEED) SCALE=$(SCALE) RTL_DIR=$(RTL_DIR) SIM_BUILD_TAG=-$(RTL_SHA) > $(SPLITSYS_CACHE)/tb-$@.log 2>&1; rc=$$?; \
+	$(MAKE) -C $(TB)/$@ SEED=$(SEED) SCALE=$(SCALE) RTL_DIR=$(RTL_DIR) VEC_DIR=$(VEC_DIR) SIM_BUILD_TAG=-$(RTL_SHA) > $(SPLITSYS_CACHE)/tb-$@.log 2>&1; rc=$$?; \
 	end=$$(date +%s); \
 	grep -E "TESTS=|PASS |FAIL |\*\* " $(SPLITSYS_CACHE)/tb-$@.log | grep -vE "^\s*$$" | tail -40; \
 	echo "== [$@] rc=$$rc wall=$$((end-start))s log=$(SPLITSYS_CACHE)/tb-$@.log"; \
