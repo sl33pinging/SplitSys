@@ -488,6 +488,24 @@ fn respond(s: &mut TcpStream, code: u16, ctype: &str, body: &[u8]) {
     );
     let _ = s.write_all(hdr.as_bytes());
     let _ = s.write_all(body);
+    close_gracefully(s);
+}
+
+/// Half-close and drain before dropping, so the OS sends FIN, not RST (an RST
+/// with unread client bytes can make the browser drop the response; seen through
+/// the WSL2 localhost relay).
+fn close_gracefully(s: &mut TcpStream) {
+    let _ = s.flush();
+    let _ = s.shutdown(std::net::Shutdown::Write);
+    s.set_read_timeout(Some(Duration::from_millis(200))).ok();
+    let mut buf = [0u8; 1024];
+    let t0 = Instant::now();
+    while t0.elapsed() < Duration::from_millis(500) {
+        match s.read(&mut buf) {
+            Ok(0) | Err(_) => break,
+            Ok(_) => {}
+        }
+    }
 }
 
 fn json_resp(s: &mut TcpStream, code: u16, v: &Value) {

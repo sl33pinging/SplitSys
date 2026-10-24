@@ -252,7 +252,7 @@ function renderBreakdown(svg, r) {
 function renderVerified() {
   const s = S.session || {};
   setBadge('ver-badge', srcLabel());
-  const where = { hw: 'on hardware', sim: 'in RTL co-sim', model: 'on the mock board', replay: 'on hardware (replay)' }[srcLabel()] || '';
+  const where = { hw: 'on hardware', sim: 'in RTL simulation', model: 'on the mock board', replay: 'on hardware (replay)' }[srcLabel()] || '';
   if (srcLabel() === 'model') {
     // Mock-board output is computed by the golden model itself: comparing it to
     // golden is circular, so nothing is counted as verified here.
@@ -262,7 +262,7 @@ function renderVerified() {
     return;
   }
   const mm = s.mismatches || 0;
-  $('ver-title').textContent = `Verified ${where}:${mm === 0 ? 'zero mismatches' : mm + ' mismatches'}`;
+  $('ver-title').textContent = `Verified ${where}: ${mm === 0 ? 'zero mismatches' : mm + ' mismatches'}`;
   $('ver-body').innerHTML = `
     <div class="mid">${int(s.gemms_verified || 0)} <span style="font-size:26px" class="muted">GEMMs</span></div>
     <div class="mid" style="font-size:38px;margin-top:6px">${int(s.macs_verified || 0)} <span style="font-size:24px" class="muted">MACs bit-exact</span></div>
@@ -283,13 +283,17 @@ function renderCost() {
   const d = (k) => s[k] - f[k];
   const rel = (k) => f[k] ? ` (${d(k) >= 0 ? '+' : '−'}${Math.abs(100 * d(k) / f[k]).toFixed(1)}%)` : '';
   const sg = (v) => (v >= 0 ? '+' : '−') + int(Math.abs(v));
-  $('cost-title').textContent = `Splitting costs ${sg(d('lut'))} LUTs${rel('lut')}`;
-  setBadge('cost-badge', c.source === 'hw-build' ? 'hw' : 'model', c.source === 'hw-build' ? 'BUILD' : 'MODEL');
+  $('cost-title').textContent = `Splitting costs ${sg(d('lut'))} LUTs${rel('lut')} and ${sg(d('dsp'))} DSPs`;
+  setBadge('cost-badge', 'hw', c.source === 'hw-build' ? 'BUILD' : esc(c.source || '?').toUpperCase());
+  const bd = c.breakdown && c.breakdown.delta;
+  const parts = bd ? ['requant', 'array', 'sequencer'].filter((k) => bd[k]).map((k) => `${k} ${sg(bd[k].lut)}${bd[k].dsp ? ` / ${sg(bd[k].dsp)} DSP` : ''}`).join(' · ') : '';
+  const wp = c.worst_path && c.worst_path.split;
+  const fmaxNote = wp ? `split worst path: ${wp.logic_levels} logic levels, ${Math.round(wp.route_pct)}% routing` : 'see fmax_note';
   body.innerHTML = `
     <table class="err"><tr><th></th><th>FULL only</th><th>split</th><th>Δ</th></tr>
-    ${['lut', 'ff', 'dsp', 'bram'].map((k) => `<tr><td>${k.toUpperCase()}</td><td>${int(f[k])}</td><td>${int(s[k])}</td><td>${sg(d(k))}${rel(k)}</td></tr>`).join('')}
-    <tr><td>Fmax MHz</td><td>${f.fmax_mhz}</td><td>${s.fmax_mhz}</td><td>${(s.fmax_mhz - f.fmax_mhz).toFixed(1)}</td></tr></table>
-    <div class="note" style="margin-top:8px">from Vivado reports · ${esc(c.source || '')}</div>`;
+    ${['lut', 'ff', 'dsp'].map((k) => `<tr><td>${k.toUpperCase()}</td><td>${int(f[k])}</td><td>${int(s[k])}</td><td>${sg(d(k))}${rel(k)}</td></tr>`).join('')}</table>
+    <div class="kv" style="margin-top:8px;font-size:20px;line-height:1.3">Δ LUT by block: <span class="mono" style="font-size:20px">${parts}</span></div>
+    <div class="note" style="margin-top:6px;line-height:1.3">BRAM ${f.bram} in both. Δ includes requant lanes 8–15 (STRIP drains 16 wide). Both meet ${c.clock_mhz || 100} MHz; the Fmax estimates are not attributed to STRIP (${fmaxNote}).</div>`;
 }
 function renderTicker() {
   const t = $('ticker'); t.innerHTML = '';
@@ -529,7 +533,7 @@ function renderTrade() {
   $('trade-body').innerHTML = `
     <div><b>Gain:</b> ${gain ? `<span class="mono strip">${gain}</span> utilization on ffn_up at M=1 (STRIP vs FULL, ${badgeFor(srcLabel())[0]})` : '<span class="muted">pending a FULL and a STRIP run of ffn_up at M=1</span>'}</div>
     <div><b>Bandwidth:</b> <span class="mono">20</span> vs <span class="mono">16</span> operand bytes per stream cycle (4 A + 16 W vs 8 A + 8 W).</div>
-    <div><b>Area / Fmax:</b> ${lut ? `<span class="mono">${lut}</span>, Fmax ${c.split.fmax_mhz} vs ${c.full_only.fmax_mhz} MHz (Vivado)` : '<span class="muted">pending build (results/cost.json)</span>'}</div>
+    <div><b>Area:</b> ${lut ? `<span class="mono">${lut}</span>, <span class="mono">+${c.split.dsp - c.full_only.dsp}</span> DSPs (Vivado, BUILD), incl. the 16-wide requant; both builds meet timing at ${c.clock_mhz || 100} MHz` : '<span class="muted">pending build (results/cost.json)</span>'}</div>
     <div><b>When it pays:</b> M ≤ 4 (decode). At M ≥ 8 both shapes fill the array.</div>`;
 }
 
@@ -549,6 +553,7 @@ async function refresh() {
     renderAll();
   } catch (e) {
     if (S) { S.board = Object.assign({}, S.board, { status: 'disconnected' }); renderChrome(); }
+    else setTimeout(refresh, 500); // first load failed: retry until the server answers
   }
 }
 function post(path, body) {
@@ -581,5 +586,18 @@ renderChrome = function () { if (forcedScene && S) S.scene = forcedScene; _origR
 // ?shot=1 (headless screenshots): no SSE / polling, so the page reaches network idle.
 const shot = qs.has("shot");
 fit();
-refresh();
-if (!shot) { connectEvents(); setInterval(refresh, 5000); }
+if (shot) {
+  // Headless screenshots use a virtual-time budget that can expire before an async
+  // fetch resolves; a synchronous request pins the state before the first paint.
+  try {
+    const x = new XMLHttpRequest();
+    x.open('GET', '/api/state', false);
+    x.send();
+    S = JSON.parse(x.responseText);
+    renderAll();
+  } catch (e) { refresh(); }
+} else {
+  refresh();
+  connectEvents();
+  setInterval(refresh, 5000);
+}
