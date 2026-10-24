@@ -1,6 +1,8 @@
-# SplitSys Technical Specification (v1.0)
+# SplitSys Technical Specification (v1.1)
 
 This document is the contract between RTL, the Rust models, the host, and the dashboard. `spec-steward` owns it. Values marked **[spec.toml]** must be defined in `spec/spec.toml` and consumed through codegen, never hard-coded twice.
+
+**Codegen.** `cd sw && cargo run -p splitsys-spec --bin gen` validates `spec/spec.toml` and writes `rtl/gen/splitsys_pkg.sv` (SystemVerilog `package splitsys_pkg`) and `sw/crates/spec/src/generated.rs` (re-exported as `splitsys_spec::*`). `--check` verifies both are current without writing. Names are identical on both sides (`ROWS`, `L_PE`, `OP_RUN_GEMM`, `ST_NACK_RANGE`, `CTR_TILES`, ...); SV opcodes, status codes, poll states, modes, and regions are `typedef enum logic [7:0]` (`opcode_e`, `status_e`, `poll_e`, `mode_e`, `region_e`). v1.1 resolves the ambiguities listed in `docs/DECISIONS.md` (D-001 to D-015).
 
 ---
 
@@ -34,6 +36,8 @@ C[M×N] = A[M×K] · W[K×N]. One transformer block with d_model = 64, at M = 1 
 
 Also run M ∈ {1, 2, 4, 8, 16, 32, 64} for the utilization-vs-M sweep (the headline chart).
 
+The shapes and the M sweep live in **[spec.toml]** `[bench]` (`BENCH_SHAPES`, `BENCH_M_SWEEP`, `BENCH_M_DECODE`, `BENCH_M_PREFILL`); golden, cycle, and host read that one list (D-009).
+
 ### 1.2 Quantization (identical in RTL and in `golden`)
 
 - **Weights:** int8, symmetric, per-output-column scale. **Activations:** int8, symmetric, per-tensor scale. No zero points.
@@ -47,7 +51,7 @@ Also run M ∈ {1, 2, 4, 8, 16, 32, 64} for the utilization-vs-M sweep (the head
   - The product fits in 48 bits signed (|acc| < 2^31, mult < 2^15).
   - Rounding is round-half-up toward +∞, which follows from floor(x + 0.5).
   - The activation scale is folded into `mult[n]` by the host.
-- **Bypass:** with `flags.requant_en = 0`, the raw int32 accumulators are written (bring-up only; slower output path, see §3.6).
+- **Bypass:** with `flags.requant_en = 0, flags.out_int32 = 1` (flags = `FLAGS_INT32` = 0x02), the raw int32 accumulators are written (bring-up only; slower output path, see §3.6). The normal path is flags = `FLAGS_INT8` = 0x01 (`requant_en = 1, out_int32 = 0`). These are the **only two legal flags values**; any other value (0x00, 0x03, or any other bit set) is rejected with NACK_RANGE (D-003).
 
 ### 1.3 Data layouts (host packs, RTL streams; `golden` provides pack/unpack)
 
@@ -57,7 +61,9 @@ All multi-byte values are little-endian. Out-of-range rows and columns are **zer
 - **W (weights)** in 16-column blocks: word128 index `nb*K + k` holds `W[k, 16*nb + c]` in byte lane c, for c = 0..15. FULL mode uses lanes 0–7 or 8–15 (an 8-column half-block); STRIP uses all 16.
 - **C int8 output** in 16-column blocks: word128 index `nb*M_pad + m` holds `C[m, 16*nb + c]` in byte lane c. FULL writes 8 lanes with byte enables. `M_pad = ceil(M/8)*8`.
 - **C int32 output (bypass)**: word128 index `(nb*M_pad + m)*4 + q` holds int32 lanes 4q..4q+3.
-- **RQPARAM:** word32 index n = `{8'h0, shift[7:0], mult[15:0]}`.
+- **RQPARAM:** word32 index n = `{8'h0, shift[7:0], mult[15:0]}`. Byte image of entry n: bytes `4n, 4n+1` = mult (LE), `4n+2` = shift, `4n+3` = 0. Hardware does not range-check RQPARAM contents; the host must write mult in 1..32767 and shift in 1..31 for every column `rq_base .. rq_base+N-1`.
+- **Word indices are relative to the descriptor base:** "word index i" above means buffer word `a_base + i`, `w_base + i`, `out_base + i`, and RQPARAM entry `rq_base + n`.
+- **Out-of-bounds outputs are unspecified (D-006).** OBUF lanes or rows that do not hold a logical `C[m, n]` with m < M and n < N (padding rows `M..M_pad-1`, padding columns `N..16*ceil(N/16)-1`) may be written with any value or left untouched. Host, golden comparisons, and testbenches compare **in-bounds elements only**. Padding columns may read RQPARAM entries past `rq_base+N-1` (the RQPARAM address wraps modulo `RQ_ENTRIES`); this is harmless because those outputs are unspecified.
 
 ---
 
@@ -112,7 +118,7 @@ Quadrants (4×4 each): Q0 = rows 0–3 × cols 0–3, Q1 = rows 0–3 × cols 4�
 
 ### 3.3 Skew units (`rtl/skew.sv`)
 
-One parameterized module: `LANES`, `WIDTH`, and per-lane extra delay as a parameter array. Lane j is delayed `BASE[j] + j` cycles, carrying data, vld, and first. The same module is used for A skew (base 0) and W skew (base 0 for lanes 0–7; base 4 for lanes 8–15, active only in STRIP). The FULL-mode lanes 8–15 are unused.
+One parameterized module: `LANES`, `WIDTH`, and per-lane extra delay as a parameter array. Lane j is delayed `BASE[j] + (j mod COLS)` cycles, i.e. base plus its **column index within its 8-wide slab** (for A, `j mod COLS = j` = the row index), carrying data, vld, and first. The same module is used for A skew (base 0) and W skew (base 0 for lanes 0–7; base 4 for lanes 8–15, active only in STRIP). So W lane 8+c is delayed `4 + c`, matching §3.2, **not** `4 + 8 + c` (D-008; v1.0 wrote `BASE[j] + j`, which contradicted §3.2). Generated constants: `STRIP_W_LANE_FIRST = 8`, `STRIP_W_ENTRY_ROW = 4`, `STRIP_W_SKEW_BASE = 4`, `W_SKEW_BASE_STRIP` (per-lane, SV packed `[8*j +: 8]`). In FULL mode, a lane-select mux before the W skew routes WBUF lanes `8*(nb8 mod 2) .. +7` (the tile's half-block) into skew lanes 0–7; skew lanes 8–15 are unused.
 
 ### 3.4 Buffers (`rtl/buffers.sv`)
 
@@ -127,6 +133,8 @@ True dual-port BRAM (UG901 inference templates, `(* ram_style = "block" *)`): po
 | Self-test ROM | per contents | small | ≤ 4 |
 
 Host-side addressing: byte addresses through the packet layer. The buffer converts them to words and handles partial-word writes with byte enables.
+
+**Byte addressing rule (D-002):** within a region, `byte_addr = word_index * WORD_BYTES + lane`, where lane 0 is the least significant byte of the word (little-endian). So `word_index = byte_addr / WORD_BYTES` and `lane = byte_addr mod WORD_BYTES`. Region sizes in bytes **[spec.toml]**: WBUF 65,536 (16 B/word), ABUF 16,384 (8 B/word), OBUF 16,384 (16 B/word), RQPARAM 1,024 (4 B/entry). Accesses need not be word-aligned; partial words use byte enables, and untouched bytes of a word keep their value.
 
 ### 3.5 Sequencer (`rtl/sequencer.sv`)
 
@@ -145,12 +153,38 @@ Host-side addressing: byte addresses through the packet layer. The buffer conver
 | 20 | rq_base | u16 | index into RQPARAM for column 0 |
 | 22 | reserved | u16 | 0 |
 
-**FSM:** `IDLE → TILE_SETUP → STREAM → FLUSH → DRAIN → WRITEBACK → (next tile | DONE)`.
+`a_base`, `w_base`, `out_base` are **word indices** in their buffer's own word size (8 B, 16 B, 16 B); `rq_base` is an RQPARAM **entry** index. They are not byte addresses (D-005).
+
+**Validation (RUN_GEMM; RTL and host implement exactly these, D-005).** With `MB = ceil(M/8)`, `M_pad = 8*MB`, `NB = ceil(N/16)`, the descriptor is accepted only if all of the following hold; otherwise the response is **NACK_RANGE** and nothing runs. A RUN_GEMM while a job or self-test is running gets **BUSY** (checked first). A payload length other than 24 gets NACK_RANGE.
+1. `mode ∈ {FULL}`, or `mode = STRIP` and the bitstream has `ENABLE_STRIP = 1`. INDEP (2) and values ≥ 3 → NACK_RANGE.
+2. `flags ∈ {0x01 (int8), 0x02 (int32 bypass)}`.
+3. `1 ≤ M ≤ 64`, `1 ≤ K ≤ 256`, `1 ≤ N ≤ 256`.
+4. `a_base + MB*K ≤ ABUF_WORDS` (A extent).
+5. `w_base + NB*K ≤ WBUF_WORDS` (W extent).
+6. `out_base + NB*M_pad*X ≤ OBUF_WORDS`, with `X = 1` for int8 and `X = INT32_WORDS_PER_ROW = 4` for int32 bypass (C extent). At `out_base = 0` the int8 path fits every legal shape (16 × 64 = 1024 words); int32 bypass fits only `NB*M_pad ≤ 256` (e.g. M ≤ 64 with N ≤ 64).
+7. `rq_base + N ≤ RQ_ENTRIES` (checked for both flags values; the host sends `rq_base = 0` in bypass).
+8. `reserved = 0`.
+
+All sums are evaluated without wraparound (the bases are u32; RTL may first require the upper bits of each base to be zero, which is equivalent since every buffer is smaller than 2^16 words).
+
+**FSM:** `IDLE → (ACCEPT) → TILE_SETUP → STREAM → FLUSH → DRAIN → WRITEBACK → (next tile | DONE)`. State lengths per tile are exact and are what the counters measure (§3.7, §4):
+
+| State | Cycles per tile | Counter |
+| --- | --- | --- |
+| ACCEPT (once per job) | `L_ACCEPT` | `cycles_total` only |
+| TILE_SETUP | `L_SETUP` | `cycles_setup` |
+| STREAM | `L_RD + K` | `cycles_stream` |
+| FLUSH | `(R-1) + (C-1) + L_PE` = `14 + L_PE` | `cycles_flush` |
+| DRAIN | `T_DRAIN(mode, flags)` | `cycles_drain` |
+| WRITEBACK | `L_RQ + L_WB` | `cycles_drain` |
+| DONE entry (once per job) | `L_DONE` | `cycles_total` only |
+
 - **Tile order:** column-block outer, row-block inner. FULL tiles are 8×8; STRIP tiles are 4×16.
-- **TILE_SETUP** loads the 16 (or 8) requant parameters for the tile's columns. It takes `L_SETUP` cycles **[spec.toml]**.
-- **STREAM** issues K reads per buffer. The address generator selects the half-word lanes per mode and tile parity.
+- **TILE_SETUP** loads the 16 (or 8) requant parameters for the tile's columns. It takes `L_SETUP` cycles **[spec.toml]**, in both modes and for both flags values (the length does not depend on mode, so the model has one constant).
+- **STREAM** issues K reads per buffer; the state lasts `L_RD + K` cycles so the last read's data has left the BRAM. The address generator selects the half-word lanes per mode and tile parity.
 - **FLUSH** waits `(R-1)+(C-1)+L_PE` cycles for the last products to land.
-- **DRAIN** reads results row by row: FULL reads 8 rows × 8 lanes (8 cycles), STRIP reads 4 rows × 16 lanes (4 cycles).
+- **DRAIN** reads results row by row, one OBUF write per cycle: FULL int8 reads 8 rows × 8 lanes (8 cycles), STRIP int8 reads 4 rows × 16 lanes (4 cycles). int32 bypass: FULL 8 rows × 2 writes = 16 cycles, STRIP 4 rows × 4 writes = 16 cycles (D-004).
+- **WRITEBACK** waits `L_RQ + L_WB` cycles for the requant pipeline and the last OBUF write to complete.
 - **MVP:** stages do not overlap; the array idles during drain. A later target: shadow accumulators that overlap drain with the next tile.
 - **Bounds:** the sequencer computes in-bounds masks from M and N for the counters (padding is zero, so the math is unaffected).
 
@@ -159,23 +193,25 @@ Host-side addressing: byte addresses through the packet layer. The buffer conver
 - 16 lanes, each implementing §1.2 bit-exactly. A 32×15 multiply needs **two DSP48E1 per lane**, or use LUT multipliers if the DSP budget is tight. The DSP budget is 64 (PE) + up to 32 (requant) = 96 ≤ 120.
 - Pipeline latency `L_RQ` **[spec.toml]**.
 - **int8 path:** one 128-bit write per drained row (FULL uses byte enables for 8 lanes).
-- **int32 bypass:** four 128-bit writes per drained row. This is slower, used only for bring-up, and its extra cycles are counted as `cycles_drain`.
+- **int32 bypass:** per the §1.3 int32 layout one 16-column block row is 4 OBUF words (`INT32_WORDS_PER_ROW`). A STRIP row covers all 16 columns → **4** full 128-bit writes; a FULL row covers 8 columns (half-block `p = nb8 mod 2`) → **2** full 128-bit writes, words `q = 2p, 2p+1` (D-004). This is slower, used only for bring-up, and its extra cycles are counted as `cycles_drain` (`T_DRAIN_FULL_INT32 = T_DRAIN_STRIP_INT32 = 16`).
 
 ### 3.7 Performance counters (`rtl/counters.sv`)
 
-48-bit counters, cleared on `RUN_GEMM`, frozen at DONE, read with `READ_COUNTERS` in the order given in **[spec.toml]**:
+48-bit counters (`COUNTER_BITS`), cleared on an accepted `RUN_GEMM` (or at the start of each self-test GEMM), frozen at DONE. `READ_COUNTERS` returns all 12, 6 bytes each little-endian (72 bytes), **in exactly this order** (the index is `CTR_<NAME>` in both the SV package and Rust; this order also matches the DEMO.md §4 results schema, where `mac_useful_q` is the array `[q0, q1, q2, q3]`). The v1.0 table listed them in a different order; this table is normative (D-007).
 
-| Counter | Increments when |
-| --- | --- |
-| `cycles_total` | every cycle from descriptor accept to DONE |
-| `cycles_stream` | FSM in STREAM |
-| `cycles_flush` | FSM in FLUSH |
-| `cycles_drain` | FSM in DRAIN or WRITEBACK |
-| `cycles_setup` | FSM in TILE_SETUP |
-| `cycles_stall` | the array is waiting on buffer or output backpressure (0 in MVP unless a hazard exists) |
-| `mac_useful` | += number of PEs performing an in-bounds MAC this cycle (popcount of 64 bits) |
-| `mac_useful_q[0..3]` | the same, per quadrant |
-| `tiles` | one per completed tile |
+| Index | Counter | Increments when |
+| --- | --- | --- |
+| 0 | `cycles_total` | every cycle from descriptor accept to DONE: `L_ACCEPT + Σ(per-tile states) + cycles_stall + L_DONE` |
+| 1 | `cycles_setup` | FSM in TILE_SETUP |
+| 2 | `cycles_stream` | FSM in STREAM |
+| 3 | `cycles_flush` | FSM in FLUSH |
+| 4 | `cycles_drain` | FSM in DRAIN or WRITEBACK |
+| 5 | `cycles_stall` | the FSM is held waiting on buffer or output backpressure (0 in MVP unless a hazard exists). A stalled cycle increments **only** `cycles_stall` (and `cycles_total`), never a state counter, so the invariant below stays exact |
+| 6 | `mac_useful` | += number of PEs performing an in-bounds MAC this cycle (popcount of 64 bits) |
+| 7–10 | `mac_useful_q0` .. `mac_useful_q3` | the same, per quadrant (Q0..Q3 as in §3.2) |
+| 11 | `tiles` | one per completed tile (at the end of its WRITEBACK) |
+
+While a job runs, READ_COUNTERS returns live (not frozen) values.
 
 **Invariants checked on every run:**
 - `mac_useful == M*N*K` exactly.
@@ -208,9 +244,26 @@ Host-side addressing: byte addresses through the packet layer. The buffer conver
 
 `build_id` is a 32-bit generic set at synthesis from the short git hash. The host and dashboard display it.
 
+**Protocol details (v1.1, D-010).** All multi-byte fields little-endian, including `len`.
+- **CRC-8** is CRC-8/SMBUS: MSB-first, no reflection, no final XOR; check value of ASCII `"123456789"` = 0xF4 (`CRC8_CHECK`). Request CRC covers `opcode, len(2), payload`; response CRC covers `status, len(2), payload`.
+- **`RX_TIMEOUT` = 1,000,000 cycles (10 ms at 100 MHz)** of line idle inside a frame resets the parser to hunt for `0xA5`. Rationale: ≈ 115 byte times at 115200 baud (tolerates USB-UART scheduling gaps between host packets), still invisible to a human, and ≥ 2 byte times at any baud we might use. Testbenches may override it through the receiving module's parameter (default = package value) to keep truncated-frame tests short.
+- **Error precedence:** bad CRC → NACK_CRC (payload ignored); unknown opcode → NACK_OPCODE; then BUSY; then payload-length or range errors → NACK_RANGE. Error responses have `len = 0`. A frame with `len > MAX_PAYLOAD` is not buffered: the parser drops it, waits for `RX_TIMEOUT` of idle, and sends NACK_RANGE.
+- **BUSY:** while a RUN_GEMM job or self-test runs, `RUN_GEMM`, `SELFTEST`, `WRITE_MEM`, and `READ_MEM` get BUSY. `PING`, `POLL`, `READ_COUNTERS`, and `SET_DISPLAY` are always served.
+- **PING** (request len 0): response `"SPLT"` (bytes 0x53 0x50 0x4C 0x54, `PING_MAGIC`), `PROTO_VERSION` u8 (= 1), `build_id` u32; len 9.
+- **WRITE_MEM:** payload `region u8, byte_addr u32, data[len-5]`, with `1 ≤ len-5`, so at most 1019 data bytes per frame. NACK_RANGE if `region > 3` or `byte_addr + (len-5) > region bytes`.
+- **READ_MEM:** payload `region u8, byte_addr u32, rlen u16` (len 7). NACK_RANGE if `region > 3`, `rlen = 0`, `rlen > MAX_PAYLOAD`, or `byte_addr + rlen > region bytes`. Response payload is `rlen` bytes.
+- **RUN_GEMM:** see §3.5 validation. ACK (len 0) means accepted and started.
+- **POLL** (len 0): response 1 byte: 0 IDLE (after reset), 1 BUSY, 2 DONE (last job finished; stays until the next RUN_GEMM/SELFTEST), 3 ERROR (reserved; never produced by the MVP).
+- **READ_COUNTERS** (len 0): response 72 bytes, order of §3.7.
+- **SELFTEST** (len 0): the response is sent when both self-test GEMMs finish (well under 1 ms): `pass_full u8, pass_strip u8, fletcher_full u32, fletcher_strip u32` (len 10; pass = 1 if the computed checksum equals the ROM's stored value, else 0; the checksums are the computed ones). Afterwards the counters hold the STRIP self-test run.
+- **SET_DISPLAY:** payload `util_permille u16, mode u8` (len 3). NACK_RANGE if `util_permille > 1000` or `mode > 1`.
+- Any opcode whose payload length differs from the one stated here gets NACK_RANGE.
+
 ### 3.9 Board I/O and self-test (`rtl/board_io.sv`, `rtl/selftest.sv`, `rtl/top.sv`)
 
 - **Self-test:** BTN0 (or the SELFTEST opcode) runs one FULL and one STRIP GEMM from a ROM image generated by `sw/crates/vec` (`$readmemh` at synthesis). It compares the Fletcher-32 checksum of the output buffer against the stored value.
+- **Fletcher-32 definition (D-001):** input bytes are grouped into 16-bit **little-endian** words, `word[i] = byte[2i] | byte[2i+1] << 8`; an odd trailing byte is zero-padded. `sum1 = sum2 = 0` initially; per word, `sum1 = (sum1 + word) mod 65535`, then `sum2 = (sum2 + sum1) mod 65535`. Both sums stay in 0..65534 (a word 0xFFFF counts as 0; end-around-carry hardware must map 0xFFFF to 0). Result = `(sum2 << 16) | sum1`. Check values: `"abcde"` → 0xF04FC729, `"abcdef"` → 0x56502D2A, `"abcdefgh"` → 0xEBE19591 (`FLETCHER32_CHECK_*`).
+- **Bytes summed:** the C extent of that run, i.e. OBUF words `out_base .. out_base + NB*M_pad - 1` (`NB = ceil(N/16)`, `M_pad = 8*ceil(M/8)`) in increasing word order, each word as its 16-byte little-endian image (lane 0 first). Because out-of-bounds outputs are unspecified (§1.3), **self-test descriptors must use `M mod 8 = 0`, `N mod 16 = 0`, and flags = int8**, so every summed byte is a defined output. The sum length is a multiple of 16 bytes, so the odd-length rule never applies in hardware.
 - **LEDs:** LED0 FULL pass, LED1 STRIP pass, LED2 busy, LED3 UART activity, LED15 heartbeat (1 Hz).
 - **7-segment display:** shows the mode letter and utilization to one decimal place, for example `F  9.3` or `S 21.4`, from the last run or SET_DISPLAY.
 - **BTN1:** synchronous reset.
@@ -225,11 +278,27 @@ All `L_*` constants live in spec.toml and are set to the RTL's real values by `r
 ```
 T_tile(mode, K) = L_SETUP + (L_RD + K) + ((R-1) + (C-1) + L_PE) + T_DRAIN(mode, flags) + L_RQ + L_WB
   R = 8, C = 8 in both modes (physical array; the STRIP lower-half delay is absorbed, see §3.2)
-  T_DRAIN = 8 (FULL int8), 4 (STRIP int8), ×4 for int32 bypass
+  T_DRAIN = 8 (FULL int8), 4 (STRIP int8), 16 (FULL int32 = 8 rows x 2), 16 (STRIP int32 = 4 rows x 4)
 tiles(FULL)  = ceil(M/8)  * ceil(N/8)
 tiles(STRIP) = ceil(M/4)  * ceil(N/16)
-cycles_total = L_ACCEPT + tiles * T_tile + L_DONE
+cycles_total = L_ACCEPT + tiles * T_tile + cycles_stall + L_DONE      (cycles_stall = 0 in MVP)
 ```
+
+**Each term lands in exactly one counter (D-011, normative; RTL and `cycle` implement the same split):**
+
+| Counter | Model value |
+| --- | --- |
+| `cycles_setup` | `tiles * L_SETUP` |
+| `cycles_stream` | `tiles * (L_RD + K)` |
+| `cycles_flush` | `tiles * ((R-1) + (C-1) + L_PE)` |
+| `cycles_drain` | `tiles * (T_DRAIN(mode, flags) + L_RQ + L_WB)` (DRAIN + WRITEBACK states) |
+| `cycles_stall` | 0 (MVP) |
+| `cycles_total` | `L_ACCEPT + setup + stream + flush + drain + stall + L_DONE` |
+| `tiles` | `tiles(mode)` |
+| `mac_useful` | `M*N*K` |
+| `mac_useful_q0..q3` | in-bounds MACs per quadrant from the tile mapping (§3.2) |
+
+`L_ACCEPT` and `L_DONE` appear only in `cycles_total`.
 
 **Utilization ceilings (from the mapping, before overheads):**
 
