@@ -13,18 +13,17 @@
 // on both ports, single clock), so Vivado infers RAMB36E1/RAMB18E1 with the
 // optional output register (DOA_REG = DOB_REG = 1).
 //
-// Port A -- host side, byte granular (packet layer, self-test)
-//   h_en      access this cycle
-//   h_we      1 = write h_wdata to byte h_addr, 0 = read byte h_addr
-//   h_addr    BYTE address within the region: word = h_addr / WORD_BYTES,
-//             lane = h_addr % WORD_BYTES (little-endian, SPEC sec. 1.3).
-//             Out-of-range checks belong to the packet layer (NACK_RANGE).
-//   h_wdata   byte to write (replicated to every lane, byte enable = lane)
-//   h_rdata   byte read: valid exactly L_RD = 2 cycles after an h_en & !h_we
-//             cycle and held until the next host read reaches the output.
-//             Write cycles do not disturb h_rdata.
-//   h_rvalid  1-cycle pulse, L_RD = 2 cycles after each host read: h_rdata
-//             is that read's byte in this cycle.
+// Port A -- host side, full word (packet.sv / selftest memory bus, via core)
+//   a_en      access this cycle
+//   a_we      per-byte write enables (all 0 = read). Lane i = a_wdata[8*i +: 8].
+//             Partial words are written with byte enables only; untouched
+//             bytes keep their value (SPEC sec. 3.4, D-002).
+//   a_addr    WORD address within the region
+//   a_wdata   word to write
+//   a_rdata   word read: valid exactly L_RD = 2 cycles after an a_en cycle
+//             with a_we = 0, and held until the next port-A read reaches the
+//             output. Write cycles do not disturb a_rdata.
+//   a_rvalid  1-cycle pulse, L_RD = 2 cycles after each port-A read.
 //
 // Port B -- array side, full word
 //   b_en      access this cycle
@@ -48,51 +47,29 @@
 //          a reset would block inference); the memory powers up as zero
 //          (BRAM INIT = 0, mirrored by the initial block for simulation).
 // Critical path: BRAM clock-to-out with DO_REG = 1 (~0.9 ns) -> consumer;
-//          host byte mux (WORD_BYTES:1 x 8 bits, 1-2 LUT levels) after the
-//          output register -> packet layer register.
+//          no logic after the output registers inside this module.
 // =============================================================================
 module buffers #(
     parameter int WORDS      = splitsys_pkg::WBUF_WORDS,
     parameter int WORD_BYTES = splitsys_pkg::WBUF_WORD_BYTES
 ) (
-    input  logic                                  clk,
-    input  logic                                  rst,
-    // port A: host, byte granular
-    input  logic                                  h_en,
-    input  logic                                  h_we,
-    input  logic [$clog2(WORDS*WORD_BYTES)-1:0]   h_addr,
-    input  logic [7:0]                            h_wdata,
-    output logic [7:0]                            h_rdata,
-    output logic                                  h_rvalid,
+    input  logic                       clk,
+    input  logic                       rst,
+    // port A: host, full word
+    input  logic                       a_en,
+    input  logic [WORD_BYTES-1:0]      a_we,
+    input  logic [$clog2(WORDS)-1:0]   a_addr,
+    input  logic [8*WORD_BYTES-1:0]    a_wdata,
+    output logic [8*WORD_BYTES-1:0]    a_rdata,
+    output logic                       a_rvalid,
     // port B: array / sequencer, full word
-    input  logic                                  b_en,
-    input  logic [WORD_BYTES-1:0]                 b_we,
-    input  logic [$clog2(WORDS)-1:0]              b_addr,
-    input  logic [8*WORD_BYTES-1:0]               b_wdata,
-    output logic [8*WORD_BYTES-1:0]               b_rdata
+    input  logic                       b_en,
+    input  logic [WORD_BYTES-1:0]      b_we,
+    input  logic [$clog2(WORDS)-1:0]   b_addr,
+    input  logic [8*WORD_BYTES-1:0]    b_wdata,
+    output logic [8*WORD_BYTES-1:0]    b_rdata
 );
-    localparam int W  = 8 * WORD_BYTES;
-    localparam int AW = $clog2(WORDS);
-    localparam int LB = (WORD_BYTES > 1) ? $clog2(WORD_BYTES) : 1;   // lane bits
-
-    // ---- host byte -> word access
-    logic [AW-1:0]         a_addr;
-    logic [LB-1:0]         a_lane;
-    logic [WORD_BYTES-1:0] a_we;
-    logic [W-1:0]          a_wdata;
-
-    if (WORD_BYTES > 1) begin : g_lanes
-        assign a_addr = h_addr[$clog2(WORDS*WORD_BYTES)-1 -: AW];
-        assign a_lane = h_addr[LB-1:0];
-    end else begin : g_one_lane
-        assign a_addr = h_addr;
-        assign a_lane = '0;
-    end
-
-    always_comb begin
-        for (int i = 0; i < WORD_BYTES; i++) a_we[i] = h_we && (a_lane == LB'(i));
-    end
-    assign a_wdata = {WORD_BYTES{h_wdata}};
+    localparam int W = 8 * WORD_BYTES;
 
     // ---- memory (UG901 bytewrite true dual port, read-first)
     // Two processes write the array (one per port) exactly as the vendor
@@ -106,7 +83,7 @@ module buffers #(
 
     /* verilator lint_off MULTIDRIVEN */
     always @(posedge clk) begin : p_port_a
-        if (h_en) begin
+        if (a_en) begin
             for (int i = 0; i < WORD_BYTES; i++) begin
                 if (a_we[i]) mem[a_addr][8*i +: 8] <= a_wdata[8*i +: 8];
             end
@@ -125,35 +102,27 @@ module buffers #(
     /* verilator lint_on MULTIDRIVEN */
 
     // ---- output registers (DOA_REG / DOB_REG), L_RD = 2
-    logic [W-1:0]  a_out_q;
-    logic [LB-1:0] lane_q1, lane_q2;   // host lane select travels with the read
-    logic          a_rd_q1, a_rd_q2;   // host read in flight (writes keep h_rdata)
+    logic a_rd_q1, a_rd_q2;           // port-A read in flight (writes keep a_rdata)
 
     always_ff @(posedge clk) begin
         if (rst) begin
             a_rd_q1 <= 1'b0;
             a_rd_q2 <= 1'b0;
-            lane_q1 <= '0;
-            lane_q2 <= '0;
         end else begin
-            a_rd_q1 <= h_en && !h_we;
+            a_rd_q1 <= a_en && (a_we == '0);
             a_rd_q2 <= a_rd_q1;
-            if (h_en && !h_we) lane_q1 <= a_lane;
-            if (a_rd_q1)       lane_q2 <= lane_q1;
         end
     end
 
     always_ff @(posedge clk) begin
-        if (rst)          a_out_q <= '0;
-        else if (a_rd_q1) a_out_q <= a_q;
+        if (rst)          a_rdata <= '0;
+        else if (a_rd_q1) a_rdata <= a_q;
     end
+    assign a_rvalid = a_rd_q2;
 
     always_ff @(posedge clk) begin
         if (rst) b_rdata <= '0;
         else     b_rdata <= b_q;
     end
-
-    assign h_rdata  = a_out_q[8*lane_q2 +: 8];
-    assign h_rvalid = a_rd_q2;
 
 endmodule
