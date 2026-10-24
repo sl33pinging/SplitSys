@@ -90,7 +90,7 @@ Sources: master XDC `fpga/xdc/urbana_master.xdc` ("URBANA BOARD CONSTRAINTS V2I1
 | Physical action | After programming: **press BTN0 once** (short press). |
 | Host command | then `splitsys-host --transport serial:COM__ ping`, then `splitsys-host --transport serial:COM__ selftest` |
 | Expected observation | 1. After programming: LED15 heartbeat at 1 Hz; display shows `-` on every digit; LED0/LED1 off.<br>2. BTN0: the self-test takes about 2.3k cycles (~23 µs), so LED2 (busy) is too short to see; **LED0 (FULL pass) and LED1 (STRIP pass) light and stay lit**. BTN0 starts the self-test only while the packet layer is idle; if nothing happens, press again.<br>3. `ping` prints `PING ok: build_id <build_id>  proto v1`.<br>4. `selftest` prints `SELFTEST FULL : PASS (fletcher32 6c1d81af)` and `SELFTEST STRIP: PASS (fletcher32 8b1c6e80)` and exits 0. The expected values are from `sw/crates/vec/out/selftest_expected.json`; recheck them if the ROM is regenerated. |
-| Failure branch | Capture: `selftest` console output (both checksums), LED0/1/2 photo, `ping` output. Likely causes, in order: (1) nothing happens on BTN0 and LED0/1 stay off, but `selftest` over UART passes → button polarity or debounce (`BTN_ACTIVE_LOW`; H-1 record (b)); (2) the design looks held in reset (no heartbeat) → BTN1 polarity: `BTN_ACTIVE_LOW` is wrong, so BTN1 reads as held; (3) FULL fails with a checksum different from expected → datapath bug: hand the checksum to `verification-engineer` to reproduce in `tb/system` with the same ROM; (4) FULL passes, STRIP fails → STRIP-specific path (skew/lower-half alignment); (5) `selftest` times out → the self-test engine never pulses `st_done`. TODO(verif): verification-engineer to add the triage commands (sim reproduction from the ROM, dumping OBUF via READ_MEM for a diff against golden). |
+| Failure branch | Capture: `selftest` console output (both checksums), LED0/1/2 photo, `ping` output. Likely causes, in order: (1) nothing happens on BTN0 and LED0/1 stay off, but `selftest` over UART passes → button polarity or debounce (`BTN_ACTIVE_LOW`; H-1 record (b)); (2) the design looks held in reset (no heartbeat) → BTN1 polarity: `BTN_ACTIVE_LOW` is wrong, so BTN1 reads as held; (3) FULL fails with a checksum different from expected → datapath bug: hand the checksum to `verification-engineer` to reproduce in `tb/system` with the same ROM; (4) FULL passes, STRIP fails → STRIP-specific path (skew/lower-half alignment); (5) `selftest` times out → the self-test engine never pulses `st_done`. **Verification triage:** see "Hardware failure triage (verification)" at the end of H-5, branches T-1 (self-test) and T-4 (hardware-only suspects). |
 
 ## H-5 — Random GEMMs, both modes
 
@@ -101,6 +101,60 @@ Sources: master XDC `fpga/xdc/urbana_master.xdc` ("URBANA BOARD CONSTRAINTS V2I1
 | Host command | `splitsys-host --transport serial:COM__ run --random 100 --mode both --seed 1` (100 random GEMMs per mode, each checked bit-exact against golden and counters against the model; added by host-dashboard in 93f0944). Keep the OBUF poisoning on (do not pass `--no-poison`), so 100 runs per mode take several minutes at 115200. |
 | Expected observation | `BATCH PASS: ... mismatches 0 counter_mismatches 0 invariant_failures 0 errors 0`, i.e. bit-exact and every counter equal to the cycle model. All latencies were confirmed in sim (D-017). If hardware counters still differ from the model by a constant, PLAN allows one calibration (perf-modeler, via spec-steward), after which the latencies are frozen and the batch is rerun; anything else is a bug. Run records go to `results/hw/` with `source: "hw"`. |
 | Failure branch | Capture: the full console output, and **copy the `first failure:` line** (it carries the exact `splitsys-vec gemm ...` sim command, the job index and desc_hex); hand it to `verification-engineer` for sim reproduction before any change. Also keep the run-record JSON from `results/hw/`. Likely causes, in order: (1) counters off by a constant in every run → provisional latency; calibrate once (perf-modeler); (2) mismatches only in STRIP → STRIP datapath; (3) mismatches only for some M/N → tiling/edge handling in the sequencer; (4) sporadic mismatches that don't repeat with the same seed → UART/link issue: rerun H-3 memtest. |
+
+### Hardware failure triage (verification)
+
+Contributed by `verification-engineer`. These branches apply to **H-4 and H-5**.
+
+The rule is the same in every branch:
+1. Capture the evidence first.
+2. Reproduce the failure in simulation, using the RTL that is in the bitstream.
+3. Only then change anything.
+
+RTL is frozen at `adca4a3` for Phase H. Never edit RTL, golden, or the cycle model to make hardware match.
+
+All commands below run from the repo root in Git Bash. `<B>` is the 8-hex-digit git hash that `ping` prints as `build_id`. For the current pre-freeze build it is `8bbd7ba6`. Pass it as `RTL_REV=<B>`. The testbench then simulates exactly the `rtl/` that went into the bitstream (`git archive <B> rtl`).
+
+**Before any triage**, check these two things:
+- `splitsys-host --transport serial:COM__ ping` must print the build_id in the H-4 row. If it doesn't, the wrong bitstream is loaded: reprogram and stop triaging.
+- `git diff <B> -- sw/crates/vec/out/selftest_rom.mem sw/crates/vec/out/selftest_expected.json` must print nothing. If it prints anything, the expected values on the laptop no longer match the ROM inside the bitstream.
+
+| Branch | Trigger | Capture (save under `results/hw/triage/<time>/`) | Simulation reproduction (WSL, through `scripts/wsl '...'`) | Decision |
+| --- | --- | --- | --- | --- |
+| **T-1 Self-test fails** (H-4) | LED0 and/or LED1 off after BTN0, or `selftest` prints FAIL | <ul><li>Full console output of `ping` and `selftest`, including both `fletcher32` values.</li><li>A photo of LED0/1/2/15 and the 7-segment display.</li><li>The `ping` build_id.</li></ul> | 1. `scripts/wsl 'SPLITSYS_CACHE_TAG=hw make -C tb/system SUITES=selftest RTL_REV=<B>'`. This runs the same ROM through the real UART pins of `top` (SELFTEST opcode, BTN0, BUSY cases). It must print PASS with `fletcher32` FULL `6c1d81af` / STRIP `8b1c6e80`.<br>2. Repeat with the X-initial-state variant: append `RAND_RESET=1`.<br>3. Localize on hardware without reprogramming: `splitsys-host --transport serial:COM__ run --random 4 --mode both --seed 1`. Each failing run reports `first mismatch`; map it with the table in T-2. | <ul><li>Sim fails with the same checksum → RTL bug. Hand to `rtl-designer` with the sim command; `verification-engineer` minimizes it with `tb/core`.</li><li>Sim passes, hardware fails → T-4.</li><li>Both checksums wrong and equal to the checksum of an all-zero OBUF → suspect the ROM `$readmemh` path (T-4 item 4).</li></ul> |
+| **T-2 Random GEMM mismatch** (H-5) | `BATCH FAIL` with `mismatches` > 0 or `errors` > 0 | <ul><li>The whole console output.</li><li>**The `first failure:` line, verbatim.** It contains the job name (e.g. `gemm_full_s1_17`), the job index, the exact `splitsys-vec gemm --seed S --n N --mode M --max-m 64 --max-k 256 --max-n 256` command, M/K/N, requant, `desc_hex`, and the seed.</li><li>The run-record JSONs in `results/hw/`. `check.first_mismatch` is the row-major index `m*N+n` of the first wrong in-bounds output.</li></ul> | 1. Same job, same generator, through the UART pins: `scripts/wsl 'SPLITSYS_CACHE_TAG=hw make -C tb/system SUITES=<mode> N_FULL=<N> N_STRIP=<N> SEED=<S> ONLY=<job name> RTL_REV=<B>'`. `<mode>` is `full` or `strip`, and `<N>` is the `--n` from the `first failure:` line. tb/system uses the same generator and the same default limits as the host, so `ONLY=gemm_full_s1_17` is the identical job.<br>2. Add `WAVES=1` for an FST of that job only, under the run's log directory in `waves/`.<br>3. Repeat with `RAND_RESET=1`.<br>4. Whole H-5 batch in sim: `scripts/wsl 'SPLITSYS_CACHE_TAG=hw make -C tb/system SUITES=full,strip N_FULL=100 N_STRIP=100 SEED=1 RTL_REV=<B>'`. | **Map `first_mismatch` to hardware.** With m = idx / N and n = idx % N:<ul><li>FULL: tile row r = m % 8 and column c = n % 8 give PE(r, c), in quadrant 2·⌊r/4⌋ + ⌊c/4⌋.</li><li>STRIP: i = m % 4 and j = n % 16. If j < 8 the element is in PE(i, j); otherwise it is in PE(4+i, j−8), the lower half fed by W lanes 8–15.</li></ul>If sim reproduces the failure → RTL bug, minimized by `verification-engineer` in `tb/core`. If sim passes → T-4. |
+| **T-3 Counters-only mismatch** (H-5) | Outputs bit-exact (`mismatches 0`) but `counter_mismatches` > 0 (`counter <name>: measured vs model` lines) | <ul><li>Every `counter ...` line.</li><li>The run records (`counters` and `model` blocks).</li><li>Note whether the difference is the same constant on every run, or depends on M/N/K or the mode.</li></ul> | Run the same job in sim (T-2 step 1). tb/system compares every counter against `splitsys-cycle predict`. For a faster check without UART, run `scripts/wsl 'SPLITSYS_CACHE_TAG=hw make -C tb core RTL_REV=<B>'`; it compares all 12 counters on 300+ jobs, and was 0 diffs at sign-off. | <ul><li>**Never tweak the model, the latencies, or the RTL to match.**</li><li>Sim counters equal the model but hardware differs → a hardware-only effect. A synchronous design should not do this, so suspect timing or clock (T-4 items 5 and 3). Hand the evidence to `perf-modeler` and the lead.</li><li>Sim differs too → model/RTL disagreement → `perf-modeler` reconciles via `spec-steward`.</li><li>PLAN allows **one** calibration, only for a constant offset seen on every run. After it the model is frozen and the batch is rerun. Record the decision in `docs/DECISIONS.md`.</li></ul> |
+| **T-4 Sim passes, hardware fails** | Any of T-1 to T-3 where the reproduction with `RTL_REV=<B>` passes | The `build_id`, `fpga/reports/top/summary.json`, the build log, and the H-1 to H-3 results. | — | Check the hardware-only suspects below, in order. |
+
+**Hardware-only suspects for T-4, in order:**
+1. **Wrong or stale bitstream.**
+   - Check: `ping` build_id and the bit md5 against the H-4 row.
+2. **Pins / UART swap.**
+   - If H-2/H-3 passed, the UART pins are proven for data. Record whether the swap fallback bitstream was the one that worked.
+   - Data errors with an intact frame CRC are not a pin problem.
+3. **Clock / baud divisor.**
+   - Check: `summary.json` has `DIV_OVERRIDE` = 0 (build.tcl refuses anything else) and `CLK_HZ` = 100 MHz, matching the XDC `create_clock` on the 100 MHz oscillator pin.
+   - A wrong divisor breaks H-2 first.
+4. **BRAM init / ROM `$readmemh` path.**
+   - The self-test ROM must come from `sw/crates/vec/out/selftest_rom.mem` at `<B>`.
+   - Check the build log for `$readmemh` warnings or "file not found", and `summary.json` for the ROM path.
+   - An all-zero ROM gives the zero-output checksum on both jobs.
+5. **Timing.**
+   - Check: `summary.json` WNS/WHS ≥ 0 for this exact build (pre-freeze: +1.143 / +0.021 ns).
+   - Errors that are data-dependent, sporadic, or temperature-dependent point here.
+   - PLAN fallback: the 75 MHz build. Never debug at 100 MHz with negative slack.
+6. **Reset polarity / button level** (`BTN_ACTIVE_LOW`, H-1 record (b)).
+   - No heartbeat → BTN1 is read as held, so the design sits in reset.
+   - BTN0 does nothing but the SELFTEST opcode passes → BTN0 polarity or debounce.
+7. **Power-up state.**
+   - Sim with `RAND_RESET=1` covers random initial flops.
+   - BRAM powers up as zero, and OBUF poisoning is on in H-5.
+   - If only the first job after power-up fails, power-cycle and rerun H-4 before H-5.
+8. **USB-UART link drops.**
+   - Failures don't repeat with the same seed, and NACK_CRC or timeouts appear in the log → rerun the H-3 memtest.
+   - The link is not the datapath.
+
+Only after the cause is identified and the fix is re-verified in simulation (`make -C tb signoff` and `make -C tb/system SIGNOFF=1`) is a new bitstream built and the board touched again.
 
 ## H-6 — Benchmarks and KG1
 
