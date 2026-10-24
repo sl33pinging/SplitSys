@@ -1,0 +1,11 @@
+# SplitSys Python venv (at $SPLITSYS_VENV = ~/.cache/splitsys/venv, see scripts/env.sh).
+# Installed by scripts/setup_env.sh venv. Pinned from `pip freeze` on 2026-10-24.
+# cocotb 2.1.0 requires Verilator >= 5.036 (docs.cocotb.org/en/v2.1.0/simulator_support.html).
+cocotb==2.1.0
+pytest==9.1.1
+# transitive pins
+find_libpython==0.5.1
+iniconfig==2.3.1
+packaging==26.3
+pluggy==1.7.0
+Pygments==2.21.0

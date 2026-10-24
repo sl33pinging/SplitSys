@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# SplitSys Vivado entry point. Runs the Windows Vivado install from WSL or Git Bash.
+#
+#   scripts/vivado -mode batch -source fpga/tcl/build.tcl -tclargs heartbeat
+#   scripts/vivado -version
+#   scripts/vivado --which          # print the vivado.bat that would run
+#
+# Path rules (details in docs/ENV.md "Vivado path rules"):
+#   * Vivado is a Windows program. It runs with its working directory on C:.
+#     If the caller's cwd is not on a Windows drive (e.g. /tmp, ~ in WSL),
+#     the command runs from the repo root instead.
+#   * Repo-relative paths with forward slashes work as-is (preferred).
+#   * Absolute /mnt/c/... (WSL) and /c/... (Git Bash) arguments are rewritten
+#     to C:/... . WSL-only paths (/home, /tmp) are rejected: Vivado cannot
+#     reliably use \\wsl.localhost\ paths.
+#   * Arguments must not contain spaces or cmd.exe metacharacters (& | < > ^ %).
+#   * Unless -log/-journal/-nolog/-nojournal are given, logs go to
+#     fpga/build/vivado_logs/ (gitignored) instead of the cwd.
+# Exit status is Vivado's exit status (Tcl `exit N` propagates).
+# Version: $SPLITSYS_VIVADO_VERSION (default 2025.2.1) or $SPLITSYS_VIVADO_BAT.
+# Owner: toolchain-engineer.
+
+set -u
+ver="${SPLITSYS_VIVADO_VERSION:-2025.2.1}"
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+root="$(cd "$here/.." && pwd)"
+
+if grep -qi microsoft /proc/version 2>/dev/null; then
+    env_kind=wsl
+    drive_prefix_re='^/mnt/([a-zA-Z])(/.*)?$'
+else
+    env_kind=msys
+    drive_prefix_re='^/([a-zA-Z])(/.*)?$'
+fi
+
+to_win() { # absolute posix path -> X:/... or empty
+    if [[ "$1" =~ $drive_prefix_re ]]; then
+        local d="${BASH_REMATCH[1]}" rest="${BASH_REMATCH[2]:-/}"
+        printf '%s:%s' "$(printf '%s' "$d" | tr 'a-z' 'A-Z')" "$rest"
+    fi
+}
+
+bat="${SPLITSYS_VIVADO_BAT:-C:/Xilinx/$ver/Vivado/bin/vivado.bat}"
+bat_win="${bat//\//\\}"
+
+if [ "${1:-}" = "--which" ]; then
+    echo "$bat_win"
+    exit 0
+fi
+
+# Working directory must be on a Windows drive.
+if [ -z "$(to_win "$PWD")" ]; then
+    cd "$root" || exit 1
+fi
+
+args=()
+want_logs=1
+for a in "$@"; do
+    case "$a" in
+        -log|-journal|-nolog|-nojournal) want_logs=0 ;;
+    esac
+    if [[ "$a" == /* ]]; then
+        w="$(to_win "$a")"
+        if [ -n "$w" ]; then
+            a="$w"
+        elif [ -e "$a" ]; then
+            echo "scripts/vivado: '$a' is not on a Windows drive; copy it under the repo (C:)" >&2
+            exit 2
+        fi
+    fi
+    case "$a" in
+        *[[:space:]\&\|\<\>^%]*)
+            echo "scripts/vivado: argument '$a' contains spaces or cmd.exe metacharacters" >&2
+            exit 2 ;;
+    esac
+    args+=("$a")
+done
+
+case " $* " in
+    *" -version "*) want_logs=0 ;;
+esac
+if [ "$want_logs" = 1 ]; then
+    logdir="$root/fpga/build/vivado_logs"
+    mkdir -p "$logdir"
+    stamp="$(date +%Y%m%d_%H%M%S)_$$"
+    args=(-log "$(to_win "$logdir")/vivado_$stamp.log" -journal "$(to_win "$logdir")/vivado_$stamp.jou" "${args[@]}")
+fi
+
+if [ "$env_kind" = msys ]; then
+    MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' cmd.exe /d /c "$bat_win" "${args[@]}"
+else
+    cmd.exe /d /c "$bat_win" "${args[@]}"
+fi
+exit $?
