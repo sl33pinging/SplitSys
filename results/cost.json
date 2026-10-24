@@ -1,25 +1,25 @@
 {
   "source": "hw-build",
   "full_only": {
-    "lut": 5149,
+    "lut": 5142,
     "ff": 6346,
     "dsp": 80,
     "bram": 26,
-    "fmax_mhz": 132.3,
-    "wns_ns": 2.441
+    "fmax_mhz": 126.5,
+    "wns_ns": 2.097
   },
   "split": {
-    "lut": 7388,
+    "lut": 7389,
     "ff": 7936,
     "dsp": 96,
     "bram": 26,
-    "fmax_mhz": 112.9,
-    "wns_ns": 1.143
+    "fmax_mhz": 105.5,
+    "wns_ns": 0.523
   },
-  "git_hash": "8bbd7ba6",
+  "git_hash": "52a66216",
   "build_id": {
-    "split": "0x8BBD7BA6",
-    "full_only": "0x8BBD7BA6"
+    "split": "0x52A66216",
+    "full_only": "0x52A66216"
   },
   "part": "xc7s50csga324-2",
   "vivado": "2025.2.1",
@@ -27,18 +27,18 @@
   "fmax_note": "fmax_mhz = 1000/(10 ns - WNS) from the post-route timing at the 100 MHz constraint; an estimate, not a swept Fmax. Check worst_path before attributing the Fmax delta to splitting: a routing-dominated control net (reset, mux select) is placement, not STRIP logic",
   "worst_path": {
     "split": {
-      "slack_ns": 1.143,
-      "source": "u_core/u_seq/int32_q_reg_rep__0/C",
-      "destination": "u_core/u_seq/ob_wdata_reg[14]/D",
-      "logic_levels": 2,
-      "route_pct": 92.702
+      "slack_ns": 0.523,
+      "source": "u_board/rst_r_reg_rep__1/C",
+      "destination": "rst_core_reg_rep__29/D",
+      "logic_levels": 0,
+      "route_pct": 96.189
     },
     "full_only": {
-      "slack_ns": 2.441,
-      "source": "u_core/u_seq/int32_q_reg/C",
-      "destination": "u_core/u_rq/g_lane[1].prod_e3_reg/A[2]",
-      "logic_levels": 2,
-      "route_pct": 89.0
+      "slack_ns": 2.097,
+      "source": "u_core/u_seq/FSM_sequential_state_reg[1]/C",
+      "destination": "u_core/u_seq/cnt_reg[6]/R",
+      "logic_levels": 7,
+      "route_pct": 77.319
     }
   },
   "breakdown": {
@@ -58,21 +58,21 @@
         "bram18": 0
       },
       "sequencer": {
-        "lut": 671,
+        "lut": 673,
         "ff": 479,
         "dsp": 0,
         "bram36": 0,
         "bram18": 0
       },
       "core": {
-        "lut": 5220,
+        "lut": 5223,
         "ff": 4409,
         "dsp": 96,
         "bram36": 25,
         "bram18": 0
       },
       "total": {
-        "lut": 7388,
+        "lut": 7389,
         "ff": 7936,
         "dsp": 96,
         "bram36": 25,
@@ -95,21 +95,21 @@
         "bram18": 0
       },
       "sequencer": {
-        "lut": 384,
+        "lut": 383,
         "ff": 409,
         "dsp": 0,
         "bram36": 0,
         "bram18": 0
       },
       "core": {
-        "lut": 2983,
+        "lut": 2980,
         "ff": 2860,
         "dsp": 80,
         "bram36": 25,
         "bram18": 0
       },
       "total": {
-        "lut": 5149,
+        "lut": 5142,
         "ff": 6346,
         "dsp": 80,
         "bram36": 25,
@@ -128,17 +128,17 @@
         "dsp": 16
       },
       "sequencer": {
-        "lut": 287,
+        "lut": 290,
         "ff": 70,
         "dsp": 0
       },
       "core": {
-        "lut": 2237,
+        "lut": 2243,
         "ff": 1549,
         "dsp": 16
       },
       "total": {
-        "lut": 2239,
+        "lut": 2247,
         "ff": 1590,
         "dsp": 16
       }
