@@ -1,0 +1,4 @@
+# Large/random sets are regenerated: cargo run -p splitsys-vec -- all
+/unit/
+/gemm/
+/bench/

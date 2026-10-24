@@ -3,8 +3,20 @@ name = "splitsys-vec"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
+description = "SplitSys test-vector generator (unit vectors, GEMM jobs, directed cases, self-test ROM, benchmark suite)"
 
 [lints]
 workspace = true
 
+[lib]
+name = "splitsys_vec"
+path = "src/lib.rs"
+
+[[bin]]
+name = "splitsys-vec"
+path = "src/main.rs"
+
 [dependencies]
+splitsys-golden = { path = "../golden" }
+splitsys-spec = { path = "../spec" }
+serde_json = "1"
