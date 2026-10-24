@@ -1,0 +1,69 @@
+{
+  "run_id": "2026-10-24T18:20:27Z-qkv-m4-strip",
+  "source": "sim",
+  "build_id": "0f402cc7",
+  "git_hash": "f402cc7",
+  "clock_mhz": 100,
+  "gemm": {
+    "name": "qkv",
+    "M": 4,
+    "K": 64,
+    "N": 192,
+    "mode": "STRIP",
+    "requant": true
+  },
+  "counters": {
+    "cycles_total": 1334,
+    "cycles_setup": 192,
+    "cycles_stream": 792,
+    "cycles_flush": 204,
+    "cycles_drain": 144,
+    "cycles_stall": 0,
+    "mac_useful": 49152,
+    "mac_useful_q": [
+      12288,
+      12288,
+      12288,
+      12288
+    ],
+    "tiles": 12
+  },
+  "model": {
+    "cycles_total": 1334,
+    "cycles_setup": 192,
+    "cycles_stream": 792,
+    "cycles_flush": 204,
+    "cycles_drain": 144,
+    "cycles_stall": 0,
+    "mac_useful": 49152,
+    "mac_useful_q": [
+      12288,
+      12288,
+      12288,
+      12288
+    ],
+    "tiles": 12,
+    "model_git_hash": "72da65248adf"
+  },
+  "derived": {
+    "util": 0.5757121439280359,
+    "util_model": 0.5757121439280359,
+    "operand_bytes_per_cycle": 20.0,
+    "model_err_total": 0.0,
+    "operand_bytes_per_cycle_avg": 11.51424287856072,
+    "macs_per_cycle": 36.8455772113943,
+    "arithmetic_intensity": 3.2
+  },
+  "check": {
+    "golden_match": true,
+    "outputs_compared": 768,
+    "mismatches": 0,
+    "invariants_ok": true
+  },
+  "provenance": {
+    "transport": "tcp:127.0.0.1:41527 (co-sim)",
+    "seed": 1,
+    "wall_ms_end_to_end": 892.12441,
+    "latencies_provisional": false
+  }
+}

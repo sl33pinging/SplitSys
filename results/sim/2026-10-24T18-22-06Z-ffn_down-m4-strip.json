@@ -1,0 +1,69 @@
+{
+  "run_id": "2026-10-24T18:22:06Z-ffn_down-m4-strip",
+  "source": "sim",
+  "build_id": "0f402cc7",
+  "git_hash": "f402cc7",
+  "clock_mhz": 100,
+  "gemm": {
+    "name": "ffn_down",
+    "M": 4,
+    "K": 256,
+    "N": 64,
+    "mode": "STRIP",
+    "requant": true
+  },
+  "counters": {
+    "cycles_total": 1214,
+    "cycles_setup": 64,
+    "cycles_stream": 1032,
+    "cycles_flush": 68,
+    "cycles_drain": 48,
+    "cycles_stall": 0,
+    "mac_useful": 65536,
+    "mac_useful_q": [
+      16384,
+      16384,
+      16384,
+      16384
+    ],
+    "tiles": 4
+  },
+  "model": {
+    "cycles_total": 1214,
+    "cycles_setup": 64,
+    "cycles_stream": 1032,
+    "cycles_flush": 68,
+    "cycles_drain": 48,
+    "cycles_stall": 0,
+    "mac_useful": 65536,
+    "mac_useful_q": [
+      16384,
+      16384,
+      16384,
+      16384
+    ],
+    "tiles": 4,
+    "model_git_hash": "72da65248adf"
+  },
+  "derived": {
+    "util": 0.8434925864909391,
+    "util_model": 0.8434925864909391,
+    "operand_bytes_per_cycle": 20.0,
+    "model_err_total": 0.0,
+    "operand_bytes_per_cycle_avg": 16.86985172981878,
+    "macs_per_cycle": 53.9835255354201,
+    "arithmetic_intensity": 3.2
+  },
+  "check": {
+    "golden_match": true,
+    "outputs_compared": 256,
+    "mismatches": 0,
+    "invariants_ok": true
+  },
+  "provenance": {
+    "transport": "tcp:127.0.0.1:41527 (co-sim)",
+    "seed": 1,
+    "wall_ms_end_to_end": 325.34909,
+    "latencies_provisional": false
+  }
+}

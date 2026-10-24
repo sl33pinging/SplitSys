@@ -1,0 +1,69 @@
+{
+  "run_id": "2026-10-24T18:20:33Z-qkv-m16-strip",
+  "source": "sim",
+  "build_id": "0f402cc7",
+  "git_hash": "f402cc7",
+  "clock_mhz": 100,
+  "gemm": {
+    "name": "qkv",
+    "M": 16,
+    "K": 64,
+    "N": 192,
+    "mode": "STRIP",
+    "requant": true
+  },
+  "counters": {
+    "cycles_total": 5330,
+    "cycles_setup": 768,
+    "cycles_stream": 3168,
+    "cycles_flush": 816,
+    "cycles_drain": 576,
+    "cycles_stall": 0,
+    "mac_useful": 196608,
+    "mac_useful_q": [
+      49152,
+      49152,
+      49152,
+      49152
+    ],
+    "tiles": 48
+  },
+  "model": {
+    "cycles_total": 5330,
+    "cycles_setup": 768,
+    "cycles_stream": 3168,
+    "cycles_flush": 816,
+    "cycles_drain": 576,
+    "cycles_stall": 0,
+    "mac_useful": 196608,
+    "mac_useful_q": [
+      49152,
+      49152,
+      49152,
+      49152
+    ],
+    "tiles": 48,
+    "model_git_hash": "72da65248adf"
+  },
+  "derived": {
+    "util": 0.576360225140713,
+    "util_model": 0.576360225140713,
+    "operand_bytes_per_cycle": 20.0,
+    "model_err_total": 0.0,
+    "operand_bytes_per_cycle_avg": 11.527204502814259,
+    "macs_per_cycle": 36.88705440900563,
+    "arithmetic_intensity": 3.2
+  },
+  "check": {
+    "golden_match": true,
+    "outputs_compared": 3072,
+    "mismatches": 0,
+    "invariants_ok": true
+  },
+  "provenance": {
+    "transport": "tcp:127.0.0.1:41527 (co-sim)",
+    "seed": 1,
+    "wall_ms_end_to_end": 1834.726761,
+    "latencies_provisional": false
+  }
+}

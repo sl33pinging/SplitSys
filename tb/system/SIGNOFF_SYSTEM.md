@@ -57,3 +57,24 @@ directed 262, modeswitch 52), 234 s, `sign-off eligible: YES`.
 Provenance: `head=30475dc rtl=30475dc tb=a96ca75 golden=382bda8 vec=8b48b12 cycle=c8b8125 spec_rs=d4fda53 spec=8a4691f run=20261024-104800-4142 ns=ve2`
 (last commit touching rtl/: adca4a3). Cycle model latencies L_PE 3, L_RD 2, L_SETUP 16, L_RQ 7, L_WB 1, L_ACCEPT 1,
 L_DONE 1 (provisional=false), model_git_hash 72da65248adf. Every one of the 12 counters was equal to the model on every job.
+
+### SIGN-OFF re-run for the final clean evidence set, 2026-10-24
+`scripts/wsl 'make -C tb/system SIGNOFF=1 SEED=1 WORKERS=18'` -> **617/617 PASS** (selftest 3, strip 100, full 200,
+directed 262, modeswitch 52), 226 s, `sign-off eligible: YES`.
+Provenance: `head=f402cc7 rtl=f402cc7 tb=880b60c golden=382bda8 vec=8b48b12 cycle=c8b8125 spec_rs=d4fda53 spec=8a4691f run=20261024-105551-850 ns=ve2`
+(last commit touching rtl/: adca4a3; between 30475dc and f402cc7 only docs/fpga/tb-record files changed).
+
+### Final clean S3 co-sim evidence (results/sim), 2026-10-24
+Tree clean for rtl/ tb/ sw/ demo/ spec/ at HEAD f402cc7; splitsys-host rebuilt from it (embedded git_hash `f402cc7`, no `-dirty`).
+- `scripts/wsl 'make -C tb cosim-check'` (SPLITSYS_CACHE_TAG=ve2) -> 8/8 host steps PASS, `sign-off eligible: YES`,
+  provenance `head=f402cc7 rtl=f402cc7 tb=880b60c golden=382bda8 vec=8b48b12 cycle=c8b8125 spec_rs=d4fda53 spec=8a4691f run=20261024-112016-811 ns=ve2`.
+- In parallel, on a second harness instance built from the same tree: `splitsys-host --transport tcp:127.0.0.1:<port> bench sweep --seed 1`
+  (qkv, attn_out, ffn_up, ffn_down x M in {1,2,4,8,16,32,64} x FULL/STRIP = 56 runs) -> 56/56 verified.
+- results/sim now holds **66 run records** (56 sweep + 10 cosim-check) plus bench_sweep/bench_smoke summaries. All 66 have
+  source "sim", build_id 0f402cc7, git_hash f402cc7, model_git_hash 72da65248adf. Across them, 183,808 outputs were compared
+  with **0 mismatches** and **0 counter diffs** (all 12 counters equal the model in every record), and every invariant held.
+- All 49 older records (and their bench summaries and session.json), which carry a `-dirty` host hash, were moved with
+  `git mv` to results/sim/archive_dirty/. The server (`read_dir`) and make_plots (`results/<source>/*.json`) do not read
+  that directory, because neither search is recursive.
+- results/sim/session.json is **not committed**: the sweep and cosim-check hosts updated it concurrently, so its totals lost
+  updates (it reads 56 GEMMs instead of 66). The host has no command that rebuilds it from records.

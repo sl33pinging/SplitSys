@@ -1,0 +1,18 @@
+{
+  "source": "sim",
+  "gemms_run": 56,
+  "gemms_verified": 56,
+  "macs_verified": 15622144,
+  "mismatches": 0,
+  "failed_runs": 0,
+  "started_utc": "2026-10-24T17:24:13Z",
+  "updated_utc": "2026-10-24T17:40:13Z",
+  "uptime_s": 959,
+  "started_unix": 1792862653.2476373,
+  "build_ids": [
+    "0d1867c8",
+    "03f3b9d1",
+    "0b53783d",
+    "034cbc27"
+  ]
+}

@@ -1,0 +1,581 @@
+{
+  "all_verified": true,
+  "kind": "bench_summary",
+  "link": {
+    "bad_rsp_crc": 0,
+    "busy": 0,
+    "bytes_rx": 174524,
+    "bytes_tx": 304730,
+    "frames": 886,
+    "nack_crc": 0,
+    "retries": 0,
+    "timeouts": 0
+  },
+  "runs": [
+    {
+      "M": 1,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "qkv",
+      "run_id": "2026-10-24T18:20:22Z-qkv-m1-full",
+      "util": 0.06951484431571325,
+      "util_model": 0.06951484431571325,
+      "verified": true
+    },
+    {
+      "M": 1,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "qkv",
+      "run_id": "2026-10-24T18:20:23Z-qkv-m1-strip",
+      "util": 0.14392803598200898,
+      "util_model": 0.14392803598200898,
+      "verified": true
+    },
+    {
+      "M": 2,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "qkv",
+      "run_id": "2026-10-24T18:20:24Z-qkv-m2-full",
+      "util": 0.1390296886314265,
+      "util_model": 0.1390296886314265,
+      "verified": true
+    },
+    {
+      "M": 2,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "qkv",
+      "run_id": "2026-10-24T18:20:25Z-qkv-m2-strip",
+      "util": 0.28785607196401797,
+      "util_model": 0.28785607196401797,
+      "verified": true
+    },
+    {
+      "M": 4,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "qkv",
+      "run_id": "2026-10-24T18:20:26Z-qkv-m4-full",
+      "util": 0.278059377262853,
+      "util_model": 0.278059377262853,
+      "verified": true
+    },
+    {
+      "M": 4,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "qkv",
+      "run_id": "2026-10-24T18:20:27Z-qkv-m4-strip",
+      "util": 0.5757121439280359,
+      "util_model": 0.5757121439280359,
+      "verified": true
+    },
+    {
+      "M": 8,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "qkv",
+      "run_id": "2026-10-24T18:20:28Z-qkv-m8-full",
+      "util": 0.556118754525706,
+      "util_model": 0.556118754525706,
+      "verified": true
+    },
+    {
+      "M": 8,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "qkv",
+      "run_id": "2026-10-24T18:20:29Z-qkv-m8-strip",
+      "util": 0.5761440360090022,
+      "util_model": 0.5761440360090022,
+      "verified": true
+    },
+    {
+      "M": 16,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "qkv",
+      "run_id": "2026-10-24T18:20:31Z-qkv-m16-full",
+      "util": 0.5563201738500543,
+      "util_model": 0.5563201738500543,
+      "verified": true
+    },
+    {
+      "M": 16,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "qkv",
+      "run_id": "2026-10-24T18:20:33Z-qkv-m16-strip",
+      "util": 0.576360225140713,
+      "util_model": 0.576360225140713,
+      "verified": true
+    },
+    {
+      "M": 32,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "qkv",
+      "run_id": "2026-10-24T18:20:38Z-qkv-m32-full",
+      "util": 0.5564209382358268,
+      "util_model": 0.5564209382358268,
+      "verified": true
+    },
+    {
+      "M": 32,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "qkv",
+      "run_id": "2026-10-24T18:20:40Z-qkv-m32-strip",
+      "util": 0.5764683805592044,
+      "util_model": 0.5764683805592044,
+      "verified": true
+    },
+    {
+      "M": 64,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "qkv",
+      "run_id": "2026-10-24T18:20:48Z-qkv-m64-full",
+      "util": 0.5564713341182864,
+      "util_model": 0.5564713341182864,
+      "verified": true
+    },
+    {
+      "M": 64,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "qkv",
+      "run_id": "2026-10-24T18:20:55Z-qkv-m64-strip",
+      "util": 0.5765224734916018,
+      "util_model": 0.5765224734916018,
+      "verified": true
+    },
+    {
+      "M": 1,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "attn_out",
+      "run_id": "2026-10-24T18:20:57Z-attn_out-m1-full",
+      "util": 0.06941431670281996,
+      "util_model": 0.06941431670281996,
+      "verified": true
+    },
+    {
+      "M": 1,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "attn_out",
+      "run_id": "2026-10-24T18:20:57Z-attn_out-m1-strip",
+      "util": 0.14349775784753363,
+      "util_model": 0.14349775784753363,
+      "verified": true
+    },
+    {
+      "M": 2,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "attn_out",
+      "run_id": "2026-10-24T18:20:58Z-attn_out-m2-full",
+      "util": 0.13882863340563992,
+      "util_model": 0.13882863340563992,
+      "verified": true
+    },
+    {
+      "M": 2,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "attn_out",
+      "run_id": "2026-10-24T18:20:58Z-attn_out-m2-strip",
+      "util": 0.28699551569506726,
+      "util_model": 0.28699551569506726,
+      "verified": true
+    },
+    {
+      "M": 4,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "attn_out",
+      "run_id": "2026-10-24T18:20:59Z-attn_out-m4-full",
+      "util": 0.27765726681127983,
+      "util_model": 0.27765726681127983,
+      "verified": true
+    },
+    {
+      "M": 4,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "attn_out",
+      "run_id": "2026-10-24T18:20:59Z-attn_out-m4-strip",
+      "util": 0.5739910313901345,
+      "util_model": 0.5739910313901345,
+      "verified": true
+    },
+    {
+      "M": 8,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "attn_out",
+      "run_id": "2026-10-24T18:21:00Z-attn_out-m8-full",
+      "util": 0.5553145336225597,
+      "util_model": 0.5553145336225597,
+      "verified": true
+    },
+    {
+      "M": 8,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "attn_out",
+      "run_id": "2026-10-24T18:21:00Z-attn_out-m8-strip",
+      "util": 0.5752808988764045,
+      "util_model": 0.5752808988764045,
+      "verified": true
+    },
+    {
+      "M": 16,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "attn_out",
+      "run_id": "2026-10-24T18:21:01Z-attn_out-m16-full",
+      "util": 0.5559174809989142,
+      "util_model": 0.5559174809989142,
+      "verified": true
+    },
+    {
+      "M": 16,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "attn_out",
+      "run_id": "2026-10-24T18:21:02Z-attn_out-m16-strip",
+      "util": 0.5759280089988752,
+      "util_model": 0.5759280089988752,
+      "verified": true
+    },
+    {
+      "M": 32,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "attn_out",
+      "run_id": "2026-10-24T18:21:03Z-attn_out-m32-full",
+      "util": 0.5562194459532862,
+      "util_model": 0.5562194459532862,
+      "verified": true
+    },
+    {
+      "M": 32,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "attn_out",
+      "run_id": "2026-10-24T18:21:05Z-attn_out-m32-strip",
+      "util": 0.5762521102982555,
+      "util_model": 0.5762521102982555,
+      "verified": true
+    },
+    {
+      "M": 64,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "attn_out",
+      "run_id": "2026-10-24T18:21:08Z-attn_out-m64-full",
+      "util": 0.5563705514805759,
+      "util_model": 0.5563705514805759,
+      "verified": true
+    },
+    {
+      "M": 64,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "attn_out",
+      "run_id": "2026-10-24T18:21:11Z-attn_out-m64-strip",
+      "util": 0.5764142977765269,
+      "util_model": 0.5764142977765269,
+      "verified": true
+    },
+    {
+      "M": 1,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "ffn_up",
+      "run_id": "2026-10-24T18:21:15Z-ffn_up-m1-full",
+      "util": 0.06952743074416078,
+      "util_model": 0.06952743074416078,
+      "verified": true
+    },
+    {
+      "M": 1,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "ffn_up",
+      "run_id": "2026-10-24T18:21:17Z-ffn_up-m1-strip",
+      "util": 0.1439820022497188,
+      "util_model": 0.1439820022497188,
+      "verified": true
+    },
+    {
+      "M": 2,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "ffn_up",
+      "run_id": "2026-10-24T18:21:18Z-ffn_up-m2-full",
+      "util": 0.13905486148832155,
+      "util_model": 0.13905486148832155,
+      "verified": true
+    },
+    {
+      "M": 2,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "ffn_up",
+      "run_id": "2026-10-24T18:21:19Z-ffn_up-m2-strip",
+      "util": 0.2879640044994376,
+      "util_model": 0.2879640044994376,
+      "verified": true
+    },
+    {
+      "M": 4,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "ffn_up",
+      "run_id": "2026-10-24T18:21:21Z-ffn_up-m4-full",
+      "util": 0.2781097229766431,
+      "util_model": 0.2781097229766431,
+      "verified": true
+    },
+    {
+      "M": 4,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "ffn_up",
+      "run_id": "2026-10-24T18:21:22Z-ffn_up-m4-strip",
+      "util": 0.5759280089988752,
+      "util_model": 0.5759280089988752,
+      "verified": true
+    },
+    {
+      "M": 8,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "ffn_up",
+      "run_id": "2026-10-24T18:21:24Z-ffn_up-m8-full",
+      "util": 0.5562194459532862,
+      "util_model": 0.5562194459532862,
+      "verified": true
+    },
+    {
+      "M": 8,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "ffn_up",
+      "run_id": "2026-10-24T18:21:25Z-ffn_up-m8-strip",
+      "util": 0.5762521102982555,
+      "util_model": 0.5762521102982555,
+      "verified": true
+    },
+    {
+      "M": 16,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "ffn_up",
+      "run_id": "2026-10-24T18:21:28Z-ffn_up-m16-full",
+      "util": 0.5563705514805759,
+      "util_model": 0.5563705514805759,
+      "verified": true
+    },
+    {
+      "M": 16,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "ffn_up",
+      "run_id": "2026-10-24T18:21:31Z-ffn_up-m16-strip",
+      "util": 0.5764142977765269,
+      "util_model": 0.5764142977765269,
+      "verified": true
+    },
+    {
+      "M": 32,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "ffn_up",
+      "run_id": "2026-10-24T18:21:36Z-ffn_up-m32-full",
+      "util": 0.5564461350360005,
+      "util_model": 0.5564461350360005,
+      "verified": true
+    },
+    {
+      "M": 32,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "ffn_up",
+      "run_id": "2026-10-24T18:21:40Z-ffn_up-m32-strip",
+      "util": 0.5764954257565095,
+      "util_model": 0.5764954257565095,
+      "verified": true
+    },
+    {
+      "M": 64,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "ffn_up",
+      "run_id": "2026-10-24T18:21:49Z-ffn_up-m64-full",
+      "util": 0.5564839345153183,
+      "util_model": 0.5564839345153183,
+      "verified": true
+    },
+    {
+      "M": 64,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "ffn_up",
+      "run_id": "2026-10-24T18:21:58Z-ffn_up-m64-strip",
+      "util": 0.5765359983109297,
+      "util_model": 0.5765359983109297,
+      "verified": true
+    },
+    {
+      "M": 1,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "ffn_down",
+      "run_id": "2026-10-24T18:22:03Z-ffn_down-m1-full",
+      "util": 0.10414971521562245,
+      "util_model": 0.10414971521562245,
+      "verified": true
+    },
+    {
+      "M": 1,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "ffn_down",
+      "run_id": "2026-10-24T18:22:03Z-ffn_down-m1-strip",
+      "util": 0.21087314662273476,
+      "util_model": 0.21087314662273476,
+      "verified": true
+    },
+    {
+      "M": 2,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "ffn_down",
+      "run_id": "2026-10-24T18:22:04Z-ffn_down-m2-full",
+      "util": 0.2082994304312449,
+      "util_model": 0.2082994304312449,
+      "verified": true
+    },
+    {
+      "M": 2,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "ffn_down",
+      "run_id": "2026-10-24T18:22:04Z-ffn_down-m2-strip",
+      "util": 0.42174629324546953,
+      "util_model": 0.42174629324546953,
+      "verified": true
+    },
+    {
+      "M": 4,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "ffn_down",
+      "run_id": "2026-10-24T18:22:05Z-ffn_down-m4-full",
+      "util": 0.4165988608624898,
+      "util_model": 0.4165988608624898,
+      "verified": true
+    },
+    {
+      "M": 4,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "ffn_down",
+      "run_id": "2026-10-24T18:22:06Z-ffn_down-m4-strip",
+      "util": 0.8434925864909391,
+      "util_model": 0.8434925864909391,
+      "verified": true
+    },
+    {
+      "M": 8,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "ffn_down",
+      "run_id": "2026-10-24T18:22:07Z-ffn_down-m8-full",
+      "util": 0.8331977217249796,
+      "util_model": 0.8331977217249796,
+      "verified": true
+    },
+    {
+      "M": 8,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "ffn_down",
+      "run_id": "2026-10-24T18:22:07Z-ffn_down-m8-strip",
+      "util": 0.8441879637262985,
+      "util_model": 0.8441879637262985,
+      "verified": true
+    },
+    {
+      "M": 16,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "ffn_down",
+      "run_id": "2026-10-24T18:22:09Z-ffn_down-m16-full",
+      "util": 0.8335368335368335,
+      "util_model": 0.8335368335368335,
+      "verified": true
+    },
+    {
+      "M": 16,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "ffn_down",
+      "run_id": "2026-10-24T18:22:09Z-ffn_down-m16-strip",
+      "util": 0.8445360824742268,
+      "util_model": 0.8445360824742268,
+      "verified": true
+    },
+    {
+      "M": 32,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "ffn_down",
+      "run_id": "2026-10-24T18:22:12Z-ffn_down-m32-full",
+      "util": 0.833706492977814,
+      "util_model": 0.833706492977814,
+      "verified": true
+    },
+    {
+      "M": 32,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "ffn_down",
+      "run_id": "2026-10-24T18:22:13Z-ffn_down-m32-strip",
+      "util": 0.8447102495359868,
+      "util_model": 0.8447102495359868,
+      "verified": true
+    },
+    {
+      "M": 64,
+      "mode": "FULL",
+      "model_err_total": 0.0,
+      "name": "ffn_down",
+      "run_id": "2026-10-24T18:22:20Z-ffn_down-m64-full",
+      "util": 0.8337913486005089,
+      "util_model": 0.8337913486005089,
+      "verified": true
+    },
+    {
+      "M": 64,
+      "mode": "STRIP",
+      "model_err_total": 0.0,
+      "name": "ffn_down",
+      "run_id": "2026-10-24T18:22:22Z-ffn_down-m64-strip",
+      "util": 0.84479736000825,
+      "util_model": 0.84479736000825,
+      "verified": true
+    }
+  ],
+  "source": "sim",
+  "suite": "sweep",
+  "transport": "tcp:127.0.0.1:41527 (co-sim)",
+  "utc": "2026-10-24T18:22:22Z",
+  "wall_s_end_to_end": 130.326763362
+}
