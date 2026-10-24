@@ -48,3 +48,12 @@ same harness; the real `splitsys-host --transport tcp:127.0.0.1:<port>` runs pin
 | 10-24 | af13dcc / 7140392 | same | `make -C tb/cosim check TAG_SUFFIX=-chk` | **8/8 host steps PASS** | 10 GEMMs verified, 0 mismatches, all counters model err 0.000%; records committed in 6bff698 (git_hash `af13dcc-dirty`), superseded below |
 | 10-24 | 6bff698 / adca4a3 (per-block registered resets) | 6bff698 | `make -C tb/system WORKERS=18 SEED=3 RAND_RESET=1` | **617/617 PASS**, 258 s | random X-initial state; still NOT sign-off eligible only because instance-1 tb/Makefile, tb/common, tb/oracle edits are uncommitted. Re-run with `SIGNOFF=1` once those land: it refuses on any dirty input |
 | 10-24 | d1867c8 / adca4a3 | 6bff698 | `make -C tb/cosim check` (splitsys-host at d1867c8, includes 1a19134) | **8/8 host steps PASS** | 10 GEMMs verified, 0 mismatches, model err 0.000% on every run; records in results/sim regenerated: source "sim", build_id 0d1867c8, git_hash d1867c8, model_git_hash 72da65248adf; old af13dcc records removed |
+| 10-24 | 34cbc27 / adca4a3 | tree ae76c83 | `make -C tb cosim-check` (SPLITSYS_CACHE_TAG=ve2) | **8/8 host steps PASS**, sign-off eligible YES | provenance: `head=34cbc27 rtl=34cbc27 tb=ae76c83 golden=382bda8 vec=8b48b12 cycle=c8b8125 spec_rs=d4fda53 spec=8a4691f run=20261024-103714-11338 ns=ve2`. 10 GEMMs, 0 mismatches, model err 0.000%. Records committed in f70dec9 (build_id 034cbc27; host git_hash `34cbc27-dirty` because sw/crates/host/src/server.rs had uncommitted host-dashboard edits, which are not an expected-value input) |
+| 10-24 | 34cbc27 / adca4a3 | tree ae76c83 | `make -C tb/system SIGNOFF=1 SEED=1 WORKERS=18` | 616/617: `selftest_busy` FAIL | TB-001 (test wall-clock race, see BUGS_SYSTEM.md), fixed in f70dec9 |
+
+### SIGN-OFF (S2/S3 system level), 2026-10-24
+`scripts/wsl 'make -C tb/system SIGNOFF=1 SEED=1 WORKERS=18'` -> **617/617 PASS** (selftest 3, strip 100, full 200,
+directed 262, modeswitch 52), 234 s, `sign-off eligible: YES`.
+Provenance: `head=30475dc rtl=30475dc tb=a96ca75 golden=382bda8 vec=8b48b12 cycle=c8b8125 spec_rs=d4fda53 spec=8a4691f run=20261024-104800-4142 ns=ve2`
+(last commit touching rtl/: adca4a3). Cycle model latencies L_PE 3, L_RD 2, L_SETUP 16, L_RQ 7, L_WB 1, L_ACCEPT 1,
+L_DONE 1 (provisional=false), model_git_hash 72da65248adf. Every one of the 12 counters was equal to the model on every job.
