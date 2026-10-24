@@ -855,3 +855,84 @@ async def test_poll_error_priority(dut):
     ck.add("done after error clears", f_poll, r, ACK, bytes([POLL_DONE]))
     ck.verify()
     tb.check_errors()
+
+
+@cocotb.test()
+async def test_rx_timeout_exact_edge(dut):
+    """D-019 item 3: with frame-byte strobes at t and t+g the frame continues iff
+    g <= RX_TIMEOUT; otherwise the parser resets (the rest of the frame is ignored).
+    Checked at g = RX_TIMEOUT (continues) and g = RX_TIMEOUT + 1 (reset) at several
+    split points, including mid-payload of a WRITE_MEM (no memory side effect)."""
+    tb, ck = await setup(dut, "test_rx_timeout_exact_edge")
+    payload_ping = le(pkg_const("PING_MAGIC_LE"), 4) + le(pkg_const("PROTO_VERSION"), 1) + le(BUILD_ID, 4)
+    data = bytes(range(1, 17))
+    f_ping, f_w = reqframes([(PING, b""), (WRITE_MEM, le(1, 1) + le(200, 4) + data)])
+    tb.cmd_region = 1
+    for f, name, pos_list in ((f_ping, "PING", (1, 2, 4)), (f_w, "WRITE_MEM", (1, 3, 7, 12))):
+        for pos in pos_list:
+            # g = RX_TIMEOUT: TIMEOUT-1 idle cycles between the two strobes -> continues
+            tb.send(f[:pos], gap_max=0)
+            tb.rxq.extend([None] * (TIMEOUT - 1))
+            tb.send(f[pos:], gap_max=0)
+            _, r = await tb.response(max_cycles=4 * TIMEOUT)
+            if name == "PING":
+                ck.add(f"{name} split {pos} g=RX_TIMEOUT", f, r, ACK, payload_ping)
+            else:
+                ck.add(f"{name} split {pos} g=RX_TIMEOUT", f, r, ACK)
+                tb.apply_write(1, 200, data)
+                tb.check_mem(f"g=RX_TIMEOUT split {pos}")
+            # g = RX_TIMEOUT + 1: parser resets; the tail is not a frame -> no response
+            n_w = tb.n_writes
+            tb.mem[1][200:200 + len(data)] = bytes(len(data))       # detect any new write
+            tb.exp_mem[1][200:200 + len(data)] = bytes(len(data))
+            tb.send(f[:pos], gap_max=0)
+            tb.rxq.extend([None] * TIMEOUT)
+            tail = f[pos:]
+            check(0xA5 not in tail, "test construction: tail contains a sync byte", tail=tail.hex())
+            tb.send(tail, gap_max=0)
+            await tb.quiet(2 * TIMEOUT)
+            check(tb.n_writes == n_w, f"[{name} split {pos} g=RX_TIMEOUT+1] reset frame wrote memory")
+            _, r = await tb.xact(f_ping)
+            ck.add(f"ping after {name} split {pos} g=RX_TIMEOUT+1", f_ping, r, ACK, payload_ping)
+    ck.verify()
+    tb.check_errors()
+
+
+@cocotb.test()
+async def test_strict_request_response_discard(dut):
+    """D-019 item 2: bytes that arrive while a command executes or while its response is
+    being sent are discarded (whole frames included): exactly one response per accepted
+    request, discarded WRITE_MEMs have no side effect, and the link works afterwards."""
+    tb, ck = await setup(dut, "test_strict_request_response_discard")
+    payload_ping = le(pkg_const("PING_MAGIC_LE"), 4) + le(pkg_const("PROTO_VERSION"), 1) + le(BUILD_ID, 4)
+    big = bytes((i * 7) & 0xFF for i in range(1000))
+    junk = bytes(range(1, 9))
+    f_ping, f_wbig, f_wjunk = reqframes([(PING, b""), (WRITE_MEM, le(2, 1) + le(0, 4) + big),
+                                         (WRITE_MEM, le(2, 1) + le(4000, 4) + junk)])
+    tb.cmd_region = 2
+    # 1) during execution: a 1000-byte WRITE_MEM executes for ~2000 cycles; a whole
+    #    WRITE_MEM frame and a PING sent right behind it must be discarded.
+    tb.send(f_wbig, gap_max=0)
+    tb.send(f_wjunk, gap_max=0)
+    tb.send(f_ping, gap_max=0)
+    _, r = await tb.response()
+    ck.add("big write (others discarded during execution)", f_wbig, r, ACK)
+    tb.apply_write(2, 0, big)
+    await tb.quiet(3 * TIMEOUT)
+    tb.check_mem("discard during execution")
+    # 2) during the response: hold tx_ready low so the PING response takes long, and send
+    #    a full WRITE_MEM + PING while it is being transmitted.
+    tb.send(f_ping, gap_max=0)
+    while not tb.cur:                                  # wait for the first response byte
+        await ClockCycles(dut.clk, 1)
+    tb.bp_left = 400
+    tb.send(f_wjunk, gap_max=0)
+    tb.send(f_ping, gap_max=0)
+    _, r = await tb.response()
+    ck.add("ping (others discarded during response)", f_ping, r, ACK, payload_ping)
+    await tb.quiet(3 * TIMEOUT)
+    tb.check_mem("discard during response")
+    _, r = await tb.xact(f_ping)
+    ck.add("ping afterwards", f_ping, r, ACK, payload_ping)
+    ck.verify()
+    tb.check_errors()
