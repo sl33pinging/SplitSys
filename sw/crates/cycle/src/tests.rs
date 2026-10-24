@@ -473,3 +473,15 @@ fn operand_port_offset_matches_spec_constant() {
     };
     assert_eq!(operand_port_offset(&lat), 6);
 }
+
+#[test]
+fn model_git_hash_shape() {
+    // Either the 12-hex-digit hash of the last commit touching a model input
+    // (optionally -dirty), "unknown" without git, or an explicit override.
+    let h = report::model_git_hash();
+    if std::env::var("SPLITSYS_MODEL_GIT_HASH").is_err() && h != "unknown" {
+        let base = h.strip_suffix("-dirty").unwrap_or(&h);
+        assert_eq!(base.len(), 12, "{h}");
+        assert!(base.chars().all(|c| c.is_ascii_hexdigit()), "{h}");
+    }
+}
