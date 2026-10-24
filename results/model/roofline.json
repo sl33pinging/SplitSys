@@ -1,7 +1,7 @@
 {
   "source": "model",
   "kind": "roofline",
-  "model_git_hash": "8aeedea",
+  "model_git_hash": "37d0b2a",
   "latencies_provisional": true,
   "latencies": {
     "L_PE": 3,
@@ -15,7 +15,7 @@
   "x": "arithmetic_intensity (MACs per operand byte streamed)",
   "y": "macs_per_cycle (mac_useful / cycles_total)",
   "definitions": {
-    "t_tile": "L_SETUP + (L_RD + K) + ((R-1) + (C-1) + L_PE) + T_DRAIN + L_RQ + L_WB; R = C = 8; T_DRAIN = 8 FULL / 4 STRIP, x4 when flags.out_int32",
+    "t_tile": "L_SETUP + (L_RD + K) + ((R-1) + (C-1) + L_PE) + T_DRAIN + L_RQ + L_WB; R = C = 8; T_DRAIN = 8 FULL int8, 4 STRIP int8, 16 FULL int32 (8 rows x 2 writes), 16 STRIP int32 (4 rows x 4 writes)",
     "tiles": "FULL ceil(M/8)*ceil(N/8); STRIP ceil(M/4)*ceil(N/16)",
     "cycles_total": "L_ACCEPT + tiles * T_tile + L_DONE",
     "util_model": "mac_useful / (64 * cycles_total)",
