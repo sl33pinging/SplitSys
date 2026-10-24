@@ -1,0 +1,12 @@
+kg: KG1
+tag: top
+bit_md5: 6a85a822b28e7d9f2097a8a902d865bf
+build_git_hash: 52a66216
+build_id: 0x52A66216
+archived_at: 2026-10-24 13:41:43 PDT
+archive_head: 2bacacebf803636418a4a9f4b8067e13c5167a43
+logs:
+  H-3_memtest_seed1.log  (from /c/Users/danie/FPGA_Projects/Calhack2026/results/hw/logs/H-3_memtest_seed1.log)
+  H-4_selftest_dump.log  (from /c/Users/danie/FPGA_Projects/Calhack2026/results/hw/logs/H-4_selftest_dump.log)
+  H-5_random_both_seed1.log  (from /c/Users/danie/FPGA_Projects/Calhack2026/results/hw/logs/H-5_random_both_seed1.log)
+  H-6_bench_sweep_seed1.log  (from /c/Users/danie/FPGA_Projects/Calhack2026/results/hw/logs/H-6_bench_sweep_seed1.log)

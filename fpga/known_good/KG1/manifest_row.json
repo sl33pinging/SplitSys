@@ -1,0 +1,13 @@
+{
+  "tag": "top",
+  "use": "H-4 .. H-7 (KG1 source)",
+  "bitfile": "fpga/build/top/top.bit",
+  "build_id": "0x52A66216",
+  "git_hash": "52a66216",
+  "md5": "6a85a822b28e7d9f2097a8a902d865bf",
+  "wns_ns": 0.523,
+  "whs_ns": 0.036,
+  "uart_swap": 0,
+  "enable_strip": "1",
+  "phys_opt": "AggressiveFanoutOpt"
+}
