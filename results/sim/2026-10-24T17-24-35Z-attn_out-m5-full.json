@@ -1,15 +1,15 @@
 {
-  "run_id": "2026-10-24T17:09:57Z-attn_out-m5-strip",
+  "run_id": "2026-10-24T17:24:35Z-attn_out-m5-full",
   "source": "sim",
-  "build_id": "0af13dcc",
-  "git_hash": "af13dcc-dirty",
+  "build_id": "0d1867c8",
+  "git_hash": "d1867c8",
   "clock_mhz": 100,
   "gemm": {
     "name": "attn_out",
     "M": 5,
     "K": 64,
     "N": 64,
-    "mode": "STRIP",
+    "mode": "FULL",
     "requant": false
   },
   "counters": {
@@ -21,10 +21,10 @@
     "cycles_stall": 0,
     "mac_useful": 20480,
     "mac_useful_q": [
-      5120,
-      5120,
-      5120,
-      5120
+      8192,
+      8192,
+      2048,
+      2048
     ],
     "tiles": 8
   },
@@ -37,22 +37,22 @@
     "cycles_stall": 0,
     "mac_useful": 20480,
     "mac_useful_q": [
-      5120,
-      5120,
-      5120,
-      5120
+      8192,
+      8192,
+      2048,
+      2048
     ],
     "tiles": 8,
-    "model_git_hash": "af13dcc-dirty"
+    "model_git_hash": "72da65248adf"
   },
   "derived": {
     "util": 0.32454361054766734,
     "util_model": 0.32454361054766734,
-    "operand_bytes_per_cycle": 20.0,
+    "operand_bytes_per_cycle": 16.0,
     "model_err_total": 0.0,
-    "operand_bytes_per_cycle_avg": 10.385395537525355,
+    "operand_bytes_per_cycle_avg": 8.308316430020284,
     "macs_per_cycle": 20.77079107505071,
-    "arithmetic_intensity": 2.0
+    "arithmetic_intensity": 2.5
   },
   "check": {
     "golden_match": true,
@@ -61,9 +61,9 @@
     "invariants_ok": true
   },
   "provenance": {
-    "transport": "tcp:127.0.0.1:34795 (co-sim)",
+    "transport": "tcp:127.0.0.1:42687 (co-sim)",
     "seed": 1,
-    "wall_ms_end_to_end": 3453.512378,
+    "wall_ms_end_to_end": 2507.8951429999997,
     "latencies_provisional": false
   }
 }

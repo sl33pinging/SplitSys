@@ -1,8 +1,8 @@
 {
-  "run_id": "2026-10-24T17:10:19Z-ffn_up-m1-strip",
+  "run_id": "2026-10-24T17:24:45Z-ffn_up-m1-strip",
   "source": "sim",
-  "build_id": "0af13dcc",
-  "git_hash": "af13dcc-dirty",
+  "build_id": "0d1867c8",
+  "git_hash": "d1867c8",
   "clock_mhz": 100,
   "gemm": {
     "name": "ffn_up",
@@ -43,7 +43,7 @@
       4096
     ],
     "tiles": 16,
-    "model_git_hash": "af13dcc-dirty"
+    "model_git_hash": "72da65248adf"
   },
   "derived": {
     "util": 0.1439820022497188,
@@ -61,9 +61,9 @@
     "invariants_ok": true
   },
   "provenance": {
-    "transport": "tcp:127.0.0.1:34795 (co-sim)",
+    "transport": "tcp:127.0.0.1:42687 (co-sim)",
     "seed": 1,
-    "wall_ms_end_to_end": 3349.366529,
+    "wall_ms_end_to_end": 1217.868074,
     "latencies_provisional": false
   }
 }

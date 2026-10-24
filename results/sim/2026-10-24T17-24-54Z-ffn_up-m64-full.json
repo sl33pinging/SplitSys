@@ -1,23 +1,23 @@
 {
-  "run_id": "2026-10-24T17:11:11Z-ffn_up-m64-strip",
+  "run_id": "2026-10-24T17:24:54Z-ffn_up-m64-full",
   "source": "sim",
-  "build_id": "0af13dcc",
-  "git_hash": "af13dcc-dirty",
+  "build_id": "0d1867c8",
+  "git_hash": "d1867c8",
   "clock_mhz": 100,
   "gemm": {
     "name": "ffn_up",
     "M": 64,
     "K": 64,
     "N": 256,
-    "mode": "STRIP",
+    "mode": "FULL",
     "requant": true
   },
   "counters": {
-    "cycles_total": 28418,
+    "cycles_total": 29442,
     "cycles_setup": 4096,
     "cycles_stream": 16896,
     "cycles_flush": 4352,
-    "cycles_drain": 3072,
+    "cycles_drain": 4096,
     "cycles_stall": 0,
     "mac_useful": 1048576,
     "mac_useful_q": [
@@ -29,11 +29,11 @@
     "tiles": 256
   },
   "model": {
-    "cycles_total": 28418,
+    "cycles_total": 29442,
     "cycles_setup": 4096,
     "cycles_stream": 16896,
     "cycles_flush": 4352,
-    "cycles_drain": 3072,
+    "cycles_drain": 4096,
     "cycles_stall": 0,
     "mac_useful": 1048576,
     "mac_useful_q": [
@@ -43,16 +43,16 @@
       262144
     ],
     "tiles": 256,
-    "model_git_hash": "af13dcc-dirty"
+    "model_git_hash": "72da65248adf"
   },
   "derived": {
-    "util": 0.5765359983109297,
-    "util_model": 0.5765359983109297,
-    "operand_bytes_per_cycle": 20.0,
+    "util": 0.5564839345153183,
+    "util_model": 0.5564839345153183,
+    "operand_bytes_per_cycle": 16.0,
     "model_err_total": 0.0,
-    "operand_bytes_per_cycle_avg": 11.530719966218594,
-    "macs_per_cycle": 36.8983038918995,
-    "arithmetic_intensity": 3.2
+    "operand_bytes_per_cycle_avg": 8.903742952245093,
+    "macs_per_cycle": 35.61497180898037,
+    "arithmetic_intensity": 4.0
   },
   "check": {
     "golden_match": true,
@@ -61,9 +61,9 @@
     "invariants_ok": true
   },
   "provenance": {
-    "transport": "tcp:127.0.0.1:34795 (co-sim)",
+    "transport": "tcp:127.0.0.1:42687 (co-sim)",
     "seed": 1,
-    "wall_ms_end_to_end": 22968.197749000003,
+    "wall_ms_end_to_end": 10556.856937999999,
     "latencies_provisional": false
   }
 }

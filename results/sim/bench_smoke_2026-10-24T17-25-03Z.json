@@ -4,9 +4,9 @@
   "link": {
     "bad_rsp_crc": 0,
     "busy": 0,
-    "bytes_rx": 37903,
-    "bytes_tx": 61314,
-    "frames": 143,
+    "bytes_rx": 37867,
+    "bytes_tx": 61284,
+    "frames": 137,
     "nack_crc": 0,
     "retries": 0,
     "timeouts": 0
@@ -17,7 +17,7 @@
       "mode": "FULL",
       "model_err_total": 0.0,
       "name": "ffn_up",
-      "run_id": "2026-10-24T17:10:15Z-ffn_up-m1-full",
+      "run_id": "2026-10-24T17:24:44Z-ffn_up-m1-full",
       "util": 0.06952743074416078,
       "util_model": 0.06952743074416078,
       "verified": true
@@ -27,7 +27,7 @@
       "mode": "STRIP",
       "model_err_total": 0.0,
       "name": "ffn_up",
-      "run_id": "2026-10-24T17:10:19Z-ffn_up-m1-strip",
+      "run_id": "2026-10-24T17:24:45Z-ffn_up-m1-strip",
       "util": 0.1439820022497188,
       "util_model": 0.1439820022497188,
       "verified": true
@@ -37,7 +37,7 @@
       "mode": "FULL",
       "model_err_total": 0.0,
       "name": "ffn_up",
-      "run_id": "2026-10-24T17:10:48Z-ffn_up-m64-full",
+      "run_id": "2026-10-24T17:24:54Z-ffn_up-m64-full",
       "util": 0.5564839345153183,
       "util_model": 0.5564839345153183,
       "verified": true
@@ -47,7 +47,7 @@
       "mode": "STRIP",
       "model_err_total": 0.0,
       "name": "ffn_up",
-      "run_id": "2026-10-24T17:11:11Z-ffn_up-m64-strip",
+      "run_id": "2026-10-24T17:25:03Z-ffn_up-m64-strip",
       "util": 0.5765359983109297,
       "util_model": 0.5765359983109297,
       "verified": true
@@ -55,7 +55,7 @@
   ],
   "source": "sim",
   "suite": "smoke",
-  "transport": "tcp:127.0.0.1:34795 (co-sim)",
-  "utc": "2026-10-24T17:11:11Z",
-  "wall_s_end_to_end": 75.742776122
+  "transport": "tcp:127.0.0.1:42687 (co-sim)",
+  "utc": "2026-10-24T17:25:03Z",
+  "wall_s_end_to_end": 27.439855814
 }
