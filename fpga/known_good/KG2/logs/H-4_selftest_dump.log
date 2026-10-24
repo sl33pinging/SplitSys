@@ -1,0 +1,9 @@
+Sat Oct 24 16:19:11 PDT 2026
+PING ok: build_id 38a3950a  proto v1  via serial:COM3@115200  source hw
+SELFTEST FULL : PASS (fletcher32 6c1d81af)
+SELFTEST STRIP: PASS (fletcher32 8b1c6e80)
+source hw via serial:COM3@115200
+FULL  job: OBUF bytes [0x0000, 0x0080) 128 bytes: 0 differ; fletcher32 readback 6c1d81af ROM 6c1d81af
+STRIP job: OBUF bytes [0x0080, 0x0100) 128 bytes: 0 differ; fletcher32 readback 8b1c6e80 ROM 8b1c6e80
+rc=0
+human: BTN0 -> LED0+LED1 on, LED2 brief flash; 7-seg 'S   14.4' correct order; RGB0/RGB1 dark; LED15 1 Hz

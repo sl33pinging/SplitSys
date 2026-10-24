@@ -1,0 +1,10 @@
+kg: KG2
+tag: top
+bit_md5: 63dea71fd7e8c151f836143c8bac2b2a
+build_git_hash: 38a3950a
+build_id: 0x38A3950A
+archived_at: 2026-10-24 16:30:11 PDT
+archive_head: b80c1ad11ff98f6d262f7f36ddaa693b794717ef
+logs:
+  H-4_selftest_dump.log  (from /c/Users/danie/FPGA_Projects/Calhack2026/results/hw/logs/KG2/H-4_selftest_dump.log)
+  H-5_random_both_seed1.log  (from /c/Users/danie/FPGA_Projects/Calhack2026/results/hw/logs/KG2/H-5_random_both_seed1.log)
