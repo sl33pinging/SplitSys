@@ -94,6 +94,7 @@ fi
 check edge-headless any   required sh -c 'f="/mnt/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"; [ -x "$f" ] && echo "msedge.exe present"'
 check urbana-xdc   any    required sh -c '[ -s "$SPLITSYS_ROOT/fpga/xdc/urbana_master.xdc" ] && head -1 "$SPLITSYS_ROOT/fpga/xdc/urbana_master.xdc" | sed "s/^# *//"'
 check usbipd-win   any    optional sh -c '[ -x "/mnt/c/Program Files/usbipd-win/usbipd.exe" ] && echo "usbipd.exe present"'
+check wsl-keepalive any   optional sh -c 'pgrep -f "^splitsys-keepalive" >/dev/null && echo "running (scripts/wsl_keepalive)"'
 check win-cargo    any    optional sh -c 'cd /mnt/c && cmd.exe /d /c "where cargo" 2>/dev/null | grep -i cargo'
 
 if [ "$SMOKE" = 1 ]; then

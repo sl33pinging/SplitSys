@@ -28,6 +28,7 @@ Last result: `ALL REQUIRED OK`, exit 0. Optional WARNs: socat, ccache, mold (wai
   - `SPLITSYS_VIVADO_VERSION=2025.2.1`
   - `OBJCACHE=ccache` and `CCACHE_DIR` when ccache is installed (Verilator picks this up automatically)
   - PATH order: venv/bin, ~/.local/bin, ~/.cargo/bin, `$SPLITSYS_ROOT/scripts`, then the system PATH. The WSL PATH also carries the Windows PATH (interop `appendWindowsPath`), so `vivado` resolves to the **2025.1** install unless `env.sh` is sourced. Always source `env.sh`.
+- **`scripts/wsl_keepalive start|status|stop`**: stops WSL from shutting down when idle (see Known issues). Run `start` once at the beginning of a session.
 - **`scripts/screenshot <url> <out.png> [W,H]`**: a headless Windows Edge screenshot. See "Dashboard screenshots".
 
 ## Inventory
@@ -213,6 +214,16 @@ It provides: `socat` (handy for cosim debugging; `check_env` marks it OPTIONAL),
 
 ## Known issues
 
+- **WSL shuts itself down when idle, which kills every WSL process and wipes `/tmp`.**
+  - **Evidence:** `journalctl --list-boots` shows 5 boots between 09:08 and 11:32 on 2026-10-24, with gaps of 2–18 min between them (boot end/start: 10:52:46/10:54:17, 11:00:32/11:18:26, 11:23:00/11:26:29, 11:30:14/11:32:14). Each boot's journal ends abruptly, with no systemd shutdown sequence and no kernel panic. The last line is `Operation canceled @p9io.cpp:258 (AcceptAsync)`, which is the host tearing down the VM's file-share channel. The pattern fits WSL's documented idle shutdown, though the journal cannot prove the trigger: a distro with **no `wsl.exe` client** for `instanceIdleTimeout` (`.wslconfig` `[general]`, default **15000 ms**) is terminated, then the VM after `vmIdleTimeout` (`[wsl2]`, default **60000 ms**). Source: learn.microsoft.com/windows/wsl/wsl-config. Agents call WSL in short `wsl.exe` bursts, so gaps of more than about 15 s between calls let it shut down. **A distro-only restart was caught directly:** inside one kernel boot, `journalctl -b 0` shows `systemd[1]: Startup finished` at 11:32:15, then `AcceptAsync` canceled and a second `Startup finished` at 11:32:48. That came after a gap of about 30 s between two of my calls, so it was the distro being terminated, not the VM. Hence `uptime`/`boot_id` alone miss distro restarts; use the systemd PID 1 age (`ps -o etimes= -p 1`), which `scripts/wsl_keepalive status` prints. Keepalive check: it started at 11:33:43, I made no WSL calls for 130 s, and afterwards the same keepalive pid was alive with no new `Startup finished`. Other agents' WSL calls during that window cannot be excluded, so this is supporting evidence, not proof. Detached Linux background processes (`nohup … &`) do **not** count as activity and die with it.
+  - **Mitigation (repo-side, no Windows config change):** run `scripts/wsl_keepalive start` once per session (Git Bash or WSL; idempotent). It launches a hidden, detached Windows `wsl.exe` client (PowerShell `Start-Process`) running `sleep infinity` under the name `splitsys-keepalive`, and that open client keeps the distro from counting as idle. Use `scripts/wsl_keepalive status` to check (prints the pid, boot time, and boot_id) and `scripts/wsl_keepalive stop` to end it. The keepalive itself dies with `wsl --shutdown` or a Windows reboot, so run `start` again after either.
+  - **Permanent fix (the human's choice, Windows side, not applied):** create `C:\Users\danie\.wslconfig` (it does not exist today) with
+    ```
+    [general]
+    instanceIdleTimeout=-1
+    ```
+    (`-1` = "disable auto shutdown" per the docs; this key is documented but not tested on this WSL 2.6.1). It takes effect only after `wsl --shutdown`, which kills all running WSL work, so apply it at a quiet moment. Running WSL distros also keep the VM up, so `vmIdleTimeout` does not need changing.
+  - **Rule for everyone:** never keep anything in `/tmp` that must survive between calls (sim outputs, logs, servers' state, scratch repos). Use `~/.cache/splitsys/` (ext4, persistent) or the repo. Single-call temp dirs, like `scripts/smoke_cocotb.sh`'s `mktemp`, are fine. A long simulation or server started in WSL must be started from a call that stays open, or with the keepalive running.
 - **WSL PATH includes Windows PATH.** Without `source scripts/env.sh`, `vivado` is Vivado **2025.1**, and Windows tools (`make` from ezwinports, Git's `usr/bin`) sit at the end of PATH. Always source `env.sh` (`scripts/wsl` does it for you).
 - **Builds on `/mnt/c` are slow** (drvfs). Keep build outputs under `~/.cache/splitsys` (`CARGO_TARGET_DIR`, `SPLITSYS_SIM_BUILD`). Sources stay in the repo on `C:` so Windows Vivado can read them.
 - A cocotb+Verilator smoke run takes about 30 s, mostly Verilator's C++ compile. ccache will help once installed.

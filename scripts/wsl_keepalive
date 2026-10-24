@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# Keep the WSL distro (and so the WSL VM) from shutting down while idle.
+#
+#   scripts/wsl_keepalive start     # idempotent; returns at once
+#   scripts/wsl_keepalive status    # exit 0 if running
+#   scripts/wsl_keepalive stop
+#
+# Why: WSL terminates a distro once it has no wsl.exe client for
+# instanceIdleTimeout (default 15000 ms, .wslconfig [general]), then the VM after
+# vmIdleTimeout (default 60000 ms). Background Linux processes do NOT count as
+# activity, and every shutdown wipes /tmp and kills anything running in WSL.
+# A long-lived Windows-side `wsl.exe` client counts. So "start" launches a hidden,
+# detached `wsl.exe` (PowerShell Start-Process) running a `sleep infinity`
+# renamed to `splitsys-keepalive`. "stop" kills that Linux process, and the
+# wsl.exe client then exits. Works from Git Bash and from WSL.
+# Permanent fix (human, Windows side): see docs/ENV.md Known issues.
+# Owner: toolchain-engineer.
+set -u
+MARK=splitsys-keepalive
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if grep -qi microsoft /proc/version 2>/dev/null; then
+    in_wsl=1
+else
+    in_wsl=0
+fi
+
+# Run a short command inside WSL and print its output.
+wsl_run() {
+    if [ "$in_wsl" = 1 ]; then bash -c "$1"; else MSYS_NO_PATHCONV=1 wsl.exe -e bash -c "$1"; fi
+}
+
+status() {
+    wsl_run "pgrep -f '^$MARK' >/dev/null && { echo \"keepalive running: pid \$(pgrep -f '^$MARK' | tr '\n' ' ')\"; echo \"distro (systemd PID 1) up \$(ps -o etimes= -p 1 2>/dev/null | tr -d ' ') s; VM kernel up since \$(uptime -s)\"; exit 0; } || { echo 'keepalive not running'; exit 1; }"
+}
+
+case "${1:-status}" in
+    start)
+        if status >/dev/null 2>&1; then status; exit 0; fi
+        ps1="Start-Process -FilePath 'wsl.exe' -ArgumentList '-e bash -c \"exec -a $MARK sleep infinity\"' -WindowStyle Hidden"
+        enc="$(printf '%s' "$ps1" | iconv -t UTF-16LE | base64 -w0)"
+        if [ "$in_wsl" = 1 ]; then
+            (cd /mnt/c && powershell.exe -NoProfile -NonInteractive -EncodedCommand "$enc") >/dev/null 2>&1
+        else
+            powershell.exe -NoProfile -NonInteractive -EncodedCommand "$enc" >/dev/null 2>&1
+        fi
+        for _ in $(seq 1 20); do
+            status >/dev/null 2>&1 && { status; exit 0; }
+            sleep 0.5
+        done
+        echo "wsl_keepalive: failed to start" >&2; exit 1 ;;
+    stop)
+        wsl_run "pkill -f '^$MARK' && echo 'keepalive stopped' || echo 'keepalive was not running'" ;;
+    status)
+        status ;;
+    *)
+        echo "usage: scripts/wsl_keepalive start|stop|status" >&2; exit 2 ;;
+esac
