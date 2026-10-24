@@ -3,8 +3,13 @@ name = "splitsys-golden"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
+description = "Bit-exact SplitSys reference: int8 GEMM, int32 accumulation, requant, packing, checksums"
 
 [lints]
 workspace = true
 
+[lib]
+name = "splitsys_golden"
+
 [dependencies]
+splitsys-spec = { path = "../spec" }
