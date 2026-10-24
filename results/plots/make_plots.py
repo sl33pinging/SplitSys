@@ -226,26 +226,37 @@ def title_and_source(fig, th, title, subtitle, source_line):
              color=th["muted"], family="monospace")
 
 
+def sim_only(hw, sim):
+    """SIM records whose shape has no HW measurement. Where the board measured a shape, the
+    HW point is drawn and the SIM point is not: identical values would otherwise overdraw
+    the HW marker, and HW is the stronger evidence."""
+    return {k: v for k, v in sim.items() if k not in hw}
+
+
 def source_line(model, measured_sets):
+    """One line per source. 'drawn' counts only benchmark points that exist in the model
+    sweep (random-shape records are loaded and checked, but have no place on these axes)."""
     lat = "latencies PROVISIONAL" if model["provisional"] else "latencies RTL-confirmed, D-017"
-    head = f"source: MODEL results/model/*.json, model_git_hash {model['hash']} ({lat})"
-    parts = []
+    lines = [f"source: MODEL results/model/*.json, model_git_hash {model['hash']} ({lat})"]
+    hw = dict(measured_sets).get("HW") or {}
     for label, recs in measured_sets:
         if recs:
             st = RECORD_STATS.get(label.lower(), {})
             builds = sorted(st.get("builds") or {str(r["build_id"]) for r in recs.values()})
-            n = len(recs)
-            nrec = st.get("records", n)
+            nrec = st.get("records", len(recs))
             dirty = any(r["git_hash"].endswith("-dirty") for r in recs.values())
             ndiff = st.get("counter_diffs", sum(1 for r in recs.values() if r["counter_diffs"]))
-            what = "co-sim, not HW" if label == "SIM" else "board"
-            parts.append(f"{label} ({what}): {n} shape{'s' if n != 1 else ''} plotted from "
-                         f"{nrec} int8 record{'s' if nrec != 1 else ''}, build "
-                         f"{','.join(builds)}{' (dirty tree)' if dirty else ''}, "
-                         f"{ndiff} with a counter != model")
+            drawn = recs if label == "HW" else sim_only(hw, recs)
+            n = sum(1 for k in drawn if k in model["points"])
+            what = "co-sim, not HW" if label == "SIM" else "board, on-chip counters"
+            shown = (f"{n} benchmark point{'s' if n != 1 else ''} drawn" if n else
+                     "not drawn (HW measured every plotted point)")
+            lines.append(f"{label} ({what}): {nrec} int8 record{'s' if nrec != 1 else ''}, "
+                         f"build {','.join(builds)}{' (dirty tree)' if dirty else ''}, "
+                         f"{ndiff} with a counter != model; {shown}")
         elif label == "HW":
-            parts.append("HW: none yet")
-    return head + ("\n" + " | ".join(parts) if parts else "")
+            lines.append("HW: none yet")
+    return "\n".join(lines)
 
 
 def title_values(model, hw, sim, keys):
@@ -305,7 +316,8 @@ def draw_util(ax, th, model, gemm, hw, sim, show_labels=True, label_size=9):
                 markerfacecolor=th["model_face"], markeredgecolor=th["model_edge"],
                 markeredgewidth=1.5, zorder=6)
         measured_markers(ax, th, mode, measured_series(hw, gemm, mode, ms), hw, "o")
-        measured_markers(ax, th, mode, measured_series(sim, gemm, mode, ms), sim, "s")
+        measured_markers(ax, th, mode, measured_series(sim_only(hw, sim), gemm, mode, ms),
+                         sim, "s")
         if show_labels:
             # Direct labels at decode (M=1) and prefill (M=64) only.
             for m, y in (s[0], s[-1]):
@@ -337,7 +349,7 @@ def util_handles(th, hw, sim):
     if hw:
         h.append(Line2D([], [], ls="none", marker="o", markersize=8, color=th["muted"],
                         label="HW measured (counters)"))
-    if sim:
+    if sim_only(hw, sim):
         h.append(Line2D([], [], ls="none", marker="s", markersize=8, color=th["muted"],
                         label="SIM (co-simulation)"))
     h.append(Patch(facecolor=th["shade"], edgecolor="none", label="decode regime M ≤ 4"))
@@ -354,7 +366,7 @@ def plot_util_headline(th, model, hw, sim, facts):
                               "M1_ratio": s1 / f1, "M64_FULL": f64, "M64_STRIP": s64,
                               "M64_ratio": s64 / f64}
     fig, ax = new_fig(th)
-    fig.subplots_adjust(left=0.08, right=0.98, top=0.78, bottom=0.17)
+    fig.subplots_adjust(left=0.08, right=0.98, top=0.78, bottom=0.20)
     style_axes(ax, th)
     draw_util(ax, th, model, g, hw, sim)
     ax.set_xlabel("M (rows of the activation matrix; log₂ scale)")
@@ -375,7 +387,7 @@ def plot_util_all(th, model, hw, sim, facts):
     tag, v = title_values(model, hw, sim,
                           [(g, 1, md) for g in GEMM_ORDER for md in ("FULL", "STRIP")])
     fig, axes = new_fig(th, w=11.0, h=7.4, ncols=2, nrows=2, sharex=True, sharey=True)
-    fig.subplots_adjust(left=0.08, right=0.98, top=0.80, bottom=0.12, hspace=0.28,
+    fig.subplots_adjust(left=0.08, right=0.98, top=0.80, bottom=0.15, hspace=0.28,
                         wspace=0.08)
     ratios = {}
     for ax, g in zip(axes.flat, GEMM_ORDER):
@@ -413,7 +425,7 @@ def plot_bench(th, model, hw, sim, facts):
     measured = hw if hw else sim
     mlabel = "HW" if hw else ("SIM" if sim else None)
     fig, axes = new_fig(th, w=11.0, h=5.8, ncols=2, sharey=True)
-    fig.subplots_adjust(left=0.07, right=0.98, top=0.80, bottom=0.17, wspace=0.06)
+    fig.subplots_adjust(left=0.07, right=0.98, top=0.80, bottom=0.19, wspace=0.06)
     width = 0.36
     for ax, M in zip(axes, (1, 64)):
         style_axes(ax, th)
@@ -491,7 +503,7 @@ def plot_roofline(th, model, hw, sim, facts):
                          "ai_M1": {m: ai[(g, 1, m)] for m in ("FULL", "STRIP")}}
     tag = "MODEL"  # intensities, roofs and the below-roof check are model quantities
     fig, ax = new_fig(th)
-    fig.subplots_adjust(left=0.08, right=0.98, top=0.82, bottom=0.17)
+    fig.subplots_adjust(left=0.08, right=0.98, top=0.82, bottom=0.20)
     style_axes(ax, th)
     xs_all = [q["arithmetic_intensity"] for q in pts]
     x0, x1 = min(xs_all) / 1.6, max(xs_all) * 1.6
@@ -512,7 +524,7 @@ def plot_roofline(th, model, hw, sim, facts):
                 markeredgecolor=th[mode], markeredgewidth=1.5, zorder=4)
     # Measured overlay: MACs/cycle from counters at the model's arithmetic intensity
     # (intensity is a property of the shape and mode, not of the measurement).
-    for recs, mk in ((hw, "o"), (sim, "s")):
+    for recs, mk in ((hw, "o"), (sim_only(hw, sim), "s")):
         for (name, M, mode), r in recs.items():
             if (name, M, mode) in ai:
                 ax.plot(ai[(name, M, mode)], r["util"] * peak, linestyle="none", marker=mk,
@@ -539,7 +551,7 @@ def plot_roofline(th, model, hw, sim, facts):
     if hw:
         handles.append(Line2D([], [], ls="none", marker="o", markersize=7, color=th["muted"],
                               label="HW measured"))
-    if sim:
+    if any(k in ai for k in sim_only(hw, sim)):
         handles.append(Line2D([], [], ls="none", marker="s", markersize=7, color=th["muted"],
                               label="SIM"))
     legend(ax, th, handles, loc="lower right")

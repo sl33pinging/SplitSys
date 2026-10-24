@@ -130,7 +130,8 @@ It then jumps to Scene 2 with the newest points highlighted.
 ## 6. Booth checklist (10:15 Sunday)
 
 - [ ] Self-test LEDs on after power-up; 7-seg shows the last run.
-- [ ] Dashboard Scene 1 live; `BOARD LIVE` badge green; `build_id` matches `fpga/known_good/`.
+  - If the board runs KG1 (build 0x52A66216, the bitstream all HW numbers come from): the 7-seg text reads in reversed digit order (`6.126 6A25` for the build id) and the RGB LEDs glow. Both are known board-I/O quirks, fixed in the KG2 candidate, which has not run on hardware yet. If asked, say exactly that. Don't point at the 7-seg during the pitch.
+- [ ] Dashboard Scene 1 live; `BOARD LIVE` badge green; `build_id` matches `fpga/known_good/CURRENT` (KG1 = 0x52A66216). If a newer KG is on the board, its build id differs from the one in the HW records: say the numbers were measured on KG1.
 - [ ] Attract loop running; operator console visible only on the laptop.
 - [ ] Backup video on the laptop desktop; REPLAY mode tested.
 - [ ] Spare USB cable, power strip, chargers in reach.
@@ -151,8 +152,15 @@ Owner: demo-storyteller. Sources for every number in §7–§8:
         cycles_stall 0 on all 70. SIM is NOT hardware.
   MatX public facts: https://matx.com/research/series_b, fetched 2026-10-24: "The MatX One chip is based on a
         splittable systolic array"; "combines the low latency of SRAM-first designs with the long-context support of HBM".
+  [HW] results/hw/*.json top level: 256 board records, build_id 52a66216 (fpga/known_good/KG1), model 72da65248adf,
+        COM3 session Sat 13:26:48-13:41:07 PDT (session.json started/updated 20:26:48Z / 20:41:07Z).
+        200 H-5 random (e180386) + 56 H-6 bench sweep (2bacace). Derived from the records: 256 golden_match, 0 mismatches,
+        118,801,362 MACs, 952,012 outputs, 0 of 3,072 counter values != model, cycles_stall 0 on all 256.
+        ffn_up M=1: 20-40-41Z-ffn_up-m1-full util 0.069527 (6.95%), -strip 0.143982 (14.40%), ratio 2.0709.
+        ffn_up M=64: 0.556484 (55.65%) / 0.576536 (57.65%). M=1 ratio range 2.0247..2.0709 over 4 GEMMs.
+        H-5 shape-matched pairs 97: STRIP more cycles on 31 (max 1.315x, M=22 K=250 N=17, 3566 vs 2711), all more tiles.
+        Logs: results/hw/logs/H-3..H-6. H-2 echo (10,000 + 100,000 bytes, 0 mismatched): docs/STATUS.md only.
   [V] tb/SIGNOFF.md, DECISIONS D-016/D-017   [S] SPEC v1.1 constants
-  ⟦HW: …⟧ / ⟦SIM: …⟧ = fill from results/hw or results/sim only. If a value never arrives, say so; never guess.
 Word counts (≤ 280 each, ~150 wpm → under 2:00) include the stage directions, so the spoken
 part is shorter. Check: see the "Pitch word counts" command in §9.
 -->
@@ -167,18 +175,18 @@ part is shorter. Check: see the "Pitch word counts" command in §9.
 <!-- pitch:general -->
 *[Scene 1, point at the board.]* LLM chips are built around big grids of multipliers called systolic arrays. When a model writes text one token at a time, each matrix multiply is a single row tall, and most of the grid sits idle.
 
-*[Run `ffn_up` M=1, FULL.]* This is our 8-by-8 array on a Spartan-7 FPGA, running one transformer layer at decode size. Watch the grid: only the top row lights up. The hardware counters measure ⟦HW: ffn_up M=1 FULL util⟧ utilization.
+*[Run `ffn_up` M=1, FULL.]* This is our 8-by-8 array on a Spartan-7 FPGA, running one matmul of a transformer layer at decode size. Watch the grid: only the top row lights up. The hardware counters measure 6.95% utilization.
 
-*[Same job, STRIP.]* Same hardware, rewired at runtime into a 4-by-16 shape. The bottom half now computes extra output columns instead of idling. Measured: ⟦HW: ffn_up M=1 STRIP util⟧, which is ⟦HW: STRIP/FULL ratio⟧ times higher. Every output still matches our Rust reference bit for bit.
+*[Same job, STRIP.]* Same hardware, rewired at runtime into a 4-by-16 shape. The bottom half now computes extra output columns instead of idling. Measured: 14.40%, which is 2.07 times higher. Every output still matches our Rust reference bit for bit.
 
-*[Scene 2.]* Across batch sizes, the split pays off when generating one token at a time, and the two modes converge once the batch fills the array. The hollow markers are our cycle model's predictions, written before the board was touched. They match the counters to within ⟦HW: max model error⟧.
+*[Scene 2.]* Across batch sizes, the split pays off when generating one token at a time, and the two modes converge once the batch fills the array. The hollow markers are our cycle model's predictions, written before the board was touched. They match all twelve hardware counters exactly, on every run.
 
-*[Scene 3.]* It isn't free. The split needs 25% more operand bandwidth every cycle and about two thousand more lookup tables, most of them in the wider output path. That's the real tradeoff, and we measured it.
+*[Scene 3.]* It isn't free. The split needs 25% more operand bandwidth every cycle and over two thousand more lookup tables, most of them in the wider output path. That's the real tradeoff, and we measured it.
 
-*[Verified panel.]* ⟦HW: GEMMs verified⟧ matrix multiplies on this board, ⟦HW: mismatches⟧ mismatches. Everything was simulated first, including the real host software driving the simulated chip. Happy to go deeper.
+*[Verified panel.]* 256 matrix multiplies on this board, 118 million multiply-accumulates, zero mismatches. Everything was simulated first, including the real host software driving the simulated chip. Happy to go deeper.
 <!-- /pitch -->
 
-<!-- "about two thousand more lookup tables" = cost.json breakdown.delta.total.lut 2247 [B]. "25%" = 20 vs 16 B/cycle [S]. -->
+<!-- "over two thousand more lookup tables" = cost.json breakdown.delta.total.lut 2247 [B]. "25%" = 20 vs 16 B/cycle [S]. -->
 
 ### 7.2 MatX variant
 
@@ -187,11 +195,11 @@ part is shorter. Check: see the "Pitch word counts" command in §9.
 <!-- pitch:matx -->
 *[Scene 1.]* Decode and prefill want different array shapes. This is a small-scale, measured exploration of the splittable-array idea: an 8-by-8 int8 output-stationary array that rewires at row 4 into 4-by-16, per job, with no reconfiguration.
 
-*[Run `ffn_up` M=1, FULL then STRIP.]* At one row, the mapping caps FULL at 12.5% and STRIP at 25%. Fixed per-tile setup, flush, and drain bring our model to 7.0% and 14.4%. The counters read ⟦HW: FULL util⟧ and ⟦HW: STRIP util⟧.
+*[Run `ffn_up` M=1, FULL then STRIP.]* At one row, the mapping caps FULL at 12.5% and STRIP at 25%. Fixed per-tile setup, flush, and drain bring our model to 7.0% and 14.4%. The counters read 6.95% and 14.40%: 2.07×.
 
-*[Scene 2.]* At prefill both shapes fill the array. The model still has STRIP slightly ahead, 57.7% against 55.6%, but that's drain, four rows per tile instead of eight, not mapping. Overlap the drain and the gap goes away.
+*[Scene 2.]* At prefill both shapes fill the array. STRIP is still slightly ahead, measured 57.65% against 55.65%, but that's drain, four rows per tile instead of eight, not mapping. Overlap the drain and the gap goes away.
 
-The method is model-first, in the spirit of *Efficiently Scaling Transformer Inference*. A cycle model predicts all twelve hardware counters before measurement. Worst per-counter error on the board: ⟦HW: max error⟧.
+The method is model-first, in the spirit of *Efficiently Scaling Transformer Inference*. A cycle model predicted all twelve hardware counters before measurement. Error on the board: zero, on all 256 GEMMs. With no DRAM, nothing stalls, so that is expected.
 
 *[Scene 3.]* The cost of splitting: STRIP streams 20 operand bytes per cycle against 16, so 25% more. In area, post-route, it's +2,247 LUTs and 16 DSPs. Only about 670 LUTs are the split muxing. The rest is the 16-lane requantizer that a 16-wide tile needs. In our design, the expensive part of splitting wasn't the array, it was the edges.
 
@@ -207,13 +215,13 @@ Next experiment: stream weights from DRAM, where FULL's lower bandwidth might be
 <!-- pitch:annapurna -->
 *[Scene 1.]* A systolic engine is only as good as the fraction of cycles its PEs do useful work, and that depends on whether the SRAM keeps it fed. SplitSys is an 8-by-8 int8 array on a Spartan-7, with on-chip BRAM buffers and a sequencer that moves every operand explicitly: setup, stream, flush, drain, writeback.
 
-*[Run `ffn_up` M=1, FULL then STRIP.]* On a one-row decode matmul, FULL keeps one row of eight busy: ⟦HW: FULL util⟧ measured. Rewired as 4-by-16: ⟦HW: STRIP util⟧, still bit-exact.
+*[Run `ffn_up` M=1, FULL then STRIP.]* On a one-row decode matmul, FULL keeps one row of eight busy: 6.95% measured. Rewired as 4-by-16: 14.40%, still bit-exact.
 
-The price is feed bandwidth: 20 operand bytes per cycle instead of 16. The BRAM ports are sized for both, and we measured ⟦HW: cycles_stall⟧ stall cycles. Twelve hardware counters split every cycle into setup, stream, flush, drain, and stall. A cycle model predicts each one, with a worst error of ⟦HW: max error⟧.
+The price is feed bandwidth: 20 operand bytes per cycle instead of 16. The BRAM ports are sized for both, and we measured zero stall cycles on all 256 runs. Twelve hardware counters split every cycle into setup, stream, flush, drain, and stall. A cycle model predicted each one exactly.
 
 *[Scene 3.]* Area, post-route: +2,247 LUTs and +16 DSPs, with timing met at 100 MHz in both builds. About 670 of those LUTs are the split itself. Most of the rest is the 16-lane requantizer the wider tile needs.
 
-Verification: a Rust golden model checks every run bit-exactly. Eleven test suites are signed off, and injected-bug mutants were caught in five of them. A pin-level system simulation passed 617 of 617 jobs, and the real host ran against the simulated chip. On this board: ⟦HW: GEMMs verified⟧ GEMMs, ⟦HW: mismatches⟧ mismatches.
+Verification: a Rust golden model checks every run bit-exactly. Eleven test suites are signed off, and injected-bug mutants were caught in five of them. A pin-level system simulation passed 617 of 617 jobs, and the real host ran against the simulated chip. On this board: 256 GEMMs, zero mismatches.
 
 So, what does reconfigurability cost, and when does it pay? Here it pays at decode and barely matters at prefill.
 <!-- /pitch -->
@@ -222,7 +230,7 @@ So, what does reconfigurability cost, and when does it pay? Here it pays at deco
 
 ## 8. Q&A bank (rehearse these)
 
-Each answer takes under 30 seconds. Rows marked ⟦HW⟧ get their number from `results/hw` before judging; if the number never arrives, say "we didn't measure that".
+Each answer takes under 30 seconds. [HW] numbers are from the 256 board records in `results/hw` (build 0x52A66216, KG1). If asked about anything not in those records, say "we didn't measure that".
 
 ### 8.1 Core
 
@@ -230,9 +238,9 @@ Each answer takes under 30 seconds. Rows marked ⟦HW⟧ get their number from `
 | --- | --- |
 | Why not just batch decode requests? | Batching raises M and fixes utilization for throughput serving. It doesn't help latency-bound single-stream decode, or small per-head attention matmuls. STRIP targets small M, at the cost of more operand bandwidth. |
 | What does the split cost? | Post-route: +2,247 LUTs (+43.7%), +1,590 FFs, +16 DSPs, BRAM unchanged [B]. The STRIP muxes in the array and sequencer are only +666 LUTs. Most of the rest is requant lanes 8–15, which the FULL-only build drops because FULL drains 8 lanes. Bandwidth: +25% operand bytes per cycle [S]. |
-| Is the SRAM keeping up? | On hardware, `cycles_stall` = ⟦HW: cycles_stall⟧. In co-simulation it was 0 on all 70 runs [SIM]. The BRAM ports supply 20 B/cycle, so the model assumes zero stalls [S]. With a narrower buffer or DRAM-fed weights, STRIP would stall first, because it needs 25% more bytes. |
-| How do you know it's correct? | A Rust golden model checks every run bit-exactly. The invariants `mac_useful == M·N·K` and Σquadrants == total are checked on every run. The eligible sign-off run passed 11 of 11 cocotb suites and 64 of 64 tests, including 262 directed jobs on the core. Mutants were caught in the skew, counters, packet, array and core suites. An eligible pin-level system simulation passed 617 of 617 jobs [V]. Co-simulation with the real host: 70 runs, 0 mismatches [SIM]. There's a self-test ROM in the bitstream. On hardware: ⟦HW: GEMMs / mismatches⟧. |
-| How accurate is the model? | Per-counter error on the board: ⟦HW: max per-counter error⟧. In simulation the counters equal the model exactly: unit, core, and system suites [V], and 70 co-sim runs with 0 counter differences [SIM]. That's expected: the sequencer is deterministic and stall-free, so the model and RTL implement the same state lengths. The model's value is that it's independent code, so any disagreement is a bug. |
+| Is the SRAM keeping up? | Yes, on-chip: `cycles_stall` was 0 on all 256 hardware runs [HW], and 0 on all 70 co-sim runs [SIM]. The BRAM ports supply 20 B/cycle, so the model assumes zero stalls [S]. With a narrower buffer or DRAM-fed weights, STRIP would stall first, because it needs 25% more bytes. |
+| How do you know it's correct? | A Rust golden model checks every run bit-exactly. The invariants `mac_useful == M·N·K` and Σquadrants == total are checked on every run. The eligible sign-off run passed 11 of 11 cocotb suites and 64 of 64 tests, including 262 directed jobs on the core. Mutants were caught in the skew, counters, packet, array and core suites. An eligible pin-level system simulation passed 617 of 617 jobs [V]. Co-simulation with the real host: 70 runs, 0 mismatches [SIM]. There's a self-test ROM in the bitstream, and it passed on the board. On hardware: 256 GEMMs, 118,801,362 MACs, 0 mismatches [HW]. |
+| How accurate is the model? | On the board: exact. 0 of 3,072 counter values differ (12 counters × 256 runs), with no calibration [HW]. In simulation the counters equal the model exactly: unit, core, and system suites [V], and 70 co-sim runs with 0 counter differences [SIM]. That's expected: the sequencer is deterministic and stall-free, so the model and RTL implement the same state lengths. The model's value is that it's independent code, so any disagreement is a bug. |
 | Why output-stationary? | Accumulators stay in the DSP P register, there's no partial-sum traffic, and drain is simple. Weight-stationary favors weight reuse across many rows, which decode lacks. |
 | Why int8? | One DSP48E1 per MAC, the same as common inference quantization practice, and the result stays bit-exact and checkable. |
 | Why is end-to-end slow? | The UART at 115200 baud. We measure on-chip cycles from the counters and never present wall time as accelerator speed. |
@@ -244,15 +252,18 @@ Each answer takes under 30 seconds. Rows marked ⟦HW⟧ get their number from `
 
 | Question | Answer (short) |
 | --- | --- |
-| STRIP is faster even at prefill. Isn't FULL pointless? | In the model, STRIP is never slower: 1.013–1.036× at M ≥ 8 [M]. That edge is drain, 4 rows per tile against 8, not mapping, and it's paid for by the 16-lane output path. FULL wins when operand bandwidth is the limit, because it needs 16 B/cycle instead of 20. We didn't build that regime (no DRAM). |
+| STRIP is faster even at prefill. Isn't FULL pointless? | No. On the benchmark shapes STRIP is 1.013–1.036× at M ≥ 8 [HW], and that edge is drain, 4 rows per tile against 8. But on 31 of 97 random shapes, FULL was faster, by up to 1.32× [HW], because STRIP's 4×16 tiles pad worse. FULL also wins when bandwidth is the limit: 16 B/cycle instead of 20. We didn't build that regime (no DRAM). |
 | Why is decode at 7% / 14%, not 12.5% / 25%? | Those are mapping ceilings [S]. Each tile also spends fixed cycles on setup (16), flush (17), and drain plus writeback. For `ffn_up` that's 115 cycles per FULL tile against 64 cycles of useful streaming, so 7.0% and 14.4% [M]. |
 | Why does prefill top out around 56%? | The same per-tile overhead. Stages don't overlap, so the array idles during drain. With K = 64, the useful K cycles are about 56–58% of a tile [M]. `ffn_down` (K = 256) reaches 83.4% (FULL) and 84.5% (STRIP) [M]. |
-| Your simulation matches the model exactly. Isn't that circular? | Partly, and that's why we don't lean on it. The model and RTL share confirmed latencies, and the sequencer is deterministic with no DRAM, so SIM == MODEL [SIM] only shows the RTL implements the spec. They are independent code, so a mismatch would expose a bug. The real test is the board: ⟦HW: max per-counter error⟧. |
-| Is the 2× just the mapping ceiling restated? | The ceiling explains the direction. The measured number includes every overhead cycle, and STRIP also halves the tile count (16 vs 32 for `ffn_up`) [M]. Measured: ⟦HW: ratio⟧ against a model of 2.07× [M]. |
-| Why +44% LUTs for a mux? | It isn't for the mux. The muxes are about 670 LUTs [B]. The FULL-only build also drops 8 of the 16 requant lanes (16 DSPs, about 1,500 LUTs). That's the honest bill for a 16-wide output tile. |
+| Your simulation matches the model exactly. Isn't that circular? | Partly, and that's why we don't lean on it. The model and RTL share confirmed latencies, and the sequencer is deterministic with no DRAM, so SIM == MODEL [SIM] only shows the RTL implements the spec. They are independent code, so a mismatch would expose a bug. The real test was the board: 0 counter differences on 256 runs [HW]. |
+| Is the 2× just the mapping ceiling restated? | The ceiling explains the direction. The measured number includes every overhead cycle, and STRIP also halves the tile count (16 vs 32 for `ffn_up`) [M]. Measured: 2.07× for `ffn_up`, the same as the model, and 2.02–2.07× across all four matmuls [HW]. |
+| Why +43.7% LUTs for a mux? | It isn't for the mux. The muxes are about 670 LUTs [B]. The FULL-only build also drops 8 of the 16 requant lanes (16 DSPs, about 1,500 LUTs). That's the honest bill for a 16-wide output tile. |
 | Did splitting cost Fmax? | We can't say, and we don't claim it. Both builds meet 100 MHz: WNS +2.097 ns (FULL-only), +0.523 ns (split) [B]. The split build's worst path is a replicated reset net with 0 logic levels and 96% routing. That's placement, not STRIP logic. The same RTL closed at +1.143 ns in an earlier build [B, cost.json at 8aeb9b0]. The WNS-based estimates (126.5 vs 105.5 MHz) aren't a sweep. |
-| What if hardware disagrees with the model? | Then it's a bug in one of them, and we reproduce it in simulation before touching the board again. ⟦HW: if it happened, what it was⟧. |
+| What if hardware disagrees with the model? | Then it's a bug in one of them, and we reproduce it in simulation before touching the board again. It didn't happen: all 256 board runs matched on every counter [HW]. The only hardware surprises were display digit order and glowing LEDs, both board I/O. |
 | Is d_model = 64 a toy? | Yes, by design: it fits on-chip and every run is checkable. Utilization depends on M against the array height and on K against the per-tile overhead, not on d_model. That's why K = 256 `ffn_down` reaches 83% at prefill in the model [M]. |
+| Zero error sounds too good. Is the model just reading the counters? | No. The model is a separate Rust crate, committed at 72da652 on Saturday at 10:10, three hours before the board session. It predicts from the job descriptor alone: shape, mode, requant. Zero error is what a deterministic, stall-free sequencer with on-chip SRAM should give. With DRAM it wouldn't, and the model would need a stall term. |
+| When is STRIP slower? | When it needs more tiles. STRIP tiles are 4×16 and FULL tiles are 8×8, so N = 17 pads to 32 in STRIP but only to 24 in FULL. On M = 22, K = 250, N = 17, STRIP took 3,566 cycles against 2,711 [HW]. The model predicted both, so a mode selector can just ask it. |
+| How long did the hardware runs take? | The on-chip cycles are in the counters. End to end, the 56-run sweep took under a minute of UART time, and we don't report that as accelerator speed. |
 | Is the data real model weights? | No. It's synthetic int8 from a fixed seed, with real LLM shapes. Bit-exactness doesn't depend on the values. Utilization doesn't either, because the counters count in-bounds MACs, not nonzero values. |
 
 ### 8.3 War stories (real, from the logs; pick one)
@@ -260,8 +271,9 @@ Each answer takes under 30 seconds. Rows marked ⟦HW⟧ get their number from `
 | Story | 30-second version |
 | --- | --- |
 | STRIP lower-half skew | The spec gave two formulas for the delay of W lanes 8–15 entering at row 4: `4 + c` in one section and `12 + c` in another. `12 + c` would have fed the lower half operands 8 cycles late. It was caught in spec review, and the spec, RTL, and tests were fixed together (D-008). The skew unit test now fails on the old formula, so it would catch a regression [V]. |
-| UART pins | The vendor constraints file names the UART pins from the USB bridge's side. The schematic showed the FPGA's RX and TX had to be swapped before any hardware test, which stays unconfirmed until hardware step H-2. One link in that reasoning came from a datasheet recalled from memory, so we also prebuilt a bitstream with the pins swapped back. ⟦HW: which one worked at H-2⟧. |
-| Latency surprise | The requant pipeline measured 7 cycles, not the provisional 4 (D-016). Every latency lives in one spec file, so the RTL, the model, and the tests changed together, and the tests assert measured latency == the spec constant [V]. |
+| UART pins | The vendor constraints file names the UART pins from the USB bridge's side. The schematic showed the FPGA's RX and TX had to be swapped, and we couldn't confirm that before the board. One link in that reasoning came from a datasheet recalled from memory, so we also prebuilt a bitstream with the pins swapped back. The schematic was right: the echo test passed with 10,000 and then 100,000 bytes, 0 mismatched, and the fallback was never used. |
+| Latency surprise | The drain-to-requant path measured 7 cycles, not the provisional 4 (D-016). Every latency lives in one spec file, so the RTL, the model, and the tests changed together, and the tests assert measured latency == the spec constant [V]. |
+| The display read backwards | On the board, the 7-segment showed the build id with its digits reversed. We read off which digit is which and fixed the RTL default. Then we rebuilt the system simulation's display check from that board-confirmed rule: it fails 7 of 8 cases on the old RTL [V]. The fix hasn't been on hardware yet. |
 | The harness that lied | Under `make -j`, cocotb could skip a simulation and still exit 0. We fixed it so every run must produce a fresh results file, and re-ran every suite [V]. |
 
 ---
@@ -275,13 +287,13 @@ Each answer takes under 30 seconds. Rows marked ⟦HW⟧ get their number from `
 Say which mode you are in. Never present replayed or simulated data as live.
 
 **What to say in each mode.**
-- **REPLAY:** "This is a recording of the hardware session from ⟦HW: time⟧. The board is running its self-test live." Show LED0 and LED1.
-- **SIM only (PLAN cut rule):** "STRIP on hardware isn't working yet; these STRIP numbers are from co-simulation of the same RTL, labeled SIM." Never round SIM into HW. The SIM numbers you may say: `ffn_up` M=1 FULL 6.95% → STRIP 14.40%, and M=64 55.65% / 57.65%. These come from 70 co-sim runs from two clean builds of the same RTL (66 at f402cc7, 4 at 5900507), with every counter equal to the model [SIM].
+- **REPLAY:** "This is a recording of the hardware session from Saturday, 1:26 to 1:41 pm. The board is running its self-test live." Show LED0 and LED1.
+- **SIM only (PLAN cut rule):** no longer applies, because STRIP passed on hardware (H-5, H-6). Use it only if the booth board fails and you must fall back to SIM: "these numbers are from co-simulation of the same RTL, labeled SIM." Never round SIM into HW. The SIM numbers you may say: `ffn_up` M=1 FULL 6.95% → STRIP 14.40%, and M=64 55.65% / 57.65%. These come from 70 co-sim runs from two clean builds of the same RTL (66 at f402cc7, 4 at 5900507), with every counter equal to the model [SIM].
 - **Board dead:** give the self-test and video pitch. The numbers come from the README tables with their source labels.
 
 **Storyteller pre-judging checks** (in addition to the §6 booth checklist):
 - [ ] `scripts/wsl 'python results/plots/make_plots.py --check'`: plots regenerated with `results/hw` present. The titles now say `HW`, not `MODEL`.
-- [ ] No placeholder left in public text: `grep -c '⟦' README.md docs/devpost.md` prints 0 for both. Strip the DEMO.md placeholders before rehearsal.
+- [ ] No HW placeholder left: `grep -c "$(printf '\342\237\246')HW" README.md docs/devpost.md docs/DEMO.md` prints 0 for all three (the printf emits the opening placeholder bracket, so this line doesn't count itself). Only HUMAN placeholders remain (team, table number, URLs, hero photo); fill them before submitting.
 - [ ] Every spoken number has been re-read from `results/` that morning. The model hash in the plots matches `results/model`.
 - [ ] Pitch word counts (each ≤ 280): `awk '/<!-- pitch:/{f=1;n=$0;next}/<!-- \/pitch -->/{print n, c; c=0; f=0} f{c+=NF}' docs/DEMO.md`
 - [ ] Each pitch has been rehearsed once against a skeptical-engineer Q&A from §8.2.
