@@ -118,7 +118,7 @@ module board_io
   (* ASYNC_REG = "TRUE" *) logic ext_meta = 1'b1, ext_sync = 1'b1;
   logic             b1_state = 1'b0;
   logic [DEB_W-1:0] b1_cnt   = '0;
-  logic             rst_r    = 1'b1;
+  (* max_fanout = 50 *) logic rst_r = 1'b1;   // drives board logic + top's 5 per-block regs
   /* verilator lint_on PROCASSINIT */
 
   always_ff @(posedge clk) begin

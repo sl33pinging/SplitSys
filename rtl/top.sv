@@ -71,8 +71,36 @@ module top #(
   localparam int unsigned RW = $clog2(N_REGIONS);
 
   logic clk;
-  logic rst;
+  logic rst;          // from board_io (reset root); drives only the per-block registers below
   assign clk = CLK_100MHZ;
+
+  // ---------------------------------------------------- per-block reset tree
+  // board_io.rst is re-registered once per block so that no single flop drives
+  // the synchronous reset of ~8k flops (timing: reset fan-out was the worst
+  // path at 100 MHz). All five registers sample the same rst, so every block
+  // below leaves reset in the SAME cycle, exactly one cycle after board_io
+  // (whose own logic only feeds LEDs/display and a debounced, therefore late,
+  // BTN0 pulse). rst is held >= POR_CYC (16) cycles at power-up and >= DEB_CYC
+  // cycles for BTN1, so each block sees >= 16 reset cycles.
+  // keep: stop synthesis from merging the equivalent registers back into one;
+  // max_fanout: let synthesis replicate further inside large blocks (core).
+  // INIT = 1 (declaration value) so no block is out of reset in the first
+  // cycle after configuration. PROCASSINIT is intended (power-up value).
+  /* verilator lint_off PROCASSINIT */
+  (* keep = "true", max_fanout = 256 *) logic rst_core = 1'b1;
+  (* keep = "true", max_fanout = 256 *) logic rst_st   = 1'b1;
+  (* keep = "true", max_fanout = 256 *) logic rst_pkt  = 1'b1;
+  (* keep = "true", max_fanout = 256 *) logic rst_ctr  = 1'b1;
+  (* keep = "true", max_fanout = 256 *) logic rst_uart = 1'b1;
+  /* verilator lint_on PROCASSINIT */
+
+  always_ff @(posedge clk) begin
+    rst_core <= rst;
+    rst_st   <= rst;
+    rst_pkt  <= rst;
+    rst_ctr  <= rst;
+    rst_uart <= rst;
+  end
 
   // ------------------------------------------------------------------ wires
   // UART
@@ -139,14 +167,14 @@ module top #(
 
   // ------------------------------------------------------------ host link
   uart_rx #(.DIV_OVERRIDE(UART_DIV_OVERRIDE)) u_rx (
-    .clk, .rst, .rxd(UART_RXD), .rx_data, .rx_valid, .rx_frame_err(rx_ferr), .rx_active
+    .clk, .rst(rst_uart), .rxd(UART_RXD), .rx_data, .rx_valid, .rx_frame_err(rx_ferr), .rx_active
   );
   uart_tx #(.DIV_OVERRIDE(UART_DIV_OVERRIDE)) u_tx (
-    .clk, .rst, .tx_data, .tx_valid, .tx_ready, .txd(UART_TXD), .tx_busy
+    .clk, .rst(rst_uart), .tx_data, .tx_valid, .tx_ready, .txd(UART_TXD), .tx_busy
   );
 
   packet #(.BUILD_ID(BUILD_ID), .STRIP_EN(ENABLE_STRIP), .RX_TIMEOUT_CYC(RX_TIMEOUT_CYC)) u_packet (
-    .clk, .rst, .rx_data, .rx_valid, .tx_data, .tx_valid, .tx_ready,
+    .clk, .rst(rst_pkt), .rx_data, .rx_valid, .tx_data, .tx_valid, .tx_ready,
     .mem_region(p_region), .mem_addr(p_addr), .mem_wdata(p_wdata), .mem_be(p_be),
     .mem_we(p_we), .mem_re(p_re), .mem_rdata(c_rdata),
     .run_desc(p_desc), .run_valid(p_run_valid), .run_accept(p_run_accept),
@@ -162,7 +190,7 @@ module top #(
   // ------------------------------------------------------------- self-test
   // BTN0 starts the self-test only while packet hunts for a frame (state 0).
   selftest #(.ROM_FILE(ROM_FILE)) u_selftest (
-    .clk, .rst, .start(st_start_pkt || (st_start_btn && (pkt_state == 5'd0))),
+    .clk, .rst(rst_st), .start(st_start_pkt || (st_start_btn && (pkt_state == 5'd0))),
     .busy(st_busy_w), .done(st_done_w),
     .pass_full(st_pass_full_w), .pass_strip(st_pass_strip_w),
     .fl_full(st_fl_full_w), .fl_strip(st_fl_strip_w),
@@ -186,7 +214,7 @@ module top #(
 
   // --------------------------------------------------------------- counters
   counters u_counters (
-    .clk, .rst, .start(tap_start), .done(tap_done),
+    .clk, .rst(rst_ctr), .start(tap_start), .done(tap_done),
     .tap_setup, .tap_stream, .tap_flush, .tap_drain, .tap_stall,
     .mac_cnt(tap_mac), .mac_q_cnt(tap_mac_q), .tile_done(tap_tile),
     .snap(ctr_snap), .rd_idx(ctr_idx), .rd_data(ctr_data), .running(ctr_running)
@@ -198,7 +226,7 @@ module top #(
   logic       tap_start;
 
   core #(.STRIP_EN(ENABLE_STRIP)) u_core (
-    .clk, .rst,
+    .clk, .rst(rst_core),
     .mem_region(c_region), .mem_addr(c_addr), .mem_wdata(c_wdata), .mem_be(c_be),
     .mem_we(c_we), .mem_re(c_re), .mem_rdata(c_rdata),
     .run_desc(c_desc), .run_valid(c_run_valid), .run_accept(c_run_accept),
