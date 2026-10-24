@@ -91,3 +91,5 @@ table.err td.hot { color: var(--fail); font-weight: 700; }
 .sw { display: inline-block; width: 18px; height: 18px; border-radius: 3px; vertical-align: -2px; margin-right: 6px; }
 .card-text { font-size: 24px; line-height: 1.45; }
 .card-text b { color: var(--text); }
+table.err.compact { font-size: 19px; }
+table.err.compact td, table.err.compact th { padding: 3px 8px; }

@@ -30,6 +30,10 @@ function setBadge(id, src, extra) {
 }
 function runs() { return (S && S.runs) || []; }
 function lastRun() { const r = runs(); return r.length ? r[r.length - 1] : null; }
+// Scene 1 headline, ×-factor and grid use int8 (requant) runs only: int32 bypass is a
+// bring-up path with a slower drain, not comparable with the int8 numbers.
+function headlineRun() { return latestOf((x) => x.gemm.requant); }
+function int32Tag(g) { return g.requant ? '' : ' · int32 bypass'; }
 function sameShape(a, b) { return a.gemm.name === b.gemm.name && a.gemm.M === b.gemm.M && a.gemm.K === b.gemm.K && a.gemm.N === b.gemm.N && a.gemm.requant === b.gemm.requant; }
 function latestOf(pred) { const r = runs(); for (let i = r.length - 1; i >= 0; i--) if (pred(r[i])) return r[i]; return null; }
 function srcLabel() { return S ? S.source : 'model'; }
@@ -87,7 +91,7 @@ function peOutput(mode, mb, nb, r, c) {
 }
 function renderGrid(active) {
   const svg = $('grid-svg'); svg.innerHTML = '';
-  const run = active ? null : lastRun();
+  const run = active ? null : headlineRun();
   const g = active ? active.gemm : (run ? run.gemm : null);
   const mode = g ? g.mode : 'FULL';
   const col = modeColor(mode);
@@ -197,7 +201,9 @@ function stepAnimation(now) {
 
 // ---------- Scene 1: this run ----------
 function renderRun() {
-  const r = lastRun();
+  const r = headlineRun();
+  const last = lastRun();
+  const skipped = last && !last.gemm.requant ? `<div class="note" style="margin-top:6px">latest run ${esc(last.gemm.name)} M=${last.gemm.M} ${last.gemm.mode} is int32 bypass: shown in the ticker, not headlined</div>` : '';
   const body = $('run-body');
   setBadge('run-badge', srcLabel());
   if (!r) { $('run-title').textContent = 'No run yet'; body.innerHTML = '<div class="pending-box">Press Space to run the scripted demo (ffn_up at M=1 and M=64, FULL then STRIP).</div>'; return; }
@@ -221,7 +227,7 @@ function renderRun() {
     <div style="margin-top:22px;font-size:22px;color:${C.muted}">Cycle breakdown (measured bar, model outline)</div>
     <svg id="brk-svg" width="596" height="150" viewBox="0 0 596 150"></svg>
     <div class="kv" style="margin-top:4px">check: <span class="${ok ? 'pass' : 'fail'}">${ok ? '✓ bit-exact vs golden' : '✗ FAILED'}</span> · ${int(r.check.outputs_compared)} outputs · ${r.check.mismatches} mismatches · invariants ${r.check.invariants_ok ? 'ok' : 'FAIL'}</div>
-    <div class="note" style="margin-top:6px">operand bytes/cycle ${d.operand_bytes_per_cycle} (stream) · stall ${int(r.counters.cycles_stall)} cycles</div>`;
+    <div class="note" style="margin-top:6px">operand bytes/cycle ${d.operand_bytes_per_cycle} (stream) · stall ${int(r.counters.cycles_stall)} cycles</div>${skipped}`;
   renderBreakdown($('brk-svg'), r);
 }
 function renderBreakdown(svg, r) {
@@ -304,7 +310,7 @@ function renderTicker() {
     if (!x) { d.className = 'tick empty'; d.textContent = '—'; t.appendChild(d); continue; }
     const ok = x.check.golden_match && x.check.invariants_ok;
     d.className = 'tick';
-    d.innerHTML = `<span class="mono">${esc(x.gemm.name)} M=${x.gemm.M}</span> <span class="${x.gemm.mode === 'STRIP' ? 'strip' : 'full'}">${x.gemm.mode}</span><br><span class="mono">${pct(x.derived.util)}</span> <span class="${ok ? 'pass' : 'fail'}">${ok ? '✓' : '✗'}</span> <span class="muted">${badgeFor(x.source)[0]}</span>`;
+    d.innerHTML = `<span class="mono">${esc(x.gemm.name)} M=${x.gemm.M}</span> <span class="${x.gemm.mode === 'STRIP' ? 'strip' : 'full'}">${x.gemm.mode}</span><br><span class="mono">${pct(x.derived.util)}</span> <span class="${ok ? 'pass' : 'fail'}">${ok ? '✓' : '✗'}</span> <span class="muted">${badgeFor(x.source)[0]}${x.gemm.requant ? '' : ' · int32'}</span>`;
     t.appendChild(d);
   }
 }
@@ -409,28 +415,36 @@ function renderBench() {
   $('bench-title').textContent = decodeGroups ? `STRIP beats FULL on ${wins} of ${decodeGroups} decode (M=1) benchmarks` : 'Benchmarks: not run yet (dashed = not run; white tick = model)';
   setBadge('bench-badge', measured ? srcLabel() : 'model', measured ? undefined : 'MODEL');
 }
+function counterVal(c, k) {
+  const q = /^mac_useful_q(\d)$/.exec(k);
+  return q ? c.mac_useful_q[+q[1]] : c[k];
+}
+const COUNTERS12 = ['cycles_total', 'cycles_setup', 'cycles_stream', 'cycles_flush', 'cycles_drain', 'cycles_stall', 'mac_useful', 'mac_useful_q0', 'mac_useful_q1', 'mac_useful_q2', 'mac_useful_q3', 'tiles'];
+function relErr(meas, mod) { return mod ? (meas - mod) / mod : (meas === 0 ? 0 : 1); }
 function renderErrTable() {
   const r = lastRun();
   setBadge('err-badge', srcLabel());
   const body = $('err-body');
   if (!r) { $('err-title').textContent = 'Model vs measured: no runs yet'; body.innerHTML = ''; return; }
-  const keys = ['cycles_total', 'cycles_setup', 'cycles_stream', 'cycles_flush', 'cycles_drain', 'cycles_stall', 'mac_useful', 'tiles'];
   const all = runs();
   let worst = 0;
-  const rows = keys.map((k) => {
-    const meas = r.counters[k], mod = r.model[k];
-    const e = mod ? (meas - mod) / mod : (meas === 0 ? 0 : 1);
+  const rows = COUNTERS12.map((k) => {
+    const meas = counterVal(r.counters, k), mod = counterVal(r.model, k);
+    const e = relErr(meas, mod);
     let mx = 0;
-    for (const x of all) { const mo = x.model[k], me = x.counters[k]; const ee = mo ? Math.abs((me - mo) / mo) : (me === 0 ? 0 : 1); if (ee > mx) mx = ee; }
+    for (const x of all) mx = Math.max(mx, Math.abs(relErr(counterVal(x.counters, k), counterVal(x.model, k))));
     worst = Math.max(worst, mx);
     const hot = Math.abs(e) > 0.05, hot2 = mx > 0.05;
     return `<tr><td>${k}</td><td>${int(meas)}</td><td>${int(mod)}</td><td class="${hot ? 'hot' : ''}">${signed(e, 2)}</td><td class="${hot2 ? 'hot' : ''}">${(mx * 100).toFixed(2)}%</td></tr>`;
   }).join('');
-  $('err-title').textContent = worst <= 0.05 ? `Model within 5% on every counter (${all.length} runs)` : `Model off by up to ${(worst * 100).toFixed(1)}%: see footnote`;
-  const mockNote = srcLabel() === 'model' ? '<div class="note" style="margin-top:8px;color:#FF5C5C">Mock board: its counters ARE the model, so errors are 0 by construction. Real errors come from SIM/HW runs.</div>' : '';
-  body.innerHTML = `<div class="kv mono" style="font-size:20px;margin-bottom:6px">last run: ${esc(r.gemm.name)} M=${r.gemm.M} ${r.gemm.mode}</div>
-    <table class="err"><tr><th>counter</th><th>measured</th><th>model</th><th>err</th><th>max |err|, all</th></tr>${rows}</table>
-    <div class="note" style="margin-top:8px">Values over 5% are red and need an explanation, not a tweak (SPEC §7).${S.latencies_provisional ? ' Latencies are provisional until RTL confirms them.' : ''}</div>${mockNote}`;
+  const n = `${all.length} ${badgeFor(srcLabel())[0]} runs`;
+  $('err-title').textContent = worst === 0 ? 'Model exact on all 12 counters'
+    : worst <= 0.05 ? `Model within ${(worst * 100).toFixed(2)}% on all 12 counters`
+    : `Model off by up to ${(worst * 100).toFixed(1)}%: see footnote`;
+  const mockNote = srcLabel() === 'model' ? '<div class="note" style="color:#FF5C5C">Mock board: its counters ARE the model, so errors are 0 by construction.</div>' : '';
+  body.innerHTML = `<div class="kv mono" style="font-size:19px;margin-bottom:4px">${n} · last: ${esc(r.gemm.name)} M=${r.gemm.M} ${r.gemm.mode}${int32Tag(r.gemm)}</div>
+    <table class="err compact"><tr><th>counter</th><th>measured</th><th>model</th><th>err</th><th>max |err|, all</th></tr>${rows}</table>
+    <div class="note" style="margin-top:4px">Over 5% is red and needs an explanation, not a tweak (SPEC §7).${S.latencies_provisional ? ' Latencies provisional.' : ''}</div>${mockNote}`;
 }
 
 // ---------- Scene 3 ----------
@@ -510,11 +524,11 @@ function renderRoof() {
   let nm = 0;
   for (const r of runs()) {
     const d = r.derived;
-    if (!d.arithmetic_intensity || !d.macs_per_cycle) continue;
+    if (!r.gemm.requant || !d.arithmetic_intensity || !d.macs_per_cycle) continue;
     nm++;
     svg.appendChild(el('circle', { cx: lx(d.arithmetic_intensity), cy: ly(d.macs_per_cycle), r: 5, fill: modeColor(r.gemm.mode) }));
   }
-  const lg = [[`hollow: model (M=1, 64)`, 'ring'], [`filled: measured (${nm})`, 'fill']];
+  const lg = [[`hollow: model (M=1, 64)`, 'ring'], [`filled: measured int8 (${nm})`, 'fill']];
   lg.forEach(([t, k], i) => {
     const x = L + 16, y = T + 26 + i * 28;
     svg.appendChild(k === 'ring' ? el('circle', { cx: x, cy: y - 6, r: 7, fill: 'none', stroke: '#fff', 'stroke-width': 2.5 }) : el('circle', { cx: x, cy: y - 6, r: 6, fill: '#fff' }));
