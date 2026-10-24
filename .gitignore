@@ -38,3 +38,5 @@ usage_statistics*
 *.backup.jou
 *.backup.log
 vivado_pid*.str
+# host mock-board run records (never verification evidence)
+results/mock/
