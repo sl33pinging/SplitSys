@@ -48,9 +48,19 @@ set tag [lindex $argv 0]
 if {![regexp {^[A-Za-z0-9_.-]+$} $tag]} { die "bad tag '$tag'" }
 set top ""
 set user_generics [list]
-foreach a [lrange $argv 1 end] {
+# vivado.bat goes through cmd.exe, which treats '=' as an argument separator:
+# "ENABLE_STRIP=0" arrives as two arguments "ENABLE_STRIP" "0". So an
+# all-uppercase identifier (generic names are uppercase; module names are not)
+# takes the next argument as its value. "NAME=VALUE" in one argument also works.
+set rest [lrange $argv 1 end]
+for {set i 0} {$i < [llength $rest]} {incr i} {
+    set a [lindex $rest $i]
     if {[regexp {^([A-Za-z_][A-Za-z0-9_]*)=(.+)$} $a -> k v]} {
         lappend user_generics $k $v
+    } elseif {[regexp {^[A-Z][A-Z0-9_]*$} $a]} {
+        incr i
+        if {$i >= [llength $rest]} { die "generic $a has no value" }
+        lappend user_generics $a [lindex $rest $i]
     } elseif {$top eq ""} {
         set top $a
     } else {
