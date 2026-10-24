@@ -42,3 +42,26 @@ are from runs in parallel under `-j8`. Standalone runs are all under 2 min; pack
 - 09:12: pe 8/8 and skew 6/6 at rtl 36771b6.
 - 09:20: requant latency failed (6 vs L_RQ 4) → BUG-001. Closed by D-016 (d6e3bcf); requant re-signed off at 125ee10.
 - 09:55: harness fix (forced fresh simulator runs). Every suite was re-run after it at 64848bf.
+
+## Sign-off at commit b53783d (S2 level-2 + S1 units re-run), `make -C tb signoff`, SEED=1, SCALE=1
+
+The run was clean and eligible under the provenance rules (red-team S1 SEV-2 fix):
+
+```
+== provenance: head=b53783d rtl=b53783d tb=ddc358f golden=382bda8 vec=8b48b12 cycle=c8b8125 spec_rs=d4fda53 spec=8a4691f run=20261024-102904-4395 ns=ve1
+== sign-off eligible: YES
+```
+
+**Command:** `scripts/wsl 'SPLITSYS_CACHE_TAG=<tag> make -C tb -j12 signoff'` passed **11/11 suites, 74/74 tests**, in 139 s wall.
+The packet suite takes 124 s under `-j12` load and about 85 s alone.
+
+Logs are in `~/.cache/splitsys/tb/ve1/logs/20261024-102904-4395/`. Later commits that change only `tb/SIGNOFF.md` or
+`tb/BUGS.md` do not affect any test input.
+
+| Suite | Tests | What is new since the S1 entry |
+| --- | --- | --- |
+| core (rtl/core.sv + counters.sv, wrapper `tb/core/core_tb.sv`, drives the mem bus and run interface directly) | 5 | **All 262 jobs in vec `directed.json`.** This covers every SPEC §6 Sequencer/Array case: ±128/127 at K=256 in int8 and int32, zeros, identity, all-ones, single nonzero at every output position, quadrant-only, requant ties and saturation, and edge shapes 1×1×1 … 64×256×256 in both modes. The int32 bypass jobs exercise FULL at 2 writes/row and STRIP at 4.<br>**Mode switching:** the `sequences` FULL→STRIP→FULL plus a 12-job alternating chain, with no reset.<br>**PE(7,7) zero-slack boundary (D-019):** K=1 and K=256, int8 and int32, both modes, nonzero a/w/out/rq bases. Built by golden `Job::new` via the new `tb/oracle job` command.<br>**Random:** 40 vec `gemm` jobs (seed 1, random bases) and 24 golden `Job` jobs (random bases and requant params).<br>**Checks on every job:** OBUF is compared on `compare_ranges` only (D-006), after the in-bounds bytes are poisoned with ~expected so a missing write cannot pass. **All 12 counters equal `splitsys-cycle predict` exactly**, and the §3.7 invariants hold. This independently confirms the D-017 latencies on the real sequencer.<br>**Sensitivity:** FLUSH±1 mutants are caught with an exact per-counter diff. |
+| core_ns (core with STRIP_EN=0) | 5 | Every FULL job above passes, with counters equal to the model (STRIP jobs skipped). |
+| packet | 12 | RUN_GEMM accept/reject expectations now come from golden `Descriptor::from_bytes` + `validate` (`oracle descvalid`); SPEC-text intent is cross-checked. New: POLL priority busy > error > done > idle (`seq_error` level). New: exact RX timeout (D-019): g = RX_TIMEOUT continues, g = RX_TIMEOUT+1 resets, at several split points; both off-by-one mutants are caught. New: strict request/response, i.e. frames arriving during execution or during the response are discarded with no side effect. |
+| packet_ns (packet with STRIP_EN=0) | 1 | All 52 RUN_GEMM descriptors with STRIP_EN=0 (golden + SPEC rule 1): STRIP gets NACK_RANGE. |
+| pe, skew, uart, counters, buffers, requant, array | 9/6/5/6/5/4/6 | Unchanged tests, re-run clean at b53783d. |
