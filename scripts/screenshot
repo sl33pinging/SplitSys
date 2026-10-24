@@ -3,29 +3,70 @@
 # Works from WSL and Git Bash. WSL services on 127.0.0.1 are reachable from
 # Windows via WSL2 localhost forwarding.
 #
-#   scripts/screenshot http://127.0.0.1:8080/ results/plots/scene1.png [1920,1080]
+#   scripts/screenshot [options] <url> <out.png> [W,H]      (default 1920,1080)
+#     --timeout-s N   hard timeout (default 30). On expiry: exit 1.
+#     --budget-ms N   give page JS N ms of *virtual* time before the shot
+#                     (Edge --virtual-time-budget). Do NOT use on pages with an
+#                     open SSE/WebSocket/long-poll: virtual time never advances
+#                     while a fetch is pending and Edge hangs (observed).
+#     --kill-stale    kill every headless Edge using a splitsys_edge_headless*
+#                     profile (leftovers of older runs), then exit.
 #
-# The output path must be on a Windows drive (the repo is on C:, so any repo
-# path works). Exit 0 only if the PNG was written.
+# Each run uses its own Edge profile dir (%TEMP%\splitsys_edge_headless\run_<id>).
+# Afterwards, on success, failure or timeout, every msedge.exe whose command line
+# contains that run's profile dir is killed, and nothing else. Concurrent runs
+# are safe. The output path must be on a Windows drive (any repo path works).
+# Exit 0 only if the PNG was written.
 # Owner: toolchain-engineer. See docs/ENV.md "Dashboard screenshots".
 set -u
-if [ $# -lt 2 ]; then
-    echo "usage: scripts/screenshot <url> <out.png> [W,H]" >&2; exit 2
-fi
-url="$1"; out="$2"; size="${3:-1920,1080}"
-case "$out" in /*) ;; *) out="$PWD/$out" ;; esac
-mkdir -p "$(dirname "$out")"
-out="$(cd "$(dirname "$out")" && pwd)/$(basename "$out")"
+timeout_s=30; budget_ms=""; kill_stale=0; pos=()
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --timeout-s) timeout_s="$2"; shift 2 ;;
+        --budget-ms) budget_ms="$2"; shift 2 ;;
+        --kill-stale) kill_stale=1; shift ;;
+        -h|--help) sed -n '2,21p' "$0"; exit 0 ;;
+        *) pos+=("$1"); shift ;;
+    esac
+done
 
 if grep -qi microsoft /proc/version 2>/dev/null; then
+    env_kind=wsl
     re='^/mnt/([a-zA-Z])(/.*)$'
     edge="/mnt/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
     tmpw="$(cd /mnt/c && cmd.exe /d /c echo %TEMP% 2>/dev/null | tr -d '\r')"
 else
+    env_kind=msys
     re='^/([a-zA-Z])(/.*)$'
     edge="/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
     tmpw="$(cygpath -w "${TEMP:-/tmp}")"
 fi
+profile_root="$tmpw\\splitsys_edge_headless"
+
+# Kill msedge.exe processes whose command line contains $1 (a literal substring).
+kill_edge_matching() {
+    local pat="${1//\'/\'\'}" ps1 enc
+    ps1="\$ProgressPreference='SilentlyContinue'; Get-CimInstance Win32_Process -Filter \"Name='msedge.exe'\" | Where-Object { \$_.CommandLine -and \$_.CommandLine.Contains('$pat') } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force -ErrorAction SilentlyContinue; \$_.ProcessId }"
+    enc="$(printf '%s' "$ps1" | iconv -t UTF-16LE | base64 -w0)"
+    if [ "$env_kind" = wsl ]; then
+        (cd /mnt/c && powershell.exe -NoProfile -NonInteractive -EncodedCommand "$enc" 2>/dev/null) | tr -d '\r' | grep -c . || true
+    else
+        powershell.exe -NoProfile -NonInteractive -EncodedCommand "$enc" 2>/dev/null | tr -d '\r' | grep -c . || true
+    fi
+}
+
+if [ "$kill_stale" = 1 ]; then
+    echo "killed $(kill_edge_matching 'splitsys_edge_headless') stale headless Edge process(es)"
+    exit 0
+fi
+
+if [ ${#pos[@]} -lt 2 ]; then
+    echo "usage: scripts/screenshot [--timeout-s N] [--budget-ms N] <url> <out.png> [W,H]" >&2; exit 2
+fi
+url="${pos[0]}"; out="${pos[1]}"; size="${pos[2]:-1920,1080}"
+case "$out" in /*) ;; *) out="$PWD/$out" ;; esac
+mkdir -p "$(dirname "$out")"
+out="$(cd "$(dirname "$out")" && pwd)/$(basename "$out")"
 if ! [[ "$out" =~ $re ]]; then
     echo "scripts/screenshot: output '$out' must be on a Windows drive (e.g. inside the repo)" >&2; exit 2
 fi
@@ -33,15 +74,37 @@ outw="$(printf '%s' "${BASH_REMATCH[1]}" | tr 'a-z' 'A-Z'):${BASH_REMATCH[2]}"
 outw="${outw//\//\\}"
 [ -x "$edge" ] || { echo "scripts/screenshot: Edge not found at $edge" >&2; exit 1; }
 
+run_profile="$profile_root\\run_$(date +%s)_$$_$RANDOM"
+extra=()
+[ -n "$budget_ms" ] && extra+=(--virtual-time-budget="$budget_ms")
 rm -f "$out"
-profile="$tmpw\\splitsys_edge_headless"
 MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' "$edge" --headless=new --disable-gpu --hide-scrollbars \
-    --no-first-run --no-default-browser-check --user-data-dir="$profile" \
-    --window-size="$size" --virtual-time-budget=5000 --screenshot="$outw" "$url" >/dev/null 2>&1
-# msedge.exe may return before the file is flushed; wait up to 30 s.
-for _ in $(seq 1 60); do
-    [ -s "$out" ] && { echo "wrote $out"; exit 0; }
+    --no-first-run --no-default-browser-check --user-data-dir="$run_profile" \
+    --window-size="$size" "${extra[@]}" --screenshot="$outw" "$url" >/dev/null 2>&1 &
+edge_pid=$!
+
+# msedge.exe (the launcher we started) can return at once while the real
+# browser processes keep running, so poll for the PNG, not for $edge_pid.
+ok=1; last_size=-1
+deadline=$(( $(date +%s) + timeout_s ))
+while [ "$(date +%s)" -lt "$deadline" ]; do
     sleep 0.5
+    if [ -s "$out" ]; then
+        size_now="$(wc -c < "$out")"
+        # done when the PNG size is stable across two polls
+        if [ "$size_now" = "$last_size" ]; then ok=0; break; fi
+        last_size="$size_now"
+    fi
 done
-echo "scripts/screenshot: no screenshot written to $out" >&2
+
+# Always clean up this run's Edge processes (only those using this run's profile).
+kill_edge_matching "$run_profile" >/dev/null
+kill "$edge_pid" 2>/dev/null; wait "$edge_pid" 2>/dev/null
+
+if [ "$ok" = 0 ] && [ -s "$out" ]; then
+    echo "wrote $out"
+    exit 0
+fi
+echo "scripts/screenshot: no screenshot written to $out within ${timeout_s}s (Edge for this run killed)" >&2
+[ -n "$budget_ms" ] && echo "  hint: --budget-ms hangs on pages with SSE/WebSocket; retry without it" >&2
 exit 1

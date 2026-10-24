@@ -49,7 +49,7 @@ Last result: `ALL REQUIRED OK`, exit 0. Optional WARNs: socat, ccache, mold (wai
 
 **Windows side (read-only)**
 - `C:\Xilinx`: `2025.1`, `2025.2.1`, `DocNav`, `Downloads`, `xic`.
-- The Vivado user init script `C:\Users\danie\AppData\Roaming\Xilinx\Vivado\Vivado_init.tcl` runs on **every** Vivado launch. Its single line is `set_param board.repoPaths [list "//wsl.localhost/Ubuntu-24.04/home/qwer/vivado-boards/new/board_files"]`. This is harmless (it only adds a board repo; there is no Urbana board file there). Not modified.
+- The Vivado user init script `C:\Users\danie\AppData\Roaming\Xilinx\Vivado\Vivado_init.tcl` runs on **every** Vivado launch. Its single line is `set_param board.repoPaths [list "//wsl.localhost/Ubuntu-24.04/home/qwer/vivado-boards/new/board_files"]`. It adds a board repo on a `\\wsl.localhost` UNC path, which has no Urbana board file. Vivado reports critical warnings about that repo; `fpga-integrator` silences them in `fpga/tcl`. `scripts/vivado` needs no change. The file was not modified.
 - Microsoft Edge: `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`. Chrome: `C:\Program Files\Google\Chrome\Application\chrome.exe`.
 - usbipd-win 5.3.0 at `C:\Program Files\usbipd-win\usbipd.exe`.
 - Windows Rust: `where.exe cargo rustup` finds nothing. **Not installed** (see USB strategy).
@@ -113,7 +113,23 @@ So `xc7s50csga324-2` exists. The csga324 speed grades available are -1, -1IL, -1
 - **Origin:** `C:\Users\danie\Downloads\Urbana.xdc` (WSL: `/mnt/c/Users/danie/Downloads/Urbana.xdc`), 24993 bytes, 468 lines, mtime 2026-03-04, md5 `efdc408b5aab32e8ff03770e47cd6c47` (CRLF original). Header: `# URBANA BOARD CONSTRAINTS V2I1 1/3/2023`. It covers every board resource (100 MHz clock, switches, LEDs, buttons, RGB LEDs, two 7-segment displays, HDMI, USB host, SD, audio, analog, UART + BLE UART, servo, PMODs, DDR3).
 - **Copied verbatim** to `fpga/xdc/urbana_master.xdc`. Git normalizes it to LF on commit (`.gitattributes`); the content is otherwise unchanged.
 - The same folder holds the schematic `C:\Users\danie\Downloads\Urbana_V2I1_SCH_2023-01-03.PDF` (plus two duplicate downloads). It was not copied; read it in place when needed.
-- Facts read from the file (for `fpga-integrator`, who should still read the file itself): clock `CLK_100MHZ` on **N15** LVCMOS33 (its `create_clock` line is commented out and names port `clk_100MHz`). USB-UART: **`UART_TXD` B16, `UART_RXD` A16** (LVCMOS33). Switches use LVCMOS25, LEDs LVCMOS33. `CFGBVS VCCO`, `CONFIG_VOLTAGE 3.3`, `SPI_buswidth 4`.
+- Facts read from the file: clock `CLK_100MHZ` on **N15** LVCMOS33 (its `create_clock` line is commented out and names port `clk_100MHz`). USB-UART lines: the master's port names are `UART_TXD` on B16 and `UART_RXD` on A16 (LVCMOS33). **These names are from the USB bridge's side, not the FPGA's; see the table below.** Switches use LVCMOS25, LEDs LVCMOS33. `CFGBVS VCCO`, `CONFIG_VOLTAGE 3.3`, `SPI_buswidth 4`.
+
+### Board facts (copied from `docs/HW_CHECKLIST.md`, owner `fpga-integrator`; that file is authoritative)
+
+`fpga-integrator` extracted these from the master XDC and the schematic `C:\Users\danie\Downloads\Urbana_V2I1_SCH_2023-01-03.PDF` (19 pages, V2I1). The PDF's embedded net/pin annotations were read with pypdf text extraction; the pages were not rendered. "sch pN" means schematic page N, and "master:N" means line N of `fpga/xdc/urbana_master.xdc`.
+
+| Fact | Value | Evidence |
+| --- | --- | --- |
+| Clock | 100 MHz on FPGA N15 | master:2–4; sch p11: oscillator IC16 `ASEM1-100.000MHZ` → buffer IC15 → net `CLK_100MHZ` → N15 |
+| USB-UART direction | **FPGA receives on B16, transmits on A16.** The master-XDC names are from the FTDI's side. | sch p12: B16 = net `UART_TXD`, A16 = net `UART_RXD`. sch p10: `UART_TXD` = FT2232HQ (IC6) pin 38 = BDBUS0, `UART_RXD` = pin 39 = BDBUS1. Channel A pins 16–19 are JTAG, so channel B is the UART, where BDBUS0 = TXD (FTDI output) and BDBUS1 = RXD (FTDI input). Project XDC: port `UART_RXD` → B16, `UART_TXD` → A16. |
+| Buttons BTN0–3 | **Active high** (pressed = 1), external 10k pull-down | sch p4: R60–R63 pull-downs, R43/R47/R52/R57 series. FPGA pins J2/J1/G2/H2 (sch p13, master:48–51). |
+| LEDs LD0–15 | **Active high** | sch p4: net LDn → 330R → LED anode; cathodes to GND. |
+| 7-seg anodes D0/D1_AN | **Active low** | sch p4: each AN net drives the base of a PNP (MBT3906DW1) high-side switch through 1.5k; the master XDC also says "Active LOW". |
+| 7-seg segments D0/D1_SEG | **Active low**, SEG[0..7] = A, B, C, D, E, F, G, DP | sch p4: SEG nets → 100R → cathodes of the common-anode KW4-281ASB. |
+| Which display is left; which AN is the leftmost digit | **Unknown** (a layout question, not netlist) | To be measured at H-1. The design assumes D1 = left, AN[3] = leftmost. |
+
+**Caveat on the UART direction:** the schematic gives only *which FT2232H pin* each net reaches. The step "BDBUS0 = TXD (FTDI output), BDBUS1 = RXD (FTDI input)" comes from the FTDI DS_FT2232H pin table **from memory**: that datasheet is not in the repo or on disk and was not read during the event. The direction is therefore not fully verified until H-2 passes. `fpga-integrator` is building a fallback bitstream with the two pins swapped. If H-2 shows the swap was needed, record the result here.
 - **Vendor-file quirks (do not "fix" the master; handle them in the project XDC):** every `set_property` line is *active* (318 of them, none commented out), so a project XDC must use only the needed lines. HDMI lines use the misspelled IOSTANDARD `TDMS_33` (Vivado's name is `TMDS_33`). There is a port typo `HDMI_DO_P` (letter O) and a port name with a hyphen, `HDMI_I2C-SDA`. The header says V2I1. Confirm against the board silkscreen in Phase H.
 
 **Searches run (bounded, read-only):**
@@ -133,8 +149,11 @@ Use **Windows-side headless Edge**. No Linux browser and no sudo needed.
 scripts/screenshot http://127.0.0.1:8080/ results/plots/scene1.png 1920,1080
 ```
 - Verified: `python3 -m http.server 8765 --bind 127.0.0.1` in WSL gives HTTP 200 from Windows `curl` (WSL2 localhost forwarding works). Edge rendered it to a 1920x1080 PNG, from both Git Bash and WSL.
-- Raw command, if needed: `"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --headless=new --disable-gpu --hide-scrollbars --no-first-run --user-data-dir=%TEMP%\splitsys_edge_headless --window-size=1920,1080 --virtual-time-budget=5000 --screenshot=C:\path\out.png http://127.0.0.1:8080/`
-- Gotchas: `--user-data-dir` is required (without it, Edge hands off to the running browser instance and writes nothing). `msedge.exe` can return before the PNG is flushed, so the script waits up to 30 s for the file. The output must be on `C:` (any repo path works). `--virtual-time-budget=5000` gives page JS 5 s of virtual time to render.
+- Options: `--timeout-s N` sets a hard timeout (default 30 s; on expiry, exit 1). `--budget-ms N` gives page JS N ms of *virtual* time before the shot. `--kill-stale` kills leftover headless Edge processes from older runs, then exits.
+- **Do not use `--budget-ms` on pages that keep a connection open (SSE, WebSocket, long-poll).** Edge's virtual time does not advance while a fetch is pending, so Edge never takes the shot and keeps running. Reproduced with an SSE test page: with the budget there was no PNG and 16 msedge.exe processes were left behind; without it the PNG was written in about 2 s. Without a budget, the shot is taken at page load. For an SSE dashboard, the first event had already rendered ("tick 0"). On a static page, `--budget-ms 5000` correctly waited for a 2 s JS timer.
+- Process hygiene: every run uses its own profile directory, `%TEMP%\splitsys_edge_headless\run_<time>_<pid>_<rand>`. After success, failure, or timeout, the script kills **only** the `msedge.exe` processes whose command line contains that run's directory (found with PowerShell `Get-CimInstance Win32_Process`). Concurrent runs do not interfere. `scripts/screenshot --kill-stale` kills any process using a `splitsys_edge_headless*` profile. Use it only when no other screenshot run is in flight.
+- Raw command, if needed: `"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --headless=new --disable-gpu --hide-scrollbars --no-first-run --user-data-dir=%TEMP%\splitsys_edge_headless\run_X --window-size=1920,1080 --screenshot=C:\path\out.png http://127.0.0.1:8080/`
+- Gotchas: `--user-data-dir` is required (without it, Edge hands off to the running browser instance and writes nothing). The `msedge.exe` launcher can return at once while the browser keeps running, so the script polls for the PNG until its size is stable, not for the launcher. The output must be on `C:` (any repo path works).
 - Playwright and Linux Chromium were **not** installed. They would need sudo for system libraries.
 
 ## USB strategy
