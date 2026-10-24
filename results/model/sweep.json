@@ -1,0 +1,2375 @@
+{
+  "source": "model",
+  "kind": "utilization_vs_M",
+  "model_git_hash": "8aeedea",
+  "latencies_provisional": true,
+  "latencies": {
+    "L_PE": 3,
+    "L_RD": 2,
+    "L_SETUP": 16,
+    "L_RQ": 4,
+    "L_WB": 1,
+    "L_ACCEPT": 1,
+    "L_DONE": 1
+  },
+  "array": {
+    "rows": 8,
+    "cols": 8,
+    "peak_macs_per_cycle": 64
+  },
+  "definitions": {
+    "t_tile": "L_SETUP + (L_RD + K) + ((R-1) + (C-1) + L_PE) + T_DRAIN + L_RQ + L_WB; R = C = 8; T_DRAIN = 8 FULL / 4 STRIP, x4 when flags.out_int32",
+    "tiles": "FULL ceil(M/8)*ceil(N/8); STRIP ceil(M/4)*ceil(N/16)",
+    "cycles_total": "L_ACCEPT + tiles * T_tile + L_DONE",
+    "util_model": "mac_useful / (64 * cycles_total)",
+    "mapping_ceiling": "M*N / (64 * tiles): utilization if only the K MAC cycles of each tile counted",
+    "operand_bytes_per_cycle": "A + W bytes read per STREAM cycle: FULL 8 A + 8 W = 16; STRIP 4 A + 16 W = 20",
+    "arithmetic_intensity": "mac_useful / (tiles * K * operand_bytes_per_cycle): useful MACs per operand byte actually streamed from ABUF + WBUF (zero-padded lanes included; requant params and outputs excluded)"
+  },
+  "m_values": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32,
+    64
+  ],
+  "points": [
+    {
+      "source": "model",
+      "gemm": {
+        "name": "qkv",
+        "M": 1,
+        "K": 64,
+        "N": 192,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 2690,
+        "cycles_setup": 384,
+        "cycles_stream": 1584,
+        "cycles_flush": 408,
+        "cycles_drain": 312,
+        "cycles_stall": 0,
+        "mac_useful": 12288,
+        "mac_useful_q": [
+          6144,
+          6144,
+          0,
+          0
+        ],
+        "tiles": 24,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.07137546468401487,
+        "mapping_ceiling": 0.125,
+        "macs_per_cycle": 4.568029739776952,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 24576,
+        "arithmetic_intensity": 0.5
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "qkv",
+        "M": 1,
+        "K": 64,
+        "N": 192,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 1298,
+        "cycles_setup": 192,
+        "cycles_stream": 792,
+        "cycles_flush": 204,
+        "cycles_drain": 108,
+        "cycles_stall": 0,
+        "mac_useful": 12288,
+        "mac_useful_q": [
+          3072,
+          3072,
+          3072,
+          3072
+        ],
+        "tiles": 12,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.14791987673343607,
+        "mapping_ceiling": 0.25,
+        "macs_per_cycle": 9.466872110939908,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 15360,
+        "arithmetic_intensity": 0.8
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "qkv",
+        "M": 2,
+        "K": 64,
+        "N": 192,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 2690,
+        "cycles_setup": 384,
+        "cycles_stream": 1584,
+        "cycles_flush": 408,
+        "cycles_drain": 312,
+        "cycles_stall": 0,
+        "mac_useful": 24576,
+        "mac_useful_q": [
+          12288,
+          12288,
+          0,
+          0
+        ],
+        "tiles": 24,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.14275092936802974,
+        "mapping_ceiling": 0.25,
+        "macs_per_cycle": 9.136059479553904,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 24576,
+        "arithmetic_intensity": 1.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "qkv",
+        "M": 2,
+        "K": 64,
+        "N": 192,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 1298,
+        "cycles_setup": 192,
+        "cycles_stream": 792,
+        "cycles_flush": 204,
+        "cycles_drain": 108,
+        "cycles_stall": 0,
+        "mac_useful": 24576,
+        "mac_useful_q": [
+          6144,
+          6144,
+          6144,
+          6144
+        ],
+        "tiles": 12,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.29583975346687214,
+        "mapping_ceiling": 0.5,
+        "macs_per_cycle": 18.933744221879817,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 15360,
+        "arithmetic_intensity": 1.6
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "qkv",
+        "M": 4,
+        "K": 64,
+        "N": 192,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 2690,
+        "cycles_setup": 384,
+        "cycles_stream": 1584,
+        "cycles_flush": 408,
+        "cycles_drain": 312,
+        "cycles_stall": 0,
+        "mac_useful": 49152,
+        "mac_useful_q": [
+          24576,
+          24576,
+          0,
+          0
+        ],
+        "tiles": 24,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.2855018587360595,
+        "mapping_ceiling": 0.5,
+        "macs_per_cycle": 18.272118959107807,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 24576,
+        "arithmetic_intensity": 2.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "qkv",
+        "M": 4,
+        "K": 64,
+        "N": 192,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 1298,
+        "cycles_setup": 192,
+        "cycles_stream": 792,
+        "cycles_flush": 204,
+        "cycles_drain": 108,
+        "cycles_stall": 0,
+        "mac_useful": 49152,
+        "mac_useful_q": [
+          12288,
+          12288,
+          12288,
+          12288
+        ],
+        "tiles": 12,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5916795069337443,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 37.86748844375963,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 15360,
+        "arithmetic_intensity": 3.2
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "qkv",
+        "M": 8,
+        "K": 64,
+        "N": 192,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 2690,
+        "cycles_setup": 384,
+        "cycles_stream": 1584,
+        "cycles_flush": 408,
+        "cycles_drain": 312,
+        "cycles_stall": 0,
+        "mac_useful": 98304,
+        "mac_useful_q": [
+          24576,
+          24576,
+          24576,
+          24576
+        ],
+        "tiles": 24,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.571003717472119,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 36.544237918215615,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 24576,
+        "arithmetic_intensity": 4.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "qkv",
+        "M": 8,
+        "K": 64,
+        "N": 192,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 2594,
+        "cycles_setup": 384,
+        "cycles_stream": 1584,
+        "cycles_flush": 408,
+        "cycles_drain": 216,
+        "cycles_stall": 0,
+        "mac_useful": 98304,
+        "mac_useful_q": [
+          24576,
+          24576,
+          24576,
+          24576
+        ],
+        "tiles": 24,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5921356977640709,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 37.89668465690054,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 30720,
+        "arithmetic_intensity": 3.2
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "qkv",
+        "M": 16,
+        "K": 64,
+        "N": 192,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 5378,
+        "cycles_setup": 768,
+        "cycles_stream": 3168,
+        "cycles_flush": 816,
+        "cycles_drain": 624,
+        "cycles_stall": 0,
+        "mac_useful": 196608,
+        "mac_useful_q": [
+          49152,
+          49152,
+          49152,
+          49152
+        ],
+        "tiles": 48,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5712160654518408,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 36.55782818891781,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 49152,
+        "arithmetic_intensity": 4.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "qkv",
+        "M": 16,
+        "K": 64,
+        "N": 192,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 5186,
+        "cycles_setup": 768,
+        "cycles_stream": 3168,
+        "cycles_flush": 816,
+        "cycles_drain": 432,
+        "cycles_stall": 0,
+        "mac_useful": 196608,
+        "mac_useful_q": [
+          49152,
+          49152,
+          49152,
+          49152
+        ],
+        "tiles": 48,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5923640570767451,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 37.91129965291169,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 61440,
+        "arithmetic_intensity": 3.2
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "qkv",
+        "M": 32,
+        "K": 64,
+        "N": 192,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 10754,
+        "cycles_setup": 1536,
+        "cycles_stream": 6336,
+        "cycles_flush": 1632,
+        "cycles_drain": 1248,
+        "cycles_stall": 0,
+        "mac_useful": 393216,
+        "mac_useful_q": [
+          98304,
+          98304,
+          98304,
+          98304
+        ],
+        "tiles": 96,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5713222986795611,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 36.56462711549191,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 98304,
+        "arithmetic_intensity": 4.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "qkv",
+        "M": 32,
+        "K": 64,
+        "N": 192,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 10370,
+        "cycles_setup": 1536,
+        "cycles_stream": 6336,
+        "cycles_flush": 1632,
+        "cycles_drain": 864,
+        "cycles_stall": 0,
+        "mac_useful": 393216,
+        "mac_useful_q": [
+          98304,
+          98304,
+          98304,
+          98304
+        ],
+        "tiles": 96,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5924783027965285,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 37.91861137897782,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 122880,
+        "arithmetic_intensity": 3.2
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "qkv",
+        "M": 64,
+        "K": 64,
+        "N": 192,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 21506,
+        "cycles_setup": 3072,
+        "cycles_stream": 12672,
+        "cycles_flush": 3264,
+        "cycles_drain": 2496,
+        "cycles_stall": 0,
+        "mac_useful": 786432,
+        "mac_useful_q": [
+          196608,
+          196608,
+          196608,
+          196608
+        ],
+        "tiles": 192,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5713754301125268,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 36.568027527201714,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 196608,
+        "arithmetic_intensity": 4.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "qkv",
+        "M": 64,
+        "K": 64,
+        "N": 192,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 20738,
+        "cycles_setup": 3072,
+        "cycles_stream": 12672,
+        "cycles_flush": 3264,
+        "cycles_drain": 1728,
+        "cycles_stall": 0,
+        "mac_useful": 786432,
+        "mac_useful_q": [
+          196608,
+          196608,
+          196608,
+          196608
+        ],
+        "tiles": 192,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5925354421834313,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 37.922268299739606,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 245760,
+        "arithmetic_intensity": 3.2
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "attn_out",
+        "M": 1,
+        "K": 64,
+        "N": 64,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 898,
+        "cycles_setup": 128,
+        "cycles_stream": 528,
+        "cycles_flush": 136,
+        "cycles_drain": 104,
+        "cycles_stall": 0,
+        "mac_useful": 4096,
+        "mac_useful_q": [
+          2048,
+          2048,
+          0,
+          0
+        ],
+        "tiles": 8,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.07126948775055679,
+        "mapping_ceiling": 0.125,
+        "macs_per_cycle": 4.5612472160356345,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 8192,
+        "arithmetic_intensity": 0.5
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "attn_out",
+        "M": 1,
+        "K": 64,
+        "N": 64,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 434,
+        "cycles_setup": 64,
+        "cycles_stream": 264,
+        "cycles_flush": 68,
+        "cycles_drain": 36,
+        "cycles_stall": 0,
+        "mac_useful": 4096,
+        "mac_useful_q": [
+          1024,
+          1024,
+          1024,
+          1024
+        ],
+        "tiles": 4,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.14746543778801843,
+        "mapping_ceiling": 0.25,
+        "macs_per_cycle": 9.43778801843318,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 5120,
+        "arithmetic_intensity": 0.8
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "attn_out",
+        "M": 2,
+        "K": 64,
+        "N": 64,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 898,
+        "cycles_setup": 128,
+        "cycles_stream": 528,
+        "cycles_flush": 136,
+        "cycles_drain": 104,
+        "cycles_stall": 0,
+        "mac_useful": 8192,
+        "mac_useful_q": [
+          4096,
+          4096,
+          0,
+          0
+        ],
+        "tiles": 8,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.14253897550111358,
+        "mapping_ceiling": 0.25,
+        "macs_per_cycle": 9.122494432071269,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 8192,
+        "arithmetic_intensity": 1.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "attn_out",
+        "M": 2,
+        "K": 64,
+        "N": 64,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 434,
+        "cycles_setup": 64,
+        "cycles_stream": 264,
+        "cycles_flush": 68,
+        "cycles_drain": 36,
+        "cycles_stall": 0,
+        "mac_useful": 8192,
+        "mac_useful_q": [
+          2048,
+          2048,
+          2048,
+          2048
+        ],
+        "tiles": 4,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.29493087557603687,
+        "mapping_ceiling": 0.5,
+        "macs_per_cycle": 18.87557603686636,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 5120,
+        "arithmetic_intensity": 1.6
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "attn_out",
+        "M": 4,
+        "K": 64,
+        "N": 64,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 898,
+        "cycles_setup": 128,
+        "cycles_stream": 528,
+        "cycles_flush": 136,
+        "cycles_drain": 104,
+        "cycles_stall": 0,
+        "mac_useful": 16384,
+        "mac_useful_q": [
+          8192,
+          8192,
+          0,
+          0
+        ],
+        "tiles": 8,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.28507795100222716,
+        "mapping_ceiling": 0.5,
+        "macs_per_cycle": 18.244988864142538,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 8192,
+        "arithmetic_intensity": 2.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "attn_out",
+        "M": 4,
+        "K": 64,
+        "N": 64,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 434,
+        "cycles_setup": 64,
+        "cycles_stream": 264,
+        "cycles_flush": 68,
+        "cycles_drain": 36,
+        "cycles_stall": 0,
+        "mac_useful": 16384,
+        "mac_useful_q": [
+          4096,
+          4096,
+          4096,
+          4096
+        ],
+        "tiles": 4,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5898617511520737,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 37.75115207373272,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 5120,
+        "arithmetic_intensity": 3.2
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "attn_out",
+        "M": 8,
+        "K": 64,
+        "N": 64,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 898,
+        "cycles_setup": 128,
+        "cycles_stream": 528,
+        "cycles_flush": 136,
+        "cycles_drain": 104,
+        "cycles_stall": 0,
+        "mac_useful": 32768,
+        "mac_useful_q": [
+          8192,
+          8192,
+          8192,
+          8192
+        ],
+        "tiles": 8,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5701559020044543,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 36.489977728285076,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 8192,
+        "arithmetic_intensity": 4.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "attn_out",
+        "M": 8,
+        "K": 64,
+        "N": 64,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 866,
+        "cycles_setup": 128,
+        "cycles_stream": 528,
+        "cycles_flush": 136,
+        "cycles_drain": 72,
+        "cycles_stall": 0,
+        "mac_useful": 32768,
+        "mac_useful_q": [
+          8192,
+          8192,
+          8192,
+          8192
+        ],
+        "tiles": 8,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5912240184757506,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 37.838337182448036,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 10240,
+        "arithmetic_intensity": 3.2
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "attn_out",
+        "M": 16,
+        "K": 64,
+        "N": 64,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 1794,
+        "cycles_setup": 256,
+        "cycles_stream": 1056,
+        "cycles_flush": 272,
+        "cycles_drain": 208,
+        "cycles_stall": 0,
+        "mac_useful": 65536,
+        "mac_useful_q": [
+          16384,
+          16384,
+          16384,
+          16384
+        ],
+        "tiles": 16,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5707915273132664,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 36.53065774804905,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 16384,
+        "arithmetic_intensity": 4.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "attn_out",
+        "M": 16,
+        "K": 64,
+        "N": 64,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 1730,
+        "cycles_setup": 256,
+        "cycles_stream": 1056,
+        "cycles_flush": 272,
+        "cycles_drain": 144,
+        "cycles_stall": 0,
+        "mac_useful": 65536,
+        "mac_useful_q": [
+          16384,
+          16384,
+          16384,
+          16384
+        ],
+        "tiles": 16,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5919075144508671,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 37.882080924855494,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 20480,
+        "arithmetic_intensity": 3.2
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "attn_out",
+        "M": 32,
+        "K": 64,
+        "N": 64,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 3586,
+        "cycles_setup": 512,
+        "cycles_stream": 2112,
+        "cycles_flush": 544,
+        "cycles_drain": 416,
+        "cycles_stall": 0,
+        "mac_useful": 131072,
+        "mac_useful_q": [
+          32768,
+          32768,
+          32768,
+          32768
+        ],
+        "tiles": 32,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5711098717233687,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 36.551031790295596,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 32768,
+        "arithmetic_intensity": 4.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "attn_out",
+        "M": 32,
+        "K": 64,
+        "N": 64,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 3458,
+        "cycles_setup": 512,
+        "cycles_stream": 2112,
+        "cycles_flush": 544,
+        "cycles_drain": 288,
+        "cycles_stall": 0,
+        "mac_useful": 131072,
+        "mac_useful_q": [
+          32768,
+          32768,
+          32768,
+          32768
+        ],
+        "tiles": 32,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5922498554077501,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 37.90399074609601,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 40960,
+        "arithmetic_intensity": 3.2
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "attn_out",
+        "M": 64,
+        "K": 64,
+        "N": 64,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 7170,
+        "cycles_setup": 1024,
+        "cycles_stream": 4224,
+        "cycles_flush": 1088,
+        "cycles_drain": 832,
+        "cycles_stall": 0,
+        "mac_useful": 262144,
+        "mac_useful_q": [
+          65536,
+          65536,
+          65536,
+          65536
+        ],
+        "tiles": 64,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5712691771269177,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 36.561227336122734,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 65536,
+        "arithmetic_intensity": 4.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "attn_out",
+        "M": 64,
+        "K": 64,
+        "N": 64,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 6914,
+        "cycles_setup": 1024,
+        "cycles_stream": 4224,
+        "cycles_flush": 1088,
+        "cycles_drain": 576,
+        "cycles_stall": 0,
+        "mac_useful": 262144,
+        "mac_useful_q": [
+          65536,
+          65536,
+          65536,
+          65536
+        ],
+        "tiles": 64,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5924211744286954,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 37.9149551634365,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 81920,
+        "arithmetic_intensity": 3.2
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_up",
+        "M": 1,
+        "K": 64,
+        "N": 256,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 3586,
+        "cycles_setup": 512,
+        "cycles_stream": 2112,
+        "cycles_flush": 544,
+        "cycles_drain": 416,
+        "cycles_stall": 0,
+        "mac_useful": 16384,
+        "mac_useful_q": [
+          8192,
+          8192,
+          0,
+          0
+        ],
+        "tiles": 32,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.07138873396542109,
+        "mapping_ceiling": 0.125,
+        "macs_per_cycle": 4.5688789737869495,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 32768,
+        "arithmetic_intensity": 0.5
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_up",
+        "M": 1,
+        "K": 64,
+        "N": 256,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 1730,
+        "cycles_setup": 256,
+        "cycles_stream": 1056,
+        "cycles_flush": 272,
+        "cycles_drain": 144,
+        "cycles_stall": 0,
+        "mac_useful": 16384,
+        "mac_useful_q": [
+          4096,
+          4096,
+          4096,
+          4096
+        ],
+        "tiles": 16,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.14797687861271677,
+        "mapping_ceiling": 0.25,
+        "macs_per_cycle": 9.470520231213873,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 20480,
+        "arithmetic_intensity": 0.8
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_up",
+        "M": 2,
+        "K": 64,
+        "N": 256,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 3586,
+        "cycles_setup": 512,
+        "cycles_stream": 2112,
+        "cycles_flush": 544,
+        "cycles_drain": 416,
+        "cycles_stall": 0,
+        "mac_useful": 32768,
+        "mac_useful_q": [
+          16384,
+          16384,
+          0,
+          0
+        ],
+        "tiles": 32,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.14277746793084217,
+        "mapping_ceiling": 0.25,
+        "macs_per_cycle": 9.137757947573899,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 32768,
+        "arithmetic_intensity": 1.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_up",
+        "M": 2,
+        "K": 64,
+        "N": 256,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 1730,
+        "cycles_setup": 256,
+        "cycles_stream": 1056,
+        "cycles_flush": 272,
+        "cycles_drain": 144,
+        "cycles_stall": 0,
+        "mac_useful": 32768,
+        "mac_useful_q": [
+          8192,
+          8192,
+          8192,
+          8192
+        ],
+        "tiles": 16,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.29595375722543354,
+        "mapping_ceiling": 0.5,
+        "macs_per_cycle": 18.941040462427747,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 20480,
+        "arithmetic_intensity": 1.6
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_up",
+        "M": 4,
+        "K": 64,
+        "N": 256,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 3586,
+        "cycles_setup": 512,
+        "cycles_stream": 2112,
+        "cycles_flush": 544,
+        "cycles_drain": 416,
+        "cycles_stall": 0,
+        "mac_useful": 65536,
+        "mac_useful_q": [
+          32768,
+          32768,
+          0,
+          0
+        ],
+        "tiles": 32,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.28555493586168434,
+        "mapping_ceiling": 0.5,
+        "macs_per_cycle": 18.275515895147798,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 32768,
+        "arithmetic_intensity": 2.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_up",
+        "M": 4,
+        "K": 64,
+        "N": 256,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 1730,
+        "cycles_setup": 256,
+        "cycles_stream": 1056,
+        "cycles_flush": 272,
+        "cycles_drain": 144,
+        "cycles_stall": 0,
+        "mac_useful": 65536,
+        "mac_useful_q": [
+          16384,
+          16384,
+          16384,
+          16384
+        ],
+        "tiles": 16,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5919075144508671,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 37.882080924855494,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 20480,
+        "arithmetic_intensity": 3.2
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_up",
+        "M": 8,
+        "K": 64,
+        "N": 256,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 3586,
+        "cycles_setup": 512,
+        "cycles_stream": 2112,
+        "cycles_flush": 544,
+        "cycles_drain": 416,
+        "cycles_stall": 0,
+        "mac_useful": 131072,
+        "mac_useful_q": [
+          32768,
+          32768,
+          32768,
+          32768
+        ],
+        "tiles": 32,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5711098717233687,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 36.551031790295596,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 32768,
+        "arithmetic_intensity": 4.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_up",
+        "M": 8,
+        "K": 64,
+        "N": 256,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 3458,
+        "cycles_setup": 512,
+        "cycles_stream": 2112,
+        "cycles_flush": 544,
+        "cycles_drain": 288,
+        "cycles_stall": 0,
+        "mac_useful": 131072,
+        "mac_useful_q": [
+          32768,
+          32768,
+          32768,
+          32768
+        ],
+        "tiles": 32,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5922498554077501,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 37.90399074609601,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 40960,
+        "arithmetic_intensity": 3.2
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_up",
+        "M": 16,
+        "K": 64,
+        "N": 256,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 7170,
+        "cycles_setup": 1024,
+        "cycles_stream": 4224,
+        "cycles_flush": 1088,
+        "cycles_drain": 832,
+        "cycles_stall": 0,
+        "mac_useful": 262144,
+        "mac_useful_q": [
+          65536,
+          65536,
+          65536,
+          65536
+        ],
+        "tiles": 64,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5712691771269177,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 36.561227336122734,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 65536,
+        "arithmetic_intensity": 4.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_up",
+        "M": 16,
+        "K": 64,
+        "N": 256,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 6914,
+        "cycles_setup": 1024,
+        "cycles_stream": 4224,
+        "cycles_flush": 1088,
+        "cycles_drain": 576,
+        "cycles_stall": 0,
+        "mac_useful": 262144,
+        "mac_useful_q": [
+          65536,
+          65536,
+          65536,
+          65536
+        ],
+        "tiles": 64,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5924211744286954,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 37.9149551634365,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 81920,
+        "arithmetic_intensity": 3.2
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_up",
+        "M": 32,
+        "K": 64,
+        "N": 256,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 14338,
+        "cycles_setup": 2048,
+        "cycles_stream": 8448,
+        "cycles_flush": 2176,
+        "cycles_drain": 1664,
+        "cycles_stall": 0,
+        "mac_useful": 524288,
+        "mac_useful_q": [
+          131072,
+          131072,
+          131072,
+          131072
+        ],
+        "tiles": 128,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5713488631608313,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 36.566327242293205,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 131072,
+        "arithmetic_intensity": 4.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_up",
+        "M": 32,
+        "K": 64,
+        "N": 256,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 13826,
+        "cycles_setup": 2048,
+        "cycles_stream": 8448,
+        "cycles_flush": 2176,
+        "cycles_drain": 1152,
+        "cycles_stall": 0,
+        "mac_useful": 524288,
+        "mac_useful_q": [
+          131072,
+          131072,
+          131072,
+          131072
+        ],
+        "tiles": 128,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.592506871112397,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 37.920439751193406,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 163840,
+        "arithmetic_intensity": 3.2
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_up",
+        "M": 64,
+        "K": 64,
+        "N": 256,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 28674,
+        "cycles_setup": 4096,
+        "cycles_stream": 16896,
+        "cycles_flush": 4352,
+        "cycles_drain": 3328,
+        "cycles_stall": 0,
+        "mac_useful": 1048576,
+        "mac_useful_q": [
+          262144,
+          262144,
+          262144,
+          262144
+        ],
+        "tiles": 256,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5713887145148916,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 36.56887772895306,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 262144,
+        "arithmetic_intensity": 4.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_up",
+        "M": 64,
+        "K": 64,
+        "N": 256,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 27650,
+        "cycles_setup": 4096,
+        "cycles_stream": 16896,
+        "cycles_flush": 4352,
+        "cycles_drain": 2304,
+        "cycles_stall": 0,
+        "mac_useful": 1048576,
+        "mac_useful_q": [
+          262144,
+          262144,
+          262144,
+          262144
+        ],
+        "tiles": 256,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.5925497287522604,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 37.92318264014467,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 327680,
+        "arithmetic_intensity": 3.2
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_down",
+        "M": 1,
+        "K": 256,
+        "N": 64,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 2434,
+        "cycles_setup": 128,
+        "cycles_stream": 2064,
+        "cycles_flush": 136,
+        "cycles_drain": 104,
+        "cycles_stall": 0,
+        "mac_useful": 16384,
+        "mac_useful_q": [
+          8192,
+          8192,
+          0,
+          0
+        ],
+        "tiles": 8,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.10517666392769104,
+        "mapping_ceiling": 0.125,
+        "macs_per_cycle": 6.7313064913722265,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 32768,
+        "arithmetic_intensity": 0.5
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_down",
+        "M": 1,
+        "K": 256,
+        "N": 64,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 1202,
+        "cycles_setup": 64,
+        "cycles_stream": 1032,
+        "cycles_flush": 68,
+        "cycles_drain": 36,
+        "cycles_stall": 0,
+        "mac_useful": 16384,
+        "mac_useful_q": [
+          4096,
+          4096,
+          4096,
+          4096
+        ],
+        "tiles": 4,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.2129783693843594,
+        "mapping_ceiling": 0.25,
+        "macs_per_cycle": 13.630615640599002,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 20480,
+        "arithmetic_intensity": 0.8
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_down",
+        "M": 2,
+        "K": 256,
+        "N": 64,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 2434,
+        "cycles_setup": 128,
+        "cycles_stream": 2064,
+        "cycles_flush": 136,
+        "cycles_drain": 104,
+        "cycles_stall": 0,
+        "mac_useful": 32768,
+        "mac_useful_q": [
+          16384,
+          16384,
+          0,
+          0
+        ],
+        "tiles": 8,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.21035332785538208,
+        "mapping_ceiling": 0.25,
+        "macs_per_cycle": 13.462612982744453,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 32768,
+        "arithmetic_intensity": 1.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_down",
+        "M": 2,
+        "K": 256,
+        "N": 64,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 1202,
+        "cycles_setup": 64,
+        "cycles_stream": 1032,
+        "cycles_flush": 68,
+        "cycles_drain": 36,
+        "cycles_stall": 0,
+        "mac_useful": 32768,
+        "mac_useful_q": [
+          8192,
+          8192,
+          8192,
+          8192
+        ],
+        "tiles": 4,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.4259567387687188,
+        "mapping_ceiling": 0.5,
+        "macs_per_cycle": 27.261231281198004,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 20480,
+        "arithmetic_intensity": 1.6
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_down",
+        "M": 4,
+        "K": 256,
+        "N": 64,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 2434,
+        "cycles_setup": 128,
+        "cycles_stream": 2064,
+        "cycles_flush": 136,
+        "cycles_drain": 104,
+        "cycles_stall": 0,
+        "mac_useful": 65536,
+        "mac_useful_q": [
+          32768,
+          32768,
+          0,
+          0
+        ],
+        "tiles": 8,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.42070665571076415,
+        "mapping_ceiling": 0.5,
+        "macs_per_cycle": 26.925225965488906,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 32768,
+        "arithmetic_intensity": 2.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_down",
+        "M": 4,
+        "K": 256,
+        "N": 64,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 1202,
+        "cycles_setup": 64,
+        "cycles_stream": 1032,
+        "cycles_flush": 68,
+        "cycles_drain": 36,
+        "cycles_stall": 0,
+        "mac_useful": 65536,
+        "mac_useful_q": [
+          16384,
+          16384,
+          16384,
+          16384
+        ],
+        "tiles": 4,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.8519134775374376,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 54.52246256239601,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 20480,
+        "arithmetic_intensity": 3.2
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_down",
+        "M": 8,
+        "K": 256,
+        "N": 64,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 2434,
+        "cycles_setup": 128,
+        "cycles_stream": 2064,
+        "cycles_flush": 136,
+        "cycles_drain": 104,
+        "cycles_stall": 0,
+        "mac_useful": 131072,
+        "mac_useful_q": [
+          32768,
+          32768,
+          32768,
+          32768
+        ],
+        "tiles": 8,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.8414133114215283,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 53.85045193097781,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 32768,
+        "arithmetic_intensity": 4.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_down",
+        "M": 8,
+        "K": 256,
+        "N": 64,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 2402,
+        "cycles_setup": 128,
+        "cycles_stream": 2064,
+        "cycles_flush": 136,
+        "cycles_drain": 72,
+        "cycles_stall": 0,
+        "mac_useful": 131072,
+        "mac_useful_q": [
+          32768,
+          32768,
+          32768,
+          32768
+        ],
+        "tiles": 8,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.8526228143213989,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 54.56786011656953,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 40960,
+        "arithmetic_intensity": 3.2
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_down",
+        "M": 16,
+        "K": 256,
+        "N": 64,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 4866,
+        "cycles_setup": 256,
+        "cycles_stream": 4128,
+        "cycles_flush": 272,
+        "cycles_drain": 208,
+        "cycles_stall": 0,
+        "mac_useful": 262144,
+        "mac_useful_q": [
+          65536,
+          65536,
+          65536,
+          65536
+        ],
+        "tiles": 16,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.8417591450883682,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 53.87258528565557,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 65536,
+        "arithmetic_intensity": 4.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_down",
+        "M": 16,
+        "K": 256,
+        "N": 64,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 4802,
+        "cycles_setup": 256,
+        "cycles_stream": 4128,
+        "cycles_flush": 272,
+        "cycles_drain": 144,
+        "cycles_stall": 0,
+        "mac_useful": 262144,
+        "mac_useful_q": [
+          65536,
+          65536,
+          65536,
+          65536
+        ],
+        "tiles": 16,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.8529779258642233,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 54.59058725531029,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 81920,
+        "arithmetic_intensity": 3.2
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_down",
+        "M": 32,
+        "K": 256,
+        "N": 64,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 9730,
+        "cycles_setup": 512,
+        "cycles_stream": 8256,
+        "cycles_flush": 544,
+        "cycles_drain": 416,
+        "cycles_stall": 0,
+        "mac_useful": 524288,
+        "mac_useful_q": [
+          131072,
+          131072,
+          131072,
+          131072
+        ],
+        "tiles": 32,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.8419321685508736,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 53.88365878725591,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 131072,
+        "arithmetic_intensity": 4.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_down",
+        "M": 32,
+        "K": 256,
+        "N": 64,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 9602,
+        "cycles_setup": 512,
+        "cycles_stream": 8256,
+        "cycles_flush": 544,
+        "cycles_drain": 288,
+        "cycles_stall": 0,
+        "mac_useful": 524288,
+        "mac_useful_q": [
+          131072,
+          131072,
+          131072,
+          131072
+        ],
+        "tiles": 32,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.8531555925848782,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 54.6019579254322,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 163840,
+        "arithmetic_intensity": 3.2
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_down",
+        "M": 64,
+        "K": 256,
+        "N": 64,
+        "mode": "FULL",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 19458,
+        "cycles_setup": 1024,
+        "cycles_stream": 16512,
+        "cycles_flush": 1088,
+        "cycles_drain": 832,
+        "cycles_stall": 0,
+        "mac_useful": 1048576,
+        "mac_useful_q": [
+          262144,
+          262144,
+          262144,
+          262144
+        ],
+        "tiles": 64,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.8420187069585775,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 53.88919724534896,
+        "operand_bytes_per_cycle": 16,
+        "operand_bytes_streamed": 262144,
+        "arithmetic_intensity": 4.0
+      }
+    },
+    {
+      "source": "model",
+      "gemm": {
+        "name": "ffn_down",
+        "M": 64,
+        "K": 256,
+        "N": 64,
+        "mode": "STRIP",
+        "requant": true,
+        "flags": 1
+      },
+      "model": {
+        "cycles_total": 19202,
+        "cycles_setup": 1024,
+        "cycles_stream": 16512,
+        "cycles_flush": 1088,
+        "cycles_drain": 576,
+        "cycles_stall": 0,
+        "mac_useful": 1048576,
+        "mac_useful_q": [
+          262144,
+          262144,
+          262144,
+          262144
+        ],
+        "tiles": 64,
+        "model_git_hash": "8aeedea"
+      },
+      "derived": {
+        "util_model": 0.8532444537027393,
+        "mapping_ceiling": 1.0,
+        "macs_per_cycle": 54.60764503697531,
+        "operand_bytes_per_cycle": 20,
+        "operand_bytes_streamed": 327680,
+        "arithmetic_intensity": 3.2
+      }
+    }
+  ],
+  "mode_choice": [
+    {
+      "name": "qkv",
+      "M": 1,
+      "chosen": "STRIP",
+      "cycles_total_full": 2690,
+      "cycles_total_strip": 1298,
+      "strip_speedup": 2.0724191063174113
+    },
+    {
+      "name": "qkv",
+      "M": 2,
+      "chosen": "STRIP",
+      "cycles_total_full": 2690,
+      "cycles_total_strip": 1298,
+      "strip_speedup": 2.0724191063174113
+    },
+    {
+      "name": "qkv",
+      "M": 4,
+      "chosen": "STRIP",
+      "cycles_total_full": 2690,
+      "cycles_total_strip": 1298,
+      "strip_speedup": 2.0724191063174113
+    },
+    {
+      "name": "qkv",
+      "M": 8,
+      "chosen": "STRIP",
+      "cycles_total_full": 2690,
+      "cycles_total_strip": 2594,
+      "strip_speedup": 1.0370084811102545
+    },
+    {
+      "name": "qkv",
+      "M": 16,
+      "chosen": "STRIP",
+      "cycles_total_full": 5378,
+      "cycles_total_strip": 5186,
+      "strip_speedup": 1.0370227535672967
+    },
+    {
+      "name": "qkv",
+      "M": 32,
+      "chosen": "STRIP",
+      "cycles_total_full": 10754,
+      "cycles_total_strip": 10370,
+      "strip_speedup": 1.037029893924783
+    },
+    {
+      "name": "qkv",
+      "M": 64,
+      "chosen": "STRIP",
+      "cycles_total_full": 21506,
+      "cycles_total_strip": 20738,
+      "strip_speedup": 1.0370334651364645
+    },
+    {
+      "name": "attn_out",
+      "M": 1,
+      "chosen": "STRIP",
+      "cycles_total_full": 898,
+      "cycles_total_strip": 434,
+      "strip_speedup": 2.0691244239631335
+    },
+    {
+      "name": "attn_out",
+      "M": 2,
+      "chosen": "STRIP",
+      "cycles_total_full": 898,
+      "cycles_total_strip": 434,
+      "strip_speedup": 2.0691244239631335
+    },
+    {
+      "name": "attn_out",
+      "M": 4,
+      "chosen": "STRIP",
+      "cycles_total_full": 898,
+      "cycles_total_strip": 434,
+      "strip_speedup": 2.0691244239631335
+    },
+    {
+      "name": "attn_out",
+      "M": 8,
+      "chosen": "STRIP",
+      "cycles_total_full": 898,
+      "cycles_total_strip": 866,
+      "strip_speedup": 1.0369515011547343
+    },
+    {
+      "name": "attn_out",
+      "M": 16,
+      "chosen": "STRIP",
+      "cycles_total_full": 1794,
+      "cycles_total_strip": 1730,
+      "strip_speedup": 1.0369942196531792
+    },
+    {
+      "name": "attn_out",
+      "M": 32,
+      "chosen": "STRIP",
+      "cycles_total_full": 3586,
+      "cycles_total_strip": 3458,
+      "strip_speedup": 1.0370156159629844
+    },
+    {
+      "name": "attn_out",
+      "M": 64,
+      "chosen": "STRIP",
+      "cycles_total_full": 7170,
+      "cycles_total_strip": 6914,
+      "strip_speedup": 1.0370263234017936
+    },
+    {
+      "name": "ffn_up",
+      "M": 1,
+      "chosen": "STRIP",
+      "cycles_total_full": 3586,
+      "cycles_total_strip": 1730,
+      "strip_speedup": 2.0728323699421964
+    },
+    {
+      "name": "ffn_up",
+      "M": 2,
+      "chosen": "STRIP",
+      "cycles_total_full": 3586,
+      "cycles_total_strip": 1730,
+      "strip_speedup": 2.0728323699421964
+    },
+    {
+      "name": "ffn_up",
+      "M": 4,
+      "chosen": "STRIP",
+      "cycles_total_full": 3586,
+      "cycles_total_strip": 1730,
+      "strip_speedup": 2.0728323699421964
+    },
+    {
+      "name": "ffn_up",
+      "M": 8,
+      "chosen": "STRIP",
+      "cycles_total_full": 3586,
+      "cycles_total_strip": 3458,
+      "strip_speedup": 1.0370156159629844
+    },
+    {
+      "name": "ffn_up",
+      "M": 16,
+      "chosen": "STRIP",
+      "cycles_total_full": 7170,
+      "cycles_total_strip": 6914,
+      "strip_speedup": 1.0370263234017936
+    },
+    {
+      "name": "ffn_up",
+      "M": 32,
+      "chosen": "STRIP",
+      "cycles_total_full": 14338,
+      "cycles_total_strip": 13826,
+      "strip_speedup": 1.037031679444525
+    },
+    {
+      "name": "ffn_up",
+      "M": 64,
+      "chosen": "STRIP",
+      "cycles_total_full": 28674,
+      "cycles_total_strip": 27650,
+      "strip_speedup": 1.0370343580470163
+    },
+    {
+      "name": "ffn_down",
+      "M": 1,
+      "chosen": "STRIP",
+      "cycles_total_full": 2434,
+      "cycles_total_strip": 1202,
+      "strip_speedup": 2.0249584026622296
+    },
+    {
+      "name": "ffn_down",
+      "M": 2,
+      "chosen": "STRIP",
+      "cycles_total_full": 2434,
+      "cycles_total_strip": 1202,
+      "strip_speedup": 2.0249584026622296
+    },
+    {
+      "name": "ffn_down",
+      "M": 4,
+      "chosen": "STRIP",
+      "cycles_total_full": 2434,
+      "cycles_total_strip": 1202,
+      "strip_speedup": 2.0249584026622296
+    },
+    {
+      "name": "ffn_down",
+      "M": 8,
+      "chosen": "STRIP",
+      "cycles_total_full": 2434,
+      "cycles_total_strip": 2402,
+      "strip_speedup": 1.0133222314737718
+    },
+    {
+      "name": "ffn_down",
+      "M": 16,
+      "chosen": "STRIP",
+      "cycles_total_full": 4866,
+      "cycles_total_strip": 4802,
+      "strip_speedup": 1.0133277800916285
+    },
+    {
+      "name": "ffn_down",
+      "M": 32,
+      "chosen": "STRIP",
+      "cycles_total_full": 9730,
+      "cycles_total_strip": 9602,
+      "strip_speedup": 1.0133305561341388
+    },
+    {
+      "name": "ffn_down",
+      "M": 64,
+      "chosen": "STRIP",
+      "cycles_total_full": 19458,
+      "cycles_total_strip": 19202,
+      "strip_speedup": 1.0133319445891054
+    }
+  ],
+  "ceilings_n_multiple_of_16": [
+    {
+      "M": 1,
+      "full": 0.125,
+      "strip": 0.25
+    },
+    {
+      "M": 2,
+      "full": 0.25,
+      "strip": 0.5
+    },
+    {
+      "M": 4,
+      "full": 0.5,
+      "strip": 1.0
+    },
+    {
+      "M": 8,
+      "full": 1.0,
+      "strip": 1.0
+    },
+    {
+      "M": 16,
+      "full": 1.0,
+      "strip": 1.0
+    },
+    {
+      "M": 32,
+      "full": 1.0,
+      "strip": 1.0
+    },
+    {
+      "M": 64,
+      "full": 1.0,
+      "strip": 1.0
+    }
+  ]
+}
