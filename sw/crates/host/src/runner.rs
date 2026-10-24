@@ -131,32 +131,17 @@ pub struct Context {
     pub write_files: bool,
 }
 
-/// Short git hash of the repo (host side), `-dirty` if the tree has changes.
-pub fn git_short_hash(root: &Path) -> String {
-    let run = |args: &[&str]| {
-        std::process::Command::new("git")
-            .arg("-C")
-            .arg(root)
-            .args(args)
-            .output()
-            .ok()
-            .filter(|o| o.status.success())
-            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-    };
-    match run(&["rev-parse", "--short", "HEAD"]) {
-        Some(h) => match run(&["status", "--porcelain", "--", "sw", "spec"]) {
-            Some(s) if s.is_empty() => h,
-            _ => format!("{h}-dirty"),
-        },
-        None => "unknown".into(),
-    }
-}
+/// The host binary's own git hash, embedded at build time by build.rs (HEAD,
+/// `-dirty` if sw/crates/host or demo/ had uncommitted changes).
+pub const HOST_GIT_HASH: &str = env!("SPLITSYS_HOST_GIT_HASH");
 
 impl Context {
-    pub fn new(results: PathBuf, root: &Path) -> Self {
+    pub fn new(results: PathBuf, _root: &Path) -> Self {
         Self {
             results,
-            git_hash: git_short_hash(root),
+            git_hash: HOST_GIT_HASH.to_string(),
+            // Identifies the MODEL: last commit touching the model inputs (cycle, spec),
+            // `-dirty`, SPLITSYS_MODEL_GIT_HASH override — splitsys_cycle's own rule.
             model_git_hash: cycle::report::model_git_hash(),
             build_id: None,
             poison: true,
@@ -554,5 +539,24 @@ mod tests {
         g.requant = false;
         let (r, _) = run_gemm(&mut b, &mut c, &mut cache, &g).unwrap();
         assert!(r.verified(), "{:?}", r.check);
+    }
+}
+
+#[cfg(test)]
+mod hash_tests {
+    use super::*;
+
+    #[test]
+    fn model_hash_is_cycle_crate_rule_and_host_hash_is_separate() {
+        let c = Context::new(PathBuf::from("unused"), Path::new("."));
+        assert_eq!(c.model_git_hash, cycle::report::model_git_hash());
+        assert_eq!(c.git_hash, HOST_GIT_HASH);
+        assert!(!HOST_GIT_HASH.is_empty());
+        // The model hash is the inputs-scoped 12-hex-digit form (or an override /
+        // "unknown"), never the host's 7-digit HEAD hash.
+        if std::env::var("SPLITSYS_MODEL_GIT_HASH").is_err() && c.model_git_hash != "unknown" {
+            let h = c.model_git_hash.trim_end_matches("-dirty");
+            assert_eq!(h.len(), 12, "{h}");
+        }
     }
 }
