@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Run a command in WSL at the repo root with scripts/env.sh sourced.
+#
+#   From Git Bash (Windows):  scripts/wsl 'cargo --version && pwd'
+#   From WSL:                 scripts/wsl 'make -C tb pe'
+#
+# The command string is base64-encoded on the Windows side so that no quoting
+# or MSYS path conversion can mangle it. Exit status is preserved.
+# Owner: toolchain-engineer. See docs/ENV.md.
+
+if [ $# -eq 0 ]; then
+    echo "usage: scripts/wsl '<command>'" >&2
+    exit 2
+fi
+
+_is_wsl() { grep -qi microsoft /proc/version 2>/dev/null; }
+
+if _is_wsl; then
+    if [ "$1" = "--b64" ]; then
+        cmd="$(printf '%s' "$2" | base64 -d)"
+    else
+        cmd="$*"
+    fi
+    root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    cd "$root" || exit 1
+    # shellcheck source=/dev/null
+    source "$root/scripts/env.sh"
+    eval "$cmd"
+    exit $?
+fi
+
+# Windows side (Git Bash / MSYS2).
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # e.g. /c/Users/.../scripts
+case "$here" in
+    /[a-zA-Z]/*) wsl_here="/mnt/$(printf '%s' "${here:1:1}" | tr 'A-Z' 'a-z')${here:2}" ;;
+    *) echo "scripts/wsl: cannot map $here to a WSL path" >&2; exit 1 ;;
+esac
+b64="$(printf '%s' "$*" | base64 -w0)"
+MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' wsl.exe -e bash "$wsl_here/wsl" --b64 "$b64"
+exit $?
