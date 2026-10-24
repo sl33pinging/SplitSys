@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 -----------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.2.1 (win64) Build 6403652 Thu Mar 19 19:48:24 GMT 2026
-| Date         : Sat Oct 24 09:16:51 2026
+| Date         : Sat Oct 24 09:25:45 2026
 | Host         : Someones_Laptop running 64-bit major release  (build 9200)
 | Command      : report_utilization -file C:/Users/danie/FPGA_Projects/Calhack2026/fpga/reports/heartbeat_uart_echo/post_synth_utilization.rpt
 | Design       : heartbeat_uart_echo
@@ -160,10 +160,10 @@ Warning! For any ECO changes, please run place_design if there are unplaced inst
 | OBUF     |   41 |                  IO |
 | LUT5     |   41 |                 LUT |
 | LUT1     |   36 |                 LUT |
-| LUT6     |   30 |                 LUT |
+| LUT6     |   33 |                 LUT |
 | FDSE     |   25 |        Flop & Latch |
-| LUT3     |   23 |                 LUT |
-| LUT2     |   20 |                 LUT |
+| LUT3     |   22 |                 LUT |
+| LUT2     |   19 |                 LUT |
 | RAMD64E  |   12 |  Distributed Memory |
 | IBUF     |    6 |                  IO |
 | BUFG     |    1 |               Clock |

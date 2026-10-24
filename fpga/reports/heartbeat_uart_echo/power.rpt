@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 -------------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version     : Vivado v.2025.2.1 (win64) Build 6403652 Thu Mar 19 19:48:24 GMT 2026
-| Date             : Sat Oct 24 09:17:57 2026
+| Date             : Sat Oct 24 09:27:00 2026
 | Host             : Someones_Laptop running 64-bit major release  (build 9200)
 | Command          : report_power -file C:/Users/danie/FPGA_Projects/Calhack2026/fpga/reports/heartbeat_uart_echo/power.rpt
 | Design           : heartbeat_uart_echo
@@ -33,7 +33,7 @@ Table of Contents
 | Total On-Chip Power (W)  | 0.083        |
 | Design Power Budget (W)  | Unspecified* |
 | Power Budget Margin (W)  | NA           |
-| Dynamic (W)              | 0.008        |
+| Dynamic (W)              | 0.009        |
 | Device Static (W)        | 0.074        |
 | Effective TJA (C/W)      | 4.9          |
 | Max Ambient (C)          | 84.6         |
@@ -53,13 +53,13 @@ Table of Contents
 | On-Chip                  | Power (W) | Used     | Available | Utilization (%) |
 +--------------------------+-----------+----------+-----------+-----------------+
 | Clocks                   |     0.002 |        3 |       --- |             --- |
-| Slice Logic              |    <0.001 |      592 |       --- |             --- |
+| Slice Logic              |    <0.001 |      593 |       --- |             --- |
 |   LUT as Logic           |    <0.001 |      178 |     32600 |            0.55 |
 |   CARRY4                 |    <0.001 |       45 |      8150 |            0.55 |
 |   Register               |    <0.001 |      316 |     65200 |            0.48 |
+|   LUT as Distributed RAM |    <0.001 |       12 |      9600 |            0.13 |
 |   Others                 |     0.000 |        6 |       --- |             --- |
-|   LUT as Distributed RAM |     0.000 |       12 |      9600 |            0.13 |
-| Signals                  |    <0.001 |      470 |       --- |             --- |
+| Signals                  |    <0.001 |      469 |       --- |             --- |
 | I/O                      |     0.005 |       47 |       210 |           22.38 |
 | Static Power             |     0.074 |          |           |                 |
 | Total                    |     0.083 |          |           |                 |
@@ -72,7 +72,7 @@ Table of Contents
 +-----------+-------------+-----------+-------------+------------+-------------+-------------+------------+
 | Source    | Voltage (V) | Total (A) | Dynamic (A) | Static (A) | Powerup (A) | Budget (A)  | Margin (A) |
 +-----------+-------------+-----------+-------------+------------+-------------+-------------+------------+
-| Vccint    |       1.000 |     0.012 |       0.003 |      0.010 |       NA    | Unspecified | NA         |
+| Vccint    |       1.000 |     0.013 |       0.003 |      0.010 |       NA    | Unspecified | NA         |
 | Vccaux    |       1.800 |     0.013 |       0.000 |      0.013 |       NA    | Unspecified | NA         |
 | Vcco33    |       3.300 |     0.001 |       0.000 |      0.001 |       NA    | Unspecified | NA         |
 | Vcco25    |       2.500 |     0.002 |       0.001 |      0.001 |       NA    | Unspecified | NA         |
@@ -139,7 +139,7 @@ Table of Contents
 +---------------------+-----------+
 | Name                | Power (W) |
 +---------------------+-----------+
-| heartbeat_uart_echo |     0.008 |
+| heartbeat_uart_echo |     0.009 |
 +---------------------+-----------+
 
 
