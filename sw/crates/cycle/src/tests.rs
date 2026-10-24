@@ -437,3 +437,24 @@ fn pe_map_is_a_bijection_onto_the_tile() {
     assert_eq!(quadrant_of(5, 3), 2);
     assert_eq!(quadrant_of(2, 6), 1);
 }
+
+#[test]
+fn drain_boundary_has_zero_slack_at_last_pe() {
+    for lat in [LAT, Latencies::default()] {
+        for k in [1, 2, 64, spec::K_MAX] {
+            let desc = d(Mode::Full, RQ, 8, k, 8);
+            let tl = timeline(&desc, &lat);
+            let s = tl.iter().find(|e| e.phase == Phase::Stream).unwrap().start;
+            let dr = tl.iter().find(|e| e.phase == Phase::Drain).unwrap().start;
+            let (lr, lc) = (spec::ROWS - 1, spec::COLS - 1);
+            // RTL contract (sequencer.sv timing chain): last word at the array
+            // port in the first FLUSH cycle; PE(7,7) final exactly at DRAIN start.
+            assert_eq!(operand_at_pe(s, &lat, k - 1, 0, 0), s + lat.l_rd + k);
+            assert_eq!(acc_final_cycle(s, &lat, k, lr, lc), dr, "k={k}");
+            assert!(check_drain_boundary(s, dr, &lat, k, lr, lc).is_ok());
+            // One cycle less FLUSH must be caught; every other PE has slack r+c < 14.
+            assert!(check_drain_boundary(s, dr - 1, &lat, k, lr, lc).is_err());
+            assert!(check_drain_boundary(s, dr - 1, &lat, k, lr - 1, lc).is_ok());
+        }
+    }
+}

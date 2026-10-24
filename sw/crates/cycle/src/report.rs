@@ -416,6 +416,20 @@ pub fn explain(s: &Sweep) -> String {
         "Latencies used: L_ACCEPT={}, L_SETUP={}, L_RD={}, L_PE={}, L_RQ={}, L_WB={}, L_DONE={}.\n",
         lat.l_accept, lat.l_setup, lat.l_rd, lat.l_pe, lat.l_rq, lat.l_wb, lat.l_done
     );
+    let off = crate::operand_port_offset(lat);
+    let _ = writeln!(
+        o,
+        "## Timing contract the model assumes\n\n\
+         Within a tile, with `s` = first STREAM cycle: read k is issued in cycle `s + k`, and its operand \
+         word is at the array port in cycle `s + L_RD + 1 + k` (= `s + {off} + k`; one lane-select register \
+         after the BRAM data, as in `rtl/sequencer.sv`). PE(r, c) sees it in `s + L_RD + 1 + k + r + c` and \
+         its accumulator holds all K MACs from `s + L_RD + 1 + (K-1) + r + c + L_PE`. The drain mux samples \
+         the accumulators combinationally in each DRAIN cycle and registers them (that register is part of \
+         L_RQ), so every PE must be final no later than the first DRAIN cycle. For PE(7, 7) this holds with \
+         equality: FLUSH = 14 + L_PE has zero slack. The `+ 1` is implied by SPEC §3.5 (STREAM = L_RD + K, \
+         FLUSH = 14 + L_PE), not a separate tunable latency. The model's FSM walk asserts this boundary for \
+         every PE of every tile. None of it changes a counter: counters depend only on the state lengths.\n"
+    );
     let _ = writeln!(
         o,
         "## Why STRIP wins at small M and both modes converge at large M\n"

@@ -30,6 +30,11 @@
 //!
 //! `cycles_total = L_ACCEPT + Σ_tiles T_tile + L_DONE`.
 //!
+//! Operand-arrival and drain-boundary contract: see [`operand_port_offset`]
+//! and [`check_drain_boundary`]. Word k is at the array port in
+//! `stream_start + L_RD + 1 + k`, and PE(7,7) is final exactly at the first
+//! DRAIN cycle, so FLUSH has zero slack.
+//!
 //! `T_DRAIN(mode, flags)` = one OBUF write per cycle (SPEC §3.5, D-004):
 //! FULL int8 8, STRIP int8 4, FULL int32 16 (8 rows × 2 writes), STRIP int32
 //! 16 (4 rows × 4 writes). `flags` is exactly `FLAGS_INT8` (0x01) or
@@ -494,9 +499,69 @@ pub fn phase_walk(d: &Descriptor, lat: &Latencies) -> Counters {
     walk(d, lat, false).counters
 }
 
+/// Cycles from a STREAM read being issued to its operand word being presented
+/// at the array port (the input of skew lane 0, i.e. PE(0, 0) for k's A and W).
+///
+/// **Operand-arrival contract (assumed by this model, matches `rtl/sequencer.sv`
+/// "Timing chain"):** read k is issued in STREAM cycle `s + k`, its BRAM data
+/// appears `L_RD` cycles later, and one lane-select register later it is at
+/// the array port: cycle `s + L_RD + 1 + k`. The `+ 1` is not a free latency:
+/// SPEC §3.5 fixes STREAM = `L_RD + K` and FLUSH = `(R-1) + (C-1) + L_PE`
+/// "for the last products to land", which is exact only if the last word
+/// (k = K-1) reaches the array port in the first FLUSH cycle, i.e.
+/// `s + L_RD + K = s + (L_RD + 1) + (K - 1)`. The offset is therefore derived
+/// from the two spec state lengths, not chosen.
+pub fn operand_port_offset(lat: &Latencies) -> u64 {
+    // stream length (L_RD + K) minus the index of the last read (K - 1).
+    lat.l_rd + 1
+}
+
+/// Cycle (from accept = 0) in which operand pair k is at the input port of
+/// PE(r, c): `stream_start + operand_port_offset + k + r + c`. Activations
+/// are skewed by r and forwarded c PEs; weights are skewed by c and forwarded
+/// r PEs (STRIP lower half: W lanes 8–15 enter at row 4 with skew 4 + c, so
+/// PE(4+i, c) is also at `+ 4 + i + c`, SPEC §3.2).
+pub fn operand_at_pe(stream_start: u64, lat: &Latencies, k: u64, r: u64, c: u64) -> u64 {
+    stream_start + operand_port_offset(lat) + k + r + c
+}
+
+/// First cycle in which PE(r, c)'s accumulator reflects all K MACs:
+/// `operand_at_pe(.., K-1, r, c) + L_PE` (SPEC §3.1: a pair at the PE port in
+/// cycle t is in `acc_out` from cycle t + L_PE on).
+pub fn acc_final_cycle(stream_start: u64, lat: &Latencies, k: u64, r: u64, c: u64) -> u64 {
+    operand_at_pe(stream_start, lat, k - 1, r, c) + lat.l_pe
+}
+
+/// Drain-boundary contract: in every DRAIN cycle the drain read mux samples
+/// `acc_out` combinationally and registers it (that register is the first
+/// cycle of `L_RQ`). So PE(r, c) is drained correctly iff its accumulator is
+/// final no later than the first DRAIN cycle: `acc_final_cycle <= drain_start`.
+/// Under the arrival contract above, the last PE (R-1, C-1) meets this with
+/// equality (FLUSH has zero slack), exactly as `sequencer.sv` documents.
+pub fn check_drain_boundary(
+    stream_start: u64,
+    drain_start: u64,
+    lat: &Latencies,
+    k: u64,
+    r: u64,
+    c: u64,
+) -> Result<(), String> {
+    let fin = acc_final_cycle(stream_start, lat, k, r, c);
+    if fin <= drain_start {
+        Ok(())
+    } else {
+        Err(format!(
+            "PE({r},{c}): acc final at cycle {fin}, but DRAIN starts at {drain_start} \
+             (FLUSH {} cycle(s) too short)",
+            fin - drain_start
+        ))
+    }
+}
+
 /// Per-phase timeline from the FSM walk (model-derived; used for the PE-grid
-/// animation). Within a tile, PE(r, c) sees operand k at cycle
-/// `stream.start + L_RD + k + r + c`.
+/// animation). Within a tile, PE(r, c) sees operand k at
+/// [`operand_at_pe`]`(stream.start, lat, k, r, c)` =
+/// `stream.start + L_RD + 1 + k + r + c`.
 pub fn timeline(d: &Descriptor, lat: &Latencies) -> Vec<PhaseEvent> {
     walk(d, lat, true).timeline
 }
@@ -507,12 +572,13 @@ pub fn timeline(d: &Descriptor, lat: &Latencies) -> Vec<PhaseEvent> {
 /// current phase, as `rtl/counters.sv` does. MACs are attributed by walking
 /// every physical PE of every tile: PE(r, c) is mapped to its output element
 /// via [`Mode::pe_to_output`], masked by `m < M && n < N`, and performs K
-/// MACs whose operands arrive at cycles `stream_start + L_RD + r + c + k`.
-/// The walk asserts that each PE's last accumulator update lands before the
-/// tile's DRAIN begins (i.e. the FLUSH length is sufficient).
+/// MACs whose operands reach it at [`operand_at_pe`]. For every physical PE
+/// (in-bounds or padding, since the drain writes both) the walk asserts the
+/// drain-boundary contract of [`check_drain_boundary`].
 ///
 /// # Panics
-/// If the descriptor is out of range, or if a MAC would land after FLUSH.
+/// If the descriptor is out of range, or if any accumulator would not be
+/// final by the first DRAIN cycle.
 pub fn walk(d: &Descriptor, lat: &Latencies, record: bool) -> Walk {
     d.validate().expect("descriptor out of range");
     let mut w = Walker {
@@ -541,18 +607,15 @@ pub fn walk(d: &Descriptor, lat: &Latencies, record: bool) -> Walk {
             // MAC accounting over the physical PE grid.
             for r in 0..spec::ROWS {
                 for c in 0..spec::COLS {
+                    if let Err(e) = check_drain_boundary(stream_start, drain_start, lat, d.k, r, c)
+                    {
+                        panic!("tile {tile_idx}: {e}");
+                    }
                     let (i, j) = d.mode.pe_to_output(r, c);
                     debug_assert!(i < tr && j < tc);
                     let m = mb * tr + i;
                     let n = nb * tc + j;
                     if m < d.m && n < d.n {
-                        let first_arrival = stream_start + lat.l_rd + r + c;
-                        let last_update = first_arrival + (d.k - 1) + lat.l_pe;
-                        assert!(
-                            last_update < drain_start,
-                            "PE({r},{c}) tile {tile_idx}: last MAC lands at cycle {last_update}, \
-                             DRAIN starts at {drain_start}"
-                        );
                         w.ctr.mac_useful += d.k;
                         w.ctr.mac_useful_q[quadrant_of(r, c)] += d.k;
                     }
