@@ -801,12 +801,6 @@ impl Spec {
         w!("pub const INT32_WRITES_PER_ROW_STRIP: u64 = {};", 2 * a.cols * 4 / obw);
         w!("/// int32 layout: OBUF words per output row of one 16-column block (SPEC §1.3).");
         w!("pub const INT32_WORDS_PER_ROW: usize = {};", 2 * a.cols * 4 / obw);
-        w!("/// LEGACY, STRIP-only factor (T_DRAIN_STRIP_INT32 / T_DRAIN_STRIP). Wrong for FULL");
-        w!("/// (FULL int32 is x2). Kept only until splitsys-cycle migrates to T_DRAIN_*_INT32; will be removed.");
-        w!(
-            "pub const INT32_DRAIN_FACTOR: u64 = {};",
-            self.drain.t_drain_strip_int32 / self.drain.t_drain_strip.max(1)
-        );
         w!("");
         w!("// ---- buffers (SPEC §3.4). Byte address = word_index * WORD_BYTES + lane.");
         w!("pub const N_REGIONS: usize = {};", BUFFER_NAMES.len());

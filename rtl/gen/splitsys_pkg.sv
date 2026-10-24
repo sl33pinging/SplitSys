@@ -37,10 +37,10 @@ package splitsys_pkg;
   localparam logic [127:0] W_SKEW_BASE_STRIP = {8'd4, 8'd4, 8'd4, 8'd4, 8'd4, 8'd4, 8'd4, 8'd4, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0};
 
   // ---- latencies in cycles (SPEC §4); provisional until rtl-designer confirms
-  localparam int unsigned L_PE = 3;  // PROVISIONAL: PE: operand entry at the PE input to acc updated (DSP A/B, M, P regs)
-  localparam int unsigned L_RD = 2;  // PROVISIONAL: BRAM read latency on the array port (address to data, output register on)
+  localparam int unsigned L_PE = 3;  // PE: operands at the PE input port to acc_out updated (DSP A/B, M, P regs)
+  localparam int unsigned L_RD = 2;  // BRAM read latency on the array port (address to data, output register on)
   localparam int unsigned L_SETUP = 16;  // PROVISIONAL: TILE_SETUP state length per tile (load up to 16 requant params, one per cycle)
-  localparam int unsigned L_RQ = 4;  // PROVISIONAL: Requant pipeline latency (first part of WRITEBACK state, per tile)
+  localparam int unsigned L_RQ = 7;  // PROVISIONAL: DRAIN presenting drain_row to requant output valid: 1 registered drain-read mux + 6 requant stages (first part of WRITEBACK, per tile)
   localparam int unsigned L_WB = 1;  // PROVISIONAL: OBUF write latency after requant (second part of WRITEBACK state, per tile)
   localparam int unsigned L_ACCEPT = 1;  // PROVISIONAL: Cycles from descriptor accept to first TILE_SETUP cycle, counted in cycles_total only
   localparam int unsigned L_DONE = 1;  // PROVISIONAL: Cycles from last WRITEBACK cycle to DONE (counters frozen), counted in cycles_total only

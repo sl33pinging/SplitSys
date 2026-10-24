@@ -34,17 +34,17 @@ pub const STRIP_W_SKEW_BASE: usize = 4;
 pub const W_SKEW_BASE_STRIP: [usize; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 4, 4, 4, 4];
 
 // ---- latencies in cycles (SPEC §4). *_PROVISIONAL = true until rtl-designer confirms.
-/// PE: operand entry at the PE input to acc updated (DSP A/B, M, P regs)
+/// PE: operands at the PE input port to acc_out updated (DSP A/B, M, P regs)
 pub const L_PE: u64 = 3;
-pub const L_PE_PROVISIONAL: bool = true;
+pub const L_PE_PROVISIONAL: bool = false;
 /// BRAM read latency on the array port (address to data, output register on)
 pub const L_RD: u64 = 2;
-pub const L_RD_PROVISIONAL: bool = true;
+pub const L_RD_PROVISIONAL: bool = false;
 /// TILE_SETUP state length per tile (load up to 16 requant params, one per cycle)
 pub const L_SETUP: u64 = 16;
 pub const L_SETUP_PROVISIONAL: bool = true;
-/// Requant pipeline latency (first part of WRITEBACK state, per tile)
-pub const L_RQ: u64 = 4;
+/// DRAIN presenting drain_row to requant output valid: 1 registered drain-read mux + 6 requant stages (first part of WRITEBACK, per tile)
+pub const L_RQ: u64 = 7;
 pub const L_RQ_PROVISIONAL: bool = true;
 /// OBUF write latency after requant (second part of WRITEBACK state, per tile)
 pub const L_WB: u64 = 1;
@@ -66,10 +66,10 @@ pub struct LatencyInfo {
 }
 
 pub const LATENCIES: [LatencyInfo; 7] = [
-    LatencyInfo { name: "L_PE", value: 3, provisional: true, doc: "PE: operand entry at the PE input to acc updated (DSP A/B, M, P regs)" },
-    LatencyInfo { name: "L_RD", value: 2, provisional: true, doc: "BRAM read latency on the array port (address to data, output register on)" },
+    LatencyInfo { name: "L_PE", value: 3, provisional: false, doc: "PE: operands at the PE input port to acc_out updated (DSP A/B, M, P regs)" },
+    LatencyInfo { name: "L_RD", value: 2, provisional: false, doc: "BRAM read latency on the array port (address to data, output register on)" },
     LatencyInfo { name: "L_SETUP", value: 16, provisional: true, doc: "TILE_SETUP state length per tile (load up to 16 requant params, one per cycle)" },
-    LatencyInfo { name: "L_RQ", value: 4, provisional: true, doc: "Requant pipeline latency (first part of WRITEBACK state, per tile)" },
+    LatencyInfo { name: "L_RQ", value: 7, provisional: true, doc: "DRAIN presenting drain_row to requant output valid: 1 registered drain-read mux + 6 requant stages (first part of WRITEBACK, per tile)" },
     LatencyInfo { name: "L_WB", value: 1, provisional: true, doc: "OBUF write latency after requant (second part of WRITEBACK state, per tile)" },
     LatencyInfo { name: "L_ACCEPT", value: 1, provisional: true, doc: "Cycles from descriptor accept to first TILE_SETUP cycle, counted in cycles_total only" },
     LatencyInfo { name: "L_DONE", value: 1, provisional: true, doc: "Cycles from last WRITEBACK cycle to DONE (counters frozen), counted in cycles_total only" },
@@ -86,9 +86,6 @@ pub const INT32_WRITES_PER_ROW_FULL: u64 = 2;
 pub const INT32_WRITES_PER_ROW_STRIP: u64 = 4;
 /// int32 layout: OBUF words per output row of one 16-column block (SPEC §1.3).
 pub const INT32_WORDS_PER_ROW: usize = 4;
-/// LEGACY, STRIP-only factor (T_DRAIN_STRIP_INT32 / T_DRAIN_STRIP). Wrong for FULL
-/// (FULL int32 is x2). Kept only until splitsys-cycle migrates to T_DRAIN_*_INT32; will be removed.
-pub const INT32_DRAIN_FACTOR: u64 = 4;
 
 // ---- buffers (SPEC §3.4). Byte address = word_index * WORD_BYTES + lane.
 pub const N_REGIONS: usize = 4;

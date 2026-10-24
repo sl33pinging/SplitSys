@@ -88,7 +88,19 @@ fn consts_match_spec() {
         assert_eq!(ss::COUNTER_NAMES[i], n);
     }
     assert_eq!(ss::LATENCIES.len(), 7);
-    assert!(ss::LATENCIES.iter().all(|l| l.provisional), "all latencies are provisional until RTL confirms");
+    // D-016: L_PE and L_RD confirmed by rtl-designer; the rest stay provisional until the sequencer lands.
+    for l in ss::LATENCIES {
+        let confirmed = matches!(l.name, "L_PE" | "L_RD");
+        assert_eq!(l.provisional, !confirmed, "{} provisional flag", l.name);
+        assert_eq!(l.provisional, s.lat(l.name).provisional);
+    }
+    const { assert!(!ss::L_PE_PROVISIONAL && !ss::L_RD_PROVISIONAL && ss::L_RQ_PROVISIONAL) };
+    assert_eq!(ss::L_RQ, 7);
+    assert_eq!(ss::L_WB, 1);
+    // FLUSH = (R-1)+(C-1)+L_PE = 17 confirmed by rtl-designer.
+    assert_eq!((ss::ROWS as u64 - 1) + (ss::COLS as u64 - 1) + ss::L_PE, 17);
+    // Legacy INT32_DRAIN_FACTOR was removed (D-016).
+    assert!(!s.render_rust().contains("INT32_DRAIN_FACTOR"));
 }
 
 #[test]

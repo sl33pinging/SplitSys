@@ -2,7 +2,7 @@
 
 This document is the contract between RTL, the Rust models, the host, and the dashboard. `spec-steward` owns it. Values marked **[spec.toml]** must be defined in `spec/spec.toml` and consumed through codegen, never hard-coded twice.
 
-**Codegen.** `cd sw && cargo run -p splitsys-spec --bin gen` validates `spec/spec.toml` and writes `rtl/gen/splitsys_pkg.sv` (SystemVerilog `package splitsys_pkg`) and `sw/crates/spec/src/generated.rs` (re-exported as `splitsys_spec::*`). `--check` verifies both are current without writing. Names are identical on both sides (`ROWS`, `L_PE`, `OP_RUN_GEMM`, `ST_NACK_RANGE`, `CTR_TILES`, ...); SV opcodes, status codes, poll states, modes, and regions are `typedef enum logic [7:0]` (`opcode_e`, `status_e`, `poll_e`, `mode_e`, `region_e`). v1.1 resolves the ambiguities listed in `docs/DECISIONS.md` (D-001 to D-015).
+**Codegen.** `cd sw && cargo run -p splitsys-spec --bin gen` validates `spec/spec.toml` and writes `rtl/gen/splitsys_pkg.sv` (SystemVerilog `package splitsys_pkg`) and `sw/crates/spec/src/generated.rs` (re-exported as `splitsys_spec::*`). `--check` verifies both are current without writing. Names are identical on both sides (`ROWS`, `L_PE`, `OP_RUN_GEMM`, `ST_NACK_RANGE`, `CTR_TILES`, ...); SV opcodes, status codes, poll states, modes, and regions are `typedef enum logic [7:0]` (`opcode_e`, `status_e`, `poll_e`, `mode_e`, `region_e`). v1.1 resolves the ambiguities listed in `docs/DECISIONS.md` (D-001 to D-015; later entries follow).
 
 ---
 

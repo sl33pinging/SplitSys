@@ -33,12 +33,12 @@ INDEP = 2
 # term lands in.
 [latency.L_PE]
 value = 3
-provisional = true
-doc = "PE: operand entry at the PE input to acc updated (DSP A/B, M, P regs)"
+provisional = false   # confirmed by rtl-designer (D-016)
+doc = "PE: operands at the PE input port to acc_out updated (DSP A/B, M, P regs)"
 
 [latency.L_RD]
 value = 2
-provisional = true
+provisional = false   # confirmed by rtl-designer, both ports (D-016)
 doc = "BRAM read latency on the array port (address to data, output register on)"
 
 [latency.L_SETUP]
@@ -47,9 +47,9 @@ provisional = true
 doc = "TILE_SETUP state length per tile (load up to 16 requant params, one per cycle)"
 
 [latency.L_RQ]
-value = 4
-provisional = true
-doc = "Requant pipeline latency (first part of WRITEBACK state, per tile)"
+value = 7
+provisional = true    # measured 7; final once the sequencer lands (D-016)
+doc = "DRAIN presenting drain_row to requant output valid: 1 registered drain-read mux + 6 requant stages (first part of WRITEBACK, per tile)"
 
 [latency.L_WB]
 value = 1
