@@ -1,16 +1,17 @@
 {
   "source": "sim",
-  "gemms_run": 66,
-  "gemms_verified": 66,
-  "macs_verified": 14884864,
+  "gemms_run": 70,
+  "gemms_verified": 70,
+  "macs_verified": 17014784,
   "mismatches": 0,
   "failed_runs": 0,
   "started_utc": "2026-10-24T18:20:22Z",
-  "updated_utc": "2026-10-24T18:22:22Z",
-  "uptime_s": 120,
+  "updated_utc": "2026-10-24T19:16:38Z",
+  "uptime_s": 3376,
   "started_unix": 1792866022.0,
   "build_ids": [
-    "0f402cc7"
+    "0f402cc7",
+    "05900507"
   ],
-  "derived_from": "66 run records in results/sim/ (top level)"
+  "derived_from": "70 run records in results/sim/ (top level)"
 }
