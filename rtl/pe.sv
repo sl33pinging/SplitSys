@@ -20,7 +20,7 @@
 //   acc_out             signed int32 accumulator = low 32 bits of the DSP P
 //                       register. Holds its value while no valid MAC arrives.
 //
-// Latency (LATENCY = 3, must equal splitsys_pkg::L_PE)
+// Latency: 3 cycles (must equal splitsys_pkg::L_PE)
 //   If (a_in, w_in, a_vld_in=1) are presented at the port in cycle t (sampled
 //   at the clock edge that ends cycle t), acc_out reflects that MAC from cycle
 //   t+3 onwards: edge 1 -> A/B regs, edge 2 -> M reg, edge 3 -> P reg.
@@ -48,8 +48,6 @@ module pe (
     output logic signed [7:0]  w_out,
     output logic signed [31:0] acc_out
 );
-    localparam int LATENCY = 3;
-
     // ---- stage 1: operand registers (DSP AREG/BREG; also the systolic forward)
     (* use_dsp = "yes" *) logic signed [7:0] a_q;
     (* use_dsp = "yes" *) logic signed [7:0] w_q;

@@ -39,6 +39,13 @@ module skew #(
     output logic [LANES-1:0]            out_vld,
     output logic [LANES-1:0]            out_first
 );
+    if (!FLAGS) begin : g_noflags
+        /* verilator lint_off UNUSEDSIGNAL */
+        logic unused_flags;   // FLAGS = 0: flag inputs are intentionally ignored
+        assign unused_flags = ^{in_vld, in_first};
+        /* verilator lint_on UNUSEDSIGNAL */
+    end
+
     for (genvar j = 0; j < LANES; j++) begin : g_lane
         localparam int D = int'(BASE[8*j +: 8]) + j;
 

@@ -70,32 +70,36 @@
 //     plus routing across the array; registered.
 //   * popcount: vld_q & inb_q -> popcount16 (~3 LUT) -> 4-way add (~2) -> FF.
 // =============================================================================
-module array
-    import splitsys_pkg::*;
-#(
+module array #(
     parameter bit ENABLE_STRIP = splitsys_pkg::ENABLE_STRIP
 ) (
-    input  logic                                   clk,
-    input  logic                                   rst,
-    input  logic                                   mode_strip,
-    input  logic [ROWS-1:0][7:0]                   a_in,
-    input  logic                                   a_vld,
-    input  logic                                   a_first,
-    input  logic [W_LANES-1:0][7:0]                w_in,
-    input  logic [ROWS-1:0]                        row_inb,
-    input  logic [STRIP_TILE_N-1:0]                col_inb,
-    input  logic [$clog2(ROWS)-1:0]                drain_row,
-    output logic [STRIP_TILE_N-1:0][31:0]          drain_data,
-    output logic [N_QUADS-1:0][$clog2(QUAD*QUAD):0] mac_cnt_q,
-    output logic [$clog2(N_PES):0]                 mac_cnt
+    input  logic        clk,
+    input  logic        rst,
+    input  logic        mode_strip,
+    input  logic [splitsys_pkg::ROWS-1:0][7:0]          a_in,       // lane r
+    input  logic        a_vld,
+    input  logic        a_first,
+    input  logic [splitsys_pkg::W_LANES-1:0][7:0]       w_in,       // lane c
+    input  logic [splitsys_pkg::ROWS-1:0]               row_inb,
+    input  logic [splitsys_pkg::STRIP_TILE_N-1:0]       col_inb,
+    input  logic [$clog2(splitsys_pkg::ROWS)-1:0]       drain_row,
+    output logic [splitsys_pkg::STRIP_TILE_N-1:0][31:0] drain_data, // lane j, signed
+    output logic [splitsys_pkg::N_QUADS-1:0][4:0]       mac_cnt_q,  // 0..16 each
+    output logic [6:0]                                  mac_cnt     // 0..64
 );
     // Geometry. The STRIP wiring assumes the array splits exactly in half at
     // row H, that the halves side by side are 2*C wide, and H is a power of 2.
-    localparam int R  = ROWS;          // 8
-    localparam int C  = COLS;          // 8
-    localparam int H  = QUAD;          // 4: row-H boundary, quadrant edge
-    localparam int RB = $clog2(ROWS);  // drain_row width
-    localparam int QB = $clog2(QUAD*QUAD) + 1;   // per-quadrant count width
+    localparam int R  = splitsys_pkg::ROWS;      // 8
+    localparam int C  = splitsys_pkg::COLS;      // 8
+    localparam int H  = splitsys_pkg::QUAD;      // 4: row-H boundary, quadrant edge
+    localparam int WN = splitsys_pkg::W_LANES;   // 16 = 2*C
+    localparam int TN = splitsys_pkg::STRIP_TILE_N; // 16 = 2*C
+    localparam int RB = $clog2(R);               // drain_row width
+    localparam int QB = 5;                       // per-quadrant count width (0..H*H)
+
+    if (R != 2*H || C != 2*H || WN != 2*C || TN != 2*C || H*H > 16) begin : g_bad_geometry
+        $error("array.sv: STRIP wiring requires ROWS = COLS = 2*QUAD = 8 and W_LANES = 2*COLS");
+    end
 
     // -------------------------------------------------------------------------
     // Mode register
@@ -110,7 +114,7 @@ module array
         assign strip_q = 1'b0;
         /* verilator lint_off UNUSEDSIGNAL */
         logic unused_strip;
-        assign unused_strip = ^{mode_strip, w_in[W_LANES-1:C], col_inb[STRIP_TILE_N-1:C]};
+        assign unused_strip = ^{mode_strip, w_in[WN-1:C], col_inb[TN-1:C]};
         /* verilator lint_on UNUSEDSIGNAL */
     end
 
@@ -149,7 +153,9 @@ module array
     // (A single 16-lane instance with BASE[j]+j would delay lane C+c by
     // H + C + c, which is NOT the SPEC sec. 3.2 alignment.)
     logic [C-1:0][7:0] w_sk_top;      // enters PE(0, c)
-    logic [C-1:0][7:0] w_sk_mid;      // enters PE(H, c) in STRIP
+    /* verilator lint_off UNUSEDSIGNAL */
+    logic [C-1:0][7:0] w_sk_mid;      // enters PE(H, c) in STRIP (unused if !ENABLE_STRIP)
+    /* verilator lint_on UNUSEDSIGNAL */
     /* verilator lint_off UNUSEDSIGNAL */
     logic [C-1:0] w_top_vld_nc, w_top_first_nc;   // FLAGS = 0: tied 0
     /* verilator lint_on UNUSEDSIGNAL */
@@ -166,13 +172,13 @@ module array
 
     if (ENABLE_STRIP) begin : g_wmid
         // Per-lane base for lanes C..2C-1 from the package (= H for each lane).
-        localparam logic [8*C-1:0] MID_BASE = W_SKEW_BASE_STRIP[8*W_LANES-1 : 8*C];
+        localparam logic [8*C-1:0] MID_BASE = splitsys_pkg::W_SKEW_BASE_STRIP[8*WN-1 : 8*C];
         /* verilator lint_off UNUSEDSIGNAL */
         logic [C-1:0] w_mid_vld_nc, w_mid_first_nc;
         /* verilator lint_on UNUSEDSIGNAL */
         skew #(.LANES(C), .WIDTH(8), .BASE(MID_BASE), .FLAGS(1'b0)) u_wskew_mid (
             .clk, .rst,
-            .in_data (w_in[W_LANES-1:C]),
+            .in_data (w_in[WN-1:C]),
             .in_vld  ('0),
             .in_first('0),
             .out_data(w_sk_mid),
@@ -299,7 +305,7 @@ module array
     // -------------------------------------------------------------------------
     // Written as a compare-select over rows (an 8:1 mux per lane bit after
     // synthesis), which every simulator accepts.
-    logic [STRIP_TILE_N-1:0][31:0] drain_d;
+    logic [TN-1:0][31:0] drain_d;
     logic [RB-1:0] row_up;    // physical row feeding lanes 0..C-1
     assign row_up = strip_q ? (drain_row & RB'(H-1)) : drain_row;
 
