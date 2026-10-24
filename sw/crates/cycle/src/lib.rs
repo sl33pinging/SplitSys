@@ -30,9 +30,10 @@
 //!
 //! `cycles_total = L_ACCEPT + Σ_tiles T_tile + L_DONE`.
 //!
-//! `T_DRAIN` = number of output rows of the tile (8 FULL, 4 STRIP: one row
-//! per cycle, SPEC §3.5), ×4 when the int32 bypass output path is selected
-//! (four 128-bit writes per row, SPEC §3.6).
+//! `T_DRAIN(mode, flags)` = one OBUF write per cycle (SPEC §3.5, D-004):
+//! FULL int8 8, STRIP int8 4, FULL int32 16 (8 rows × 2 writes), STRIP int32
+//! 16 (4 rows × 4 writes). `flags` is exactly `FLAGS_INT8` (0x01) or
+//! `FLAGS_INT32` (0x02); anything else is NACK_RANGE and is rejected here too.
 
 #![forbid(unsafe_code)]
 
@@ -58,15 +59,17 @@ pub mod spec {
     pub const PEAK_MACS_PER_CYCLE: u64 = s::N_PES as u64;
     pub const MODE_FULL: u8 = s::MODE_FULL;
     pub const MODE_STRIP: u8 = s::MODE_STRIP;
-    pub const FLAG_REQUANT_EN: u8 = s::FLAG_REQUANT_EN;
-    pub const FLAG_OUT_INT32: u8 = s::FLAG_OUT_INT32;
+    /// The only legal `flags` values (SPEC §3.5 validation rule 2).
+    pub const FLAGS_INT8: u8 = s::FLAGS_INT8;
+    pub const FLAGS_INT32: u8 = s::FLAGS_INT32;
     pub const FULL_TILE_M: u64 = s::FULL_TILE_M as u64;
     pub const FULL_TILE_N: u64 = s::FULL_TILE_N as u64;
     pub const STRIP_TILE_M: u64 = s::STRIP_TILE_M as u64;
     pub const STRIP_TILE_N: u64 = s::STRIP_TILE_N as u64;
     pub const T_DRAIN_FULL: u64 = s::T_DRAIN_FULL;
     pub const T_DRAIN_STRIP: u64 = s::T_DRAIN_STRIP;
-    pub const INT32_DRAIN_FACTOR: u64 = s::INT32_DRAIN_FACTOR;
+    pub const T_DRAIN_FULL_INT32: u64 = s::T_DRAIN_FULL_INT32;
+    pub const T_DRAIN_STRIP_INT32: u64 = s::T_DRAIN_STRIP_INT32;
     pub const M_MAX: u64 = s::M_MAX as u64;
     pub const K_MAX: u64 = s::K_MAX as u64;
     pub const N_MAX: u64 = s::N_MAX as u64;
@@ -87,6 +90,19 @@ pub mod spec {
         || s::L_DONE_PROVISIONAL;
     /// READ_COUNTERS order.
     pub const COUNTER_NAMES: [&str; 12] = s::COUNTER_NAMES;
+
+    /// Benchmark GEMMs of SPEC §1.1 as `(name, K, N)` (from `BENCH_SHAPES`).
+    pub fn bench_shapes() -> Vec<(&'static str, u64, u64)> {
+        s::BENCH_SHAPES
+            .iter()
+            .map(|b| (b.name, b.k as u64, b.n as u64))
+            .collect()
+    }
+
+    /// M values of the utilization-vs-M sweep (from `BENCH_M_SWEEP`).
+    pub fn bench_m_sweep() -> Vec<u64> {
+        s::BENCH_M_SWEEP.iter().map(|&m| m as u64).collect()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -196,12 +212,10 @@ pub fn quadrant_of(r: u64, c: u64) -> usize {
 
 /// Whether the descriptor selects the int32 bypass output path.
 ///
-/// SPEC §3.5 defines `flags` bit1 `out_int32`; SPEC §3.6 counts the bypass's
-/// four writes per row as `cycles_drain`. This model keys the slow path on
-/// `FLAG_OUT_INT32`. (SPEC §1.2 phrases bypass as `requant_en = 0`; see the
-/// open question raised with spec-steward.)
+/// SPEC §3.5 (D-004/D-005): `flags == FLAGS_INT32` selects bypass; the only
+/// other legal value is `FLAGS_INT8`.
 pub fn is_int32_out(flags: u8) -> bool {
-    flags & spec::FLAG_OUT_INT32 != 0
+    flags == spec::FLAGS_INT32
 }
 
 /// A GEMM descriptor, as far as timing is concerned (SPEC §3.5).
@@ -225,6 +239,7 @@ pub enum DescError {
         value: u64,
         max: u64,
     },
+    BadFlags(u8),
 }
 
 impl fmt::Display for DescError {
@@ -233,6 +248,12 @@ impl fmt::Display for DescError {
             DescError::OutOfRange { field, value, max } => {
                 write!(f, "{field} = {value} out of range 1..={max} (SPEC §3.5)")
             }
+            DescError::BadFlags(v) => write!(
+                f,
+                "flags = {v:#04x} not in {{{:#04x} int8, {:#04x} int32}} (SPEC §3.5 rule 2)",
+                spec::FLAGS_INT8,
+                spec::FLAGS_INT32
+            ),
         }
     }
 }
@@ -252,6 +273,9 @@ impl Descriptor {
 
     /// Range check against the spec limits (the RTL NACKs out-of-range descriptors).
     pub fn validate(&self) -> Result<(), DescError> {
+        if self.flags != spec::FLAGS_INT8 && self.flags != spec::FLAGS_INT32 {
+            return Err(DescError::BadFlags(self.flags));
+        }
         for (field, value, max) in [
             ("M", self.m, spec::M_MAX),
             ("K", self.k, spec::K_MAX),
@@ -324,17 +348,14 @@ impl Latencies {
     }
 }
 
-/// `T_DRAIN(mode, flags)`: one cycle per drained output row (8 FULL, 4
-/// STRIP), ×4 for the int32 bypass path (SPEC §3.5, §3.6, §4).
+/// `T_DRAIN(mode, flags)`, one OBUF write per cycle (SPEC §3.5, §4, D-004):
+/// FULL int8 8, STRIP int8 4, FULL int32 16 (8 rows × 2), STRIP int32 16 (4 rows × 4).
 pub fn t_drain(mode: Mode, flags: u8) -> u64 {
-    let base = match mode {
-        Mode::Full => spec::T_DRAIN_FULL,
-        Mode::Strip => spec::T_DRAIN_STRIP,
-    };
-    if is_int32_out(flags) {
-        base * spec::INT32_DRAIN_FACTOR
-    } else {
-        base
+    match (mode, is_int32_out(flags)) {
+        (Mode::Full, false) => spec::T_DRAIN_FULL,
+        (Mode::Strip, false) => spec::T_DRAIN_STRIP,
+        (Mode::Full, true) => spec::T_DRAIN_FULL_INT32,
+        (Mode::Strip, true) => spec::T_DRAIN_STRIP_INT32,
     }
 }
 

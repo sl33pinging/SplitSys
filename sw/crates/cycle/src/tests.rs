@@ -17,7 +17,7 @@ const LAT: Latencies = Latencies {
     l_done: 17,
 };
 
-const RQ: u8 = spec::FLAG_REQUANT_EN;
+const RQ: u8 = spec::FLAGS_INT8;
 
 fn d(mode: Mode, flags: u8, m: u64, k: u64, n: u64) -> Descriptor {
     Descriptor::new(mode, flags, m, k, n)
@@ -141,20 +141,32 @@ fn tile_order_column_block_outer() {
 
 #[test]
 fn int32_bypass_drain() {
-    let bypass = spec::FLAG_OUT_INT32;
-    for (mode, rows) in [(Mode::Full, 8), (Mode::Strip, 4)] {
+    let bypass = spec::FLAGS_INT32;
+    // SPEC §3.5 / D-004: FULL 8 rows x 2 writes = 16, STRIP 4 rows x 4 writes = 16.
+    for (mode, t8, t32) in [(Mode::Full, 8, 16), (Mode::Strip, 4, 16)] {
         let c8 = check(&d(mode, RQ, 8, 4, 16), &LAT);
         let c32 = check(&d(mode, bypass, 8, 4, 16), &LAT);
-        assert_eq!(c8.cycles_drain, c8.tiles * (rows + LAT.l_rq + LAT.l_wb));
-        assert_eq!(
-            c32.cycles_drain,
-            c32.tiles * (4 * rows + LAT.l_rq + LAT.l_wb)
-        );
-        assert_eq!(c32.cycles_total - c8.cycles_total, c8.tiles * 3 * rows);
+        assert_eq!(c8.cycles_drain, c8.tiles * (t8 + LAT.l_rq + LAT.l_wb));
+        assert_eq!(c32.cycles_drain, c32.tiles * (t32 + LAT.l_rq + LAT.l_wb));
+        assert_eq!(c32.cycles_total - c8.cycles_total, c8.tiles * (t32 - t8));
         assert_eq!(c8.mac_useful, c32.mac_useful);
+        assert_eq!(c8.mac_useful_q, c32.mac_useful_q);
     }
-    assert_eq!(t_drain(Mode::Full, RQ | bypass), 32);
+    assert_eq!(t_drain(Mode::Full, bypass), 16);
     assert_eq!(t_drain(Mode::Strip, bypass), 16);
+    assert_eq!(t_drain(Mode::Full, RQ), 8);
+    assert_eq!(t_drain(Mode::Strip, RQ), 4);
+}
+
+#[test]
+fn illegal_flags_rejected() {
+    for flags in [0x00u8, 0x03, 0x04, 0x81, 0xFF] {
+        assert_eq!(
+            d(Mode::Full, flags, 1, 1, 1).validate(),
+            Err(DescError::BadFlags(flags))
+        );
+        assert!(predict(&d(Mode::Strip, flags, 8, 8, 8), &LAT).is_err());
+    }
 }
 
 #[test]
@@ -168,7 +180,7 @@ fn zero_latencies_still_consistent() {
         l_accept: 0,
         l_done: 0,
     };
-    let c = check(&d(Mode::Strip, 0, 3, 5, 30), &z);
+    let c = check(&d(Mode::Strip, RQ, 3, 5, 30), &z);
     assert_eq!(c.cycles_total, c.tiles * (5 + 14 + 4));
 }
 
@@ -212,7 +224,7 @@ fn out_of_range_rejected() {
 #[test]
 fn m1_ceilings_below_spec_bounds_default_latencies() {
     let lat = Latencies::default();
-    for (_, k, n) in report::BENCHMARKS {
+    for (_, k, n) in spec::bench_shapes() {
         let f = check(&d(Mode::Full, RQ, 1, k, n), &lat);
         let s = check(&d(Mode::Strip, RQ, 1, k, n), &lat);
         assert!(f.utilization() < 0.125, "FULL M=1 util {}", f.utilization());
@@ -316,7 +328,11 @@ fn property_walk_equals_closed_form() {
         } else {
             Mode::Strip
         };
-        let flags = (rng.next() & 0x3) as u8;
+        let flags = if rng.next() & 1 == 0 {
+            spec::FLAGS_INT8
+        } else {
+            spec::FLAGS_INT32
+        };
         // Bias half the cases toward small shapes (edge tiles dominate there).
         let small = rng.next() & 1 == 0;
         let m = rng.range(1, if small { 17 } else { spec::M_MAX });
@@ -357,7 +373,10 @@ fn reports_are_deterministic() {
     let b = serde_json::to_string(&report::sweep(&lat, true, "test")).unwrap();
     assert_eq!(a, b);
     let r = report::roofline(&lat, true, "test");
-    assert_eq!(r.points.len(), 4 * 7 * 2);
+    assert_eq!(
+        r.points.len(),
+        spec::bench_shapes().len() * spec::bench_m_sweep().len() * 2
+    );
     for p in &r.points {
         assert!(
             p.macs_per_cycle <= p.roof_macs_per_cycle + 1e-9,

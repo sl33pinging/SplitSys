@@ -13,17 +13,6 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// Benchmark GEMMs of SPEC §1.1: `(name, K, N)`.
-pub const BENCHMARKS: [(&str, u64, u64); 4] = [
-    ("qkv", 64, 192),
-    ("attn_out", 64, 64),
-    ("ffn_up", 64, 256),
-    ("ffn_down", 256, 64),
-];
-
-/// M values of the utilization-vs-M sweep (SPEC §1.1).
-pub const SWEEP_M: [u64; 7] = [1, 2, 4, 8, 16, 32, 64];
-
 /// Paths whose state defines the model. A dirty file under any of them marks
 /// `model_git_hash` with `-dirty` (other agents' unrelated edits do not).
 pub const MODEL_PATHS: [&str; 3] = ["sw/crates/cycle", "sw/crates/spec", "spec"];
@@ -91,7 +80,7 @@ impl GemmBlock {
             k: d.k,
             n: d.n,
             mode: d.mode,
-            requant: d.flags & spec::FLAG_REQUANT_EN != 0,
+            requant: !d.int32_out(),
             flags: d.flags,
         }
     }
@@ -181,7 +170,7 @@ pub struct Definitions {
 fn definitions() -> Definitions {
     Definitions {
         t_tile: "L_SETUP + (L_RD + K) + ((R-1) + (C-1) + L_PE) + T_DRAIN + L_RQ + L_WB; R = C = 8; \
-                 T_DRAIN = 8 FULL / 4 STRIP, x4 when flags.out_int32",
+                 T_DRAIN = 8 FULL int8, 4 STRIP int8, 16 FULL int32 (8 rows x 2 writes), 16 STRIP int32 (4 rows x 4 writes)",
         tiles: "FULL ceil(M/8)*ceil(N/8); STRIP ceil(M/4)*ceil(N/16)",
         cycles_total: "L_ACCEPT + tiles * T_tile + L_DONE",
         util_model: "mac_useful / (64 * cycles_total)",
@@ -232,15 +221,15 @@ pub struct Sweep {
 
 /// Default flags for benchmark runs: requant on, int8 output.
 pub fn bench_flags() -> u8 {
-    spec::FLAG_REQUANT_EN
+    spec::FLAGS_INT8
 }
 
 pub fn sweep(lat: &Latencies, provisional: bool, hash: &str) -> Sweep {
     let flags = bench_flags();
     let mut points = Vec::new();
     let mut mode_choice = Vec::new();
-    for (name, k, n) in BENCHMARKS {
-        for m in SWEEP_M {
+    for (name, k, n) in spec::bench_shapes() {
+        for m in spec::bench_m_sweep() {
             for mode in Mode::ALL {
                 points.push(model_record(
                     name,
@@ -265,7 +254,7 @@ pub fn sweep(lat: &Latencies, provisional: bool, hash: &str) -> Sweep {
             });
         }
     }
-    let ceilings = SWEEP_M
+    let ceilings = spec::bench_m_sweep()
         .iter()
         .map(|&m| {
             let ceil = |mode| mapping_ceiling(&Descriptor::new(mode, flags, m, 1, 2 * spec::COLS));
@@ -284,7 +273,7 @@ pub fn sweep(lat: &Latencies, provisional: bool, hash: &str) -> Sweep {
         latencies: *lat,
         array: array_info(),
         definitions: definitions(),
-        m_values: SWEEP_M.to_vec(),
+        m_values: spec::bench_m_sweep(),
         points,
         mode_choice,
         ceilings_n_multiple_of_16: ceilings,
@@ -340,8 +329,8 @@ pub fn roofline(lat: &Latencies, provisional: bool, hash: &str) -> Roofline {
     let flags = bench_flags();
     let peak = spec::PEAK_MACS_PER_CYCLE as f64;
     let mut points = Vec::new();
-    for (name, k, n) in BENCHMARKS {
-        for m in SWEEP_M {
+    for (name, k, n) in spec::bench_shapes() {
+        for m in spec::bench_m_sweep() {
             for mode in Mode::ALL {
                 let d = Descriptor::new(mode, flags, m, k, n);
                 let r = model_record(name, &d, lat, hash);
@@ -439,7 +428,7 @@ pub fn explain(s: &Sweep) -> String {
          64 PEs into a 4 × 16 tile, so M = 1 keeps 1 of 4 rows busy (at most 25%), and each tile covers twice \
          as many output columns, so the job needs half as many tiles. Each tile costs the same fixed time \
          whether its rows are useful or not, `T_tile = L_SETUP + (L_RD + K) + (14 + L_PE) + T_DRAIN + L_RQ + L_WB` \
-         (T_DRAIN = 8 cycles FULL, 4 STRIP), so \
+         (T_DRAIN = 8 cycles FULL, 4 STRIP with int8 output), so \
          `utilization = M·N·K / (64 · (L_ACCEPT + ceil(M/Rt)·ceil(N/Ct)·T_tile + L_DONE))` with (Rt, Ct) = (8, 8) \
          for FULL and (4, 16) for STRIP. For `ffn_up` (K = 64, N = 256) at M = 1 the model gives FULL {} \
          ({} tiles × {} cycles) versus STRIP {} ({} tiles × {} cycles), {:.2}× higher. STRIP already fills every PE \
@@ -470,7 +459,7 @@ pub fn explain(s: &Sweep) -> String {
         let _ = write!(o, " ---: |");
     }
     let _ = writeln!(o);
-    for (name, _, _) in BENCHMARKS {
+    for (name, _, _) in spec::bench_shapes() {
         for mode in Mode::ALL {
             let _ = write!(o, "| {name} | {mode} |");
             for &m in &s.m_values {

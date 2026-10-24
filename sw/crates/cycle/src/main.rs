@@ -145,11 +145,11 @@ fn parse_descriptor(text: &str) -> Result<(String, Descriptor), String> {
         },
     }
     .ok_or("mode must be FULL/STRIP (INDEP is reserved and not modeled)")?;
-    // flags wins; otherwise requant (default true) → requant_en, false → int32 bypass.
+    // flags wins (must be FLAGS_INT8 or FLAGS_INT32); otherwise requant (default true) → FLAGS_INT8, false → FLAGS_INT32.
     let flags = d.flags.unwrap_or(if d.requant.unwrap_or(true) {
-        spec::FLAG_REQUANT_EN
+        spec::FLAGS_INT8
     } else {
-        spec::FLAG_OUT_INT32
+        spec::FLAGS_INT32
     });
     let desc = Descriptor::new(mode, flags, d.m, d.k, d.n);
     desc.validate().map_err(|e| e.to_string())?;
