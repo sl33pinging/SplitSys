@@ -65,6 +65,19 @@
     "phys_opt": "AggressiveFanoutOpt"
   },
   {
+    "tag": "top_uartswap",
+    "use": "H-4 .. H-7 (KG1 source) if H-2 needed the swap",
+    "bitfile": "fpga/build/top_uartswap/top.bit",
+    "build_id": "0x52A66216",
+    "git_hash": "52a66216",
+    "md5": "3c7d09567687c8e557319065c893a325",
+    "wns_ns": 2.388,
+    "whs_ns": 0.028,
+    "uart_swap": 1,
+    "enable_strip": "1",
+    "phys_opt": "AggressiveFanoutOpt"
+  },
+  {
     "tag": "top_nostrip",
     "use": "cost build only (results/cost.json); never programmed for the demo",
     "bitfile": "fpga/build/top_nostrip/top.bit",

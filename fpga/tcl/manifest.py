@@ -2,7 +2,7 @@
 """Bitstream manifest for Phase H (owner: fpga-integrator).
 
     python fpga/tcl/manifest.py [tag ...]
-    default tags: the six Phase H bitstreams (see TAGS)
+    default tags: the seven Phase H bitstreams (see TAGS)
 
 For each tag, reads fpga/reports/<tag>/summary.json and hashes
 fpga/build/<tag>/top.bit (gitignored, so the hash is the link between the
@@ -19,13 +19,14 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 TAGS = ["heartbeat_uart_echo", "heartbeat_uart_echo_uartswap", "packet_mem",
-        "packet_mem_uartswap", "top", "top_nostrip"]
+        "packet_mem_uartswap", "top", "top_uartswap", "top_nostrip"]
 USE = {
     "heartbeat_uart_echo": "H-1, H-2",
     "heartbeat_uart_echo_uartswap": "H-2 fallback (UART pins swapped)",
     "packet_mem": "H-3",
     "packet_mem_uartswap": "H-3 if H-2 needed the swap",
     "top": "H-4 .. H-7 (KG1 source)",
+    "top_uartswap": "H-4 .. H-7 (KG1 source) if H-2 needed the swap",
     "top_nostrip": "cost build only (results/cost.json); never programmed for the demo",
 }
 
