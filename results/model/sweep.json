@@ -1,13 +1,13 @@
 {
   "source": "model",
   "kind": "utilization_vs_M",
-  "model_git_hash": "37d0b2a",
+  "model_git_hash": "8efa5ac",
   "latencies_provisional": true,
   "latencies": {
     "L_PE": 3,
     "L_RD": 2,
     "L_SETUP": 16,
-    "L_RQ": 4,
+    "L_RQ": 7,
     "L_WB": 1,
     "L_ACCEPT": 1,
     "L_DONE": 1
@@ -48,11 +48,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 2690,
+        "cycles_total": 2762,
         "cycles_setup": 384,
         "cycles_stream": 1584,
         "cycles_flush": 408,
-        "cycles_drain": 312,
+        "cycles_drain": 384,
         "cycles_stall": 0,
         "mac_useful": 12288,
         "mac_useful_q": [
@@ -62,12 +62,12 @@
           0
         ],
         "tiles": 24,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.07137546468401487,
+        "util_model": 0.06951484431571325,
         "mapping_ceiling": 0.125,
-        "macs_per_cycle": 4.568029739776952,
+        "macs_per_cycle": 4.448950036205648,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 24576,
         "arithmetic_intensity": 0.5
@@ -85,11 +85,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 1298,
+        "cycles_total": 1334,
         "cycles_setup": 192,
         "cycles_stream": 792,
         "cycles_flush": 204,
-        "cycles_drain": 108,
+        "cycles_drain": 144,
         "cycles_stall": 0,
         "mac_useful": 12288,
         "mac_useful_q": [
@@ -99,12 +99,12 @@
           3072
         ],
         "tiles": 12,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.14791987673343607,
+        "util_model": 0.14392803598200898,
         "mapping_ceiling": 0.25,
-        "macs_per_cycle": 9.466872110939908,
+        "macs_per_cycle": 9.211394302848575,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 15360,
         "arithmetic_intensity": 0.8
@@ -122,11 +122,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 2690,
+        "cycles_total": 2762,
         "cycles_setup": 384,
         "cycles_stream": 1584,
         "cycles_flush": 408,
-        "cycles_drain": 312,
+        "cycles_drain": 384,
         "cycles_stall": 0,
         "mac_useful": 24576,
         "mac_useful_q": [
@@ -136,12 +136,12 @@
           0
         ],
         "tiles": 24,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.14275092936802974,
+        "util_model": 0.1390296886314265,
         "mapping_ceiling": 0.25,
-        "macs_per_cycle": 9.136059479553904,
+        "macs_per_cycle": 8.897900072411296,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 24576,
         "arithmetic_intensity": 1.0
@@ -159,11 +159,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 1298,
+        "cycles_total": 1334,
         "cycles_setup": 192,
         "cycles_stream": 792,
         "cycles_flush": 204,
-        "cycles_drain": 108,
+        "cycles_drain": 144,
         "cycles_stall": 0,
         "mac_useful": 24576,
         "mac_useful_q": [
@@ -173,12 +173,12 @@
           6144
         ],
         "tiles": 12,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.29583975346687214,
+        "util_model": 0.28785607196401797,
         "mapping_ceiling": 0.5,
-        "macs_per_cycle": 18.933744221879817,
+        "macs_per_cycle": 18.42278860569715,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 15360,
         "arithmetic_intensity": 1.6
@@ -196,11 +196,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 2690,
+        "cycles_total": 2762,
         "cycles_setup": 384,
         "cycles_stream": 1584,
         "cycles_flush": 408,
-        "cycles_drain": 312,
+        "cycles_drain": 384,
         "cycles_stall": 0,
         "mac_useful": 49152,
         "mac_useful_q": [
@@ -210,12 +210,12 @@
           0
         ],
         "tiles": 24,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.2855018587360595,
+        "util_model": 0.278059377262853,
         "mapping_ceiling": 0.5,
-        "macs_per_cycle": 18.272118959107807,
+        "macs_per_cycle": 17.795800144822593,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 24576,
         "arithmetic_intensity": 2.0
@@ -233,11 +233,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 1298,
+        "cycles_total": 1334,
         "cycles_setup": 192,
         "cycles_stream": 792,
         "cycles_flush": 204,
-        "cycles_drain": 108,
+        "cycles_drain": 144,
         "cycles_stall": 0,
         "mac_useful": 49152,
         "mac_useful_q": [
@@ -247,12 +247,12 @@
           12288
         ],
         "tiles": 12,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5916795069337443,
+        "util_model": 0.5757121439280359,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 37.86748844375963,
+        "macs_per_cycle": 36.8455772113943,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 15360,
         "arithmetic_intensity": 3.2
@@ -270,11 +270,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 2690,
+        "cycles_total": 2762,
         "cycles_setup": 384,
         "cycles_stream": 1584,
         "cycles_flush": 408,
-        "cycles_drain": 312,
+        "cycles_drain": 384,
         "cycles_stall": 0,
         "mac_useful": 98304,
         "mac_useful_q": [
@@ -284,12 +284,12 @@
           24576
         ],
         "tiles": 24,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.571003717472119,
+        "util_model": 0.556118754525706,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 36.544237918215615,
+        "macs_per_cycle": 35.591600289645186,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 24576,
         "arithmetic_intensity": 4.0
@@ -307,11 +307,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 2594,
+        "cycles_total": 2666,
         "cycles_setup": 384,
         "cycles_stream": 1584,
         "cycles_flush": 408,
-        "cycles_drain": 216,
+        "cycles_drain": 288,
         "cycles_stall": 0,
         "mac_useful": 98304,
         "mac_useful_q": [
@@ -321,12 +321,12 @@
           24576
         ],
         "tiles": 24,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5921356977640709,
+        "util_model": 0.5761440360090022,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 37.89668465690054,
+        "macs_per_cycle": 36.87321830457614,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 30720,
         "arithmetic_intensity": 3.2
@@ -344,11 +344,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 5378,
+        "cycles_total": 5522,
         "cycles_setup": 768,
         "cycles_stream": 3168,
         "cycles_flush": 816,
-        "cycles_drain": 624,
+        "cycles_drain": 768,
         "cycles_stall": 0,
         "mac_useful": 196608,
         "mac_useful_q": [
@@ -358,12 +358,12 @@
           49152
         ],
         "tiles": 48,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5712160654518408,
+        "util_model": 0.5563201738500543,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 36.55782818891781,
+        "macs_per_cycle": 35.604491126403474,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 49152,
         "arithmetic_intensity": 4.0
@@ -381,11 +381,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 5186,
+        "cycles_total": 5330,
         "cycles_setup": 768,
         "cycles_stream": 3168,
         "cycles_flush": 816,
-        "cycles_drain": 432,
+        "cycles_drain": 576,
         "cycles_stall": 0,
         "mac_useful": 196608,
         "mac_useful_q": [
@@ -395,12 +395,12 @@
           49152
         ],
         "tiles": 48,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5923640570767451,
+        "util_model": 0.576360225140713,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 37.91129965291169,
+        "macs_per_cycle": 36.88705440900563,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 61440,
         "arithmetic_intensity": 3.2
@@ -418,11 +418,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 10754,
+        "cycles_total": 11042,
         "cycles_setup": 1536,
         "cycles_stream": 6336,
         "cycles_flush": 1632,
-        "cycles_drain": 1248,
+        "cycles_drain": 1536,
         "cycles_stall": 0,
         "mac_useful": 393216,
         "mac_useful_q": [
@@ -432,12 +432,12 @@
           98304
         ],
         "tiles": 96,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5713222986795611,
+        "util_model": 0.5564209382358268,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 36.56462711549191,
+        "macs_per_cycle": 35.61094004709292,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 98304,
         "arithmetic_intensity": 4.0
@@ -455,11 +455,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 10370,
+        "cycles_total": 10658,
         "cycles_setup": 1536,
         "cycles_stream": 6336,
         "cycles_flush": 1632,
-        "cycles_drain": 864,
+        "cycles_drain": 1152,
         "cycles_stall": 0,
         "mac_useful": 393216,
         "mac_useful_q": [
@@ -469,12 +469,12 @@
           98304
         ],
         "tiles": 96,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5924783027965285,
+        "util_model": 0.5764683805592044,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 37.91861137897782,
+        "macs_per_cycle": 36.89397635578908,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 122880,
         "arithmetic_intensity": 3.2
@@ -492,11 +492,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 21506,
+        "cycles_total": 22082,
         "cycles_setup": 3072,
         "cycles_stream": 12672,
         "cycles_flush": 3264,
-        "cycles_drain": 2496,
+        "cycles_drain": 3072,
         "cycles_stall": 0,
         "mac_useful": 786432,
         "mac_useful_q": [
@@ -506,12 +506,12 @@
           196608
         ],
         "tiles": 192,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5713754301125268,
+        "util_model": 0.5564713341182864,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 36.568027527201714,
+        "macs_per_cycle": 35.61416538357033,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 196608,
         "arithmetic_intensity": 4.0
@@ -529,11 +529,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 20738,
+        "cycles_total": 21314,
         "cycles_setup": 3072,
         "cycles_stream": 12672,
         "cycles_flush": 3264,
-        "cycles_drain": 1728,
+        "cycles_drain": 2304,
         "cycles_stall": 0,
         "mac_useful": 786432,
         "mac_useful_q": [
@@ -543,12 +543,12 @@
           196608
         ],
         "tiles": 192,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5925354421834313,
+        "util_model": 0.5765224734916018,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 37.922268299739606,
+        "macs_per_cycle": 36.897438303462515,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 245760,
         "arithmetic_intensity": 3.2
@@ -566,11 +566,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 898,
+        "cycles_total": 922,
         "cycles_setup": 128,
         "cycles_stream": 528,
         "cycles_flush": 136,
-        "cycles_drain": 104,
+        "cycles_drain": 128,
         "cycles_stall": 0,
         "mac_useful": 4096,
         "mac_useful_q": [
@@ -580,12 +580,12 @@
           0
         ],
         "tiles": 8,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.07126948775055679,
+        "util_model": 0.06941431670281996,
         "mapping_ceiling": 0.125,
-        "macs_per_cycle": 4.5612472160356345,
+        "macs_per_cycle": 4.442516268980477,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 8192,
         "arithmetic_intensity": 0.5
@@ -603,11 +603,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 434,
+        "cycles_total": 446,
         "cycles_setup": 64,
         "cycles_stream": 264,
         "cycles_flush": 68,
-        "cycles_drain": 36,
+        "cycles_drain": 48,
         "cycles_stall": 0,
         "mac_useful": 4096,
         "mac_useful_q": [
@@ -617,12 +617,12 @@
           1024
         ],
         "tiles": 4,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.14746543778801843,
+        "util_model": 0.14349775784753363,
         "mapping_ceiling": 0.25,
-        "macs_per_cycle": 9.43778801843318,
+        "macs_per_cycle": 9.183856502242152,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 5120,
         "arithmetic_intensity": 0.8
@@ -640,11 +640,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 898,
+        "cycles_total": 922,
         "cycles_setup": 128,
         "cycles_stream": 528,
         "cycles_flush": 136,
-        "cycles_drain": 104,
+        "cycles_drain": 128,
         "cycles_stall": 0,
         "mac_useful": 8192,
         "mac_useful_q": [
@@ -654,12 +654,12 @@
           0
         ],
         "tiles": 8,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.14253897550111358,
+        "util_model": 0.13882863340563992,
         "mapping_ceiling": 0.25,
-        "macs_per_cycle": 9.122494432071269,
+        "macs_per_cycle": 8.885032537960955,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 8192,
         "arithmetic_intensity": 1.0
@@ -677,11 +677,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 434,
+        "cycles_total": 446,
         "cycles_setup": 64,
         "cycles_stream": 264,
         "cycles_flush": 68,
-        "cycles_drain": 36,
+        "cycles_drain": 48,
         "cycles_stall": 0,
         "mac_useful": 8192,
         "mac_useful_q": [
@@ -691,12 +691,12 @@
           2048
         ],
         "tiles": 4,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.29493087557603687,
+        "util_model": 0.28699551569506726,
         "mapping_ceiling": 0.5,
-        "macs_per_cycle": 18.87557603686636,
+        "macs_per_cycle": 18.367713004484305,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 5120,
         "arithmetic_intensity": 1.6
@@ -714,11 +714,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 898,
+        "cycles_total": 922,
         "cycles_setup": 128,
         "cycles_stream": 528,
         "cycles_flush": 136,
-        "cycles_drain": 104,
+        "cycles_drain": 128,
         "cycles_stall": 0,
         "mac_useful": 16384,
         "mac_useful_q": [
@@ -728,12 +728,12 @@
           0
         ],
         "tiles": 8,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.28507795100222716,
+        "util_model": 0.27765726681127983,
         "mapping_ceiling": 0.5,
-        "macs_per_cycle": 18.244988864142538,
+        "macs_per_cycle": 17.77006507592191,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 8192,
         "arithmetic_intensity": 2.0
@@ -751,11 +751,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 434,
+        "cycles_total": 446,
         "cycles_setup": 64,
         "cycles_stream": 264,
         "cycles_flush": 68,
-        "cycles_drain": 36,
+        "cycles_drain": 48,
         "cycles_stall": 0,
         "mac_useful": 16384,
         "mac_useful_q": [
@@ -765,12 +765,12 @@
           4096
         ],
         "tiles": 4,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5898617511520737,
+        "util_model": 0.5739910313901345,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 37.75115207373272,
+        "macs_per_cycle": 36.73542600896861,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 5120,
         "arithmetic_intensity": 3.2
@@ -788,11 +788,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 898,
+        "cycles_total": 922,
         "cycles_setup": 128,
         "cycles_stream": 528,
         "cycles_flush": 136,
-        "cycles_drain": 104,
+        "cycles_drain": 128,
         "cycles_stall": 0,
         "mac_useful": 32768,
         "mac_useful_q": [
@@ -802,12 +802,12 @@
           8192
         ],
         "tiles": 8,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5701559020044543,
+        "util_model": 0.5553145336225597,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 36.489977728285076,
+        "macs_per_cycle": 35.54013015184382,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 8192,
         "arithmetic_intensity": 4.0
@@ -825,11 +825,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 866,
+        "cycles_total": 890,
         "cycles_setup": 128,
         "cycles_stream": 528,
         "cycles_flush": 136,
-        "cycles_drain": 72,
+        "cycles_drain": 96,
         "cycles_stall": 0,
         "mac_useful": 32768,
         "mac_useful_q": [
@@ -839,12 +839,12 @@
           8192
         ],
         "tiles": 8,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5912240184757506,
+        "util_model": 0.5752808988764045,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 37.838337182448036,
+        "macs_per_cycle": 36.81797752808989,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 10240,
         "arithmetic_intensity": 3.2
@@ -862,11 +862,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 1794,
+        "cycles_total": 1842,
         "cycles_setup": 256,
         "cycles_stream": 1056,
         "cycles_flush": 272,
-        "cycles_drain": 208,
+        "cycles_drain": 256,
         "cycles_stall": 0,
         "mac_useful": 65536,
         "mac_useful_q": [
@@ -876,12 +876,12 @@
           16384
         ],
         "tiles": 16,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5707915273132664,
+        "util_model": 0.5559174809989142,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 36.53065774804905,
+        "macs_per_cycle": 35.57871878393051,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 16384,
         "arithmetic_intensity": 4.0
@@ -899,11 +899,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 1730,
+        "cycles_total": 1778,
         "cycles_setup": 256,
         "cycles_stream": 1056,
         "cycles_flush": 272,
-        "cycles_drain": 144,
+        "cycles_drain": 192,
         "cycles_stall": 0,
         "mac_useful": 65536,
         "mac_useful_q": [
@@ -913,12 +913,12 @@
           16384
         ],
         "tiles": 16,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5919075144508671,
+        "util_model": 0.5759280089988752,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 37.882080924855494,
+        "macs_per_cycle": 36.85939257592801,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 20480,
         "arithmetic_intensity": 3.2
@@ -936,11 +936,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 3586,
+        "cycles_total": 3682,
         "cycles_setup": 512,
         "cycles_stream": 2112,
         "cycles_flush": 544,
-        "cycles_drain": 416,
+        "cycles_drain": 512,
         "cycles_stall": 0,
         "mac_useful": 131072,
         "mac_useful_q": [
@@ -950,12 +950,12 @@
           32768
         ],
         "tiles": 32,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5711098717233687,
+        "util_model": 0.5562194459532862,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 36.551031790295596,
+        "macs_per_cycle": 35.59804454101032,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 32768,
         "arithmetic_intensity": 4.0
@@ -973,11 +973,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 3458,
+        "cycles_total": 3554,
         "cycles_setup": 512,
         "cycles_stream": 2112,
         "cycles_flush": 544,
-        "cycles_drain": 288,
+        "cycles_drain": 384,
         "cycles_stall": 0,
         "mac_useful": 131072,
         "mac_useful_q": [
@@ -987,12 +987,12 @@
           32768
         ],
         "tiles": 32,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5922498554077501,
+        "util_model": 0.5762521102982555,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 37.90399074609601,
+        "macs_per_cycle": 36.88013505908835,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 40960,
         "arithmetic_intensity": 3.2
@@ -1010,11 +1010,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 7170,
+        "cycles_total": 7362,
         "cycles_setup": 1024,
         "cycles_stream": 4224,
         "cycles_flush": 1088,
-        "cycles_drain": 832,
+        "cycles_drain": 1024,
         "cycles_stall": 0,
         "mac_useful": 262144,
         "mac_useful_q": [
@@ -1024,12 +1024,12 @@
           65536
         ],
         "tiles": 64,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5712691771269177,
+        "util_model": 0.5563705514805759,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 36.561227336122734,
+        "macs_per_cycle": 35.60771529475686,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 65536,
         "arithmetic_intensity": 4.0
@@ -1047,11 +1047,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 6914,
+        "cycles_total": 7106,
         "cycles_setup": 1024,
         "cycles_stream": 4224,
         "cycles_flush": 1088,
-        "cycles_drain": 576,
+        "cycles_drain": 768,
         "cycles_stall": 0,
         "mac_useful": 262144,
         "mac_useful_q": [
@@ -1061,12 +1061,12 @@
           65536
         ],
         "tiles": 64,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5924211744286954,
+        "util_model": 0.5764142977765269,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 37.9149551634365,
+        "macs_per_cycle": 36.89051505769772,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 81920,
         "arithmetic_intensity": 3.2
@@ -1084,11 +1084,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 3586,
+        "cycles_total": 3682,
         "cycles_setup": 512,
         "cycles_stream": 2112,
         "cycles_flush": 544,
-        "cycles_drain": 416,
+        "cycles_drain": 512,
         "cycles_stall": 0,
         "mac_useful": 16384,
         "mac_useful_q": [
@@ -1098,12 +1098,12 @@
           0
         ],
         "tiles": 32,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.07138873396542109,
+        "util_model": 0.06952743074416078,
         "mapping_ceiling": 0.125,
-        "macs_per_cycle": 4.5688789737869495,
+        "macs_per_cycle": 4.44975556762629,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 32768,
         "arithmetic_intensity": 0.5
@@ -1121,11 +1121,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 1730,
+        "cycles_total": 1778,
         "cycles_setup": 256,
         "cycles_stream": 1056,
         "cycles_flush": 272,
-        "cycles_drain": 144,
+        "cycles_drain": 192,
         "cycles_stall": 0,
         "mac_useful": 16384,
         "mac_useful_q": [
@@ -1135,12 +1135,12 @@
           4096
         ],
         "tiles": 16,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.14797687861271677,
+        "util_model": 0.1439820022497188,
         "mapping_ceiling": 0.25,
-        "macs_per_cycle": 9.470520231213873,
+        "macs_per_cycle": 9.214848143982003,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 20480,
         "arithmetic_intensity": 0.8
@@ -1158,11 +1158,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 3586,
+        "cycles_total": 3682,
         "cycles_setup": 512,
         "cycles_stream": 2112,
         "cycles_flush": 544,
-        "cycles_drain": 416,
+        "cycles_drain": 512,
         "cycles_stall": 0,
         "mac_useful": 32768,
         "mac_useful_q": [
@@ -1172,12 +1172,12 @@
           0
         ],
         "tiles": 32,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.14277746793084217,
+        "util_model": 0.13905486148832155,
         "mapping_ceiling": 0.25,
-        "macs_per_cycle": 9.137757947573899,
+        "macs_per_cycle": 8.89951113525258,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 32768,
         "arithmetic_intensity": 1.0
@@ -1195,11 +1195,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 1730,
+        "cycles_total": 1778,
         "cycles_setup": 256,
         "cycles_stream": 1056,
         "cycles_flush": 272,
-        "cycles_drain": 144,
+        "cycles_drain": 192,
         "cycles_stall": 0,
         "mac_useful": 32768,
         "mac_useful_q": [
@@ -1209,12 +1209,12 @@
           8192
         ],
         "tiles": 16,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.29595375722543354,
+        "util_model": 0.2879640044994376,
         "mapping_ceiling": 0.5,
-        "macs_per_cycle": 18.941040462427747,
+        "macs_per_cycle": 18.429696287964006,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 20480,
         "arithmetic_intensity": 1.6
@@ -1232,11 +1232,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 3586,
+        "cycles_total": 3682,
         "cycles_setup": 512,
         "cycles_stream": 2112,
         "cycles_flush": 544,
-        "cycles_drain": 416,
+        "cycles_drain": 512,
         "cycles_stall": 0,
         "mac_useful": 65536,
         "mac_useful_q": [
@@ -1246,12 +1246,12 @@
           0
         ],
         "tiles": 32,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.28555493586168434,
+        "util_model": 0.2781097229766431,
         "mapping_ceiling": 0.5,
-        "macs_per_cycle": 18.275515895147798,
+        "macs_per_cycle": 17.79902227050516,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 32768,
         "arithmetic_intensity": 2.0
@@ -1269,11 +1269,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 1730,
+        "cycles_total": 1778,
         "cycles_setup": 256,
         "cycles_stream": 1056,
         "cycles_flush": 272,
-        "cycles_drain": 144,
+        "cycles_drain": 192,
         "cycles_stall": 0,
         "mac_useful": 65536,
         "mac_useful_q": [
@@ -1283,12 +1283,12 @@
           16384
         ],
         "tiles": 16,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5919075144508671,
+        "util_model": 0.5759280089988752,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 37.882080924855494,
+        "macs_per_cycle": 36.85939257592801,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 20480,
         "arithmetic_intensity": 3.2
@@ -1306,11 +1306,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 3586,
+        "cycles_total": 3682,
         "cycles_setup": 512,
         "cycles_stream": 2112,
         "cycles_flush": 544,
-        "cycles_drain": 416,
+        "cycles_drain": 512,
         "cycles_stall": 0,
         "mac_useful": 131072,
         "mac_useful_q": [
@@ -1320,12 +1320,12 @@
           32768
         ],
         "tiles": 32,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5711098717233687,
+        "util_model": 0.5562194459532862,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 36.551031790295596,
+        "macs_per_cycle": 35.59804454101032,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 32768,
         "arithmetic_intensity": 4.0
@@ -1343,11 +1343,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 3458,
+        "cycles_total": 3554,
         "cycles_setup": 512,
         "cycles_stream": 2112,
         "cycles_flush": 544,
-        "cycles_drain": 288,
+        "cycles_drain": 384,
         "cycles_stall": 0,
         "mac_useful": 131072,
         "mac_useful_q": [
@@ -1357,12 +1357,12 @@
           32768
         ],
         "tiles": 32,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5922498554077501,
+        "util_model": 0.5762521102982555,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 37.90399074609601,
+        "macs_per_cycle": 36.88013505908835,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 40960,
         "arithmetic_intensity": 3.2
@@ -1380,11 +1380,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 7170,
+        "cycles_total": 7362,
         "cycles_setup": 1024,
         "cycles_stream": 4224,
         "cycles_flush": 1088,
-        "cycles_drain": 832,
+        "cycles_drain": 1024,
         "cycles_stall": 0,
         "mac_useful": 262144,
         "mac_useful_q": [
@@ -1394,12 +1394,12 @@
           65536
         ],
         "tiles": 64,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5712691771269177,
+        "util_model": 0.5563705514805759,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 36.561227336122734,
+        "macs_per_cycle": 35.60771529475686,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 65536,
         "arithmetic_intensity": 4.0
@@ -1417,11 +1417,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 6914,
+        "cycles_total": 7106,
         "cycles_setup": 1024,
         "cycles_stream": 4224,
         "cycles_flush": 1088,
-        "cycles_drain": 576,
+        "cycles_drain": 768,
         "cycles_stall": 0,
         "mac_useful": 262144,
         "mac_useful_q": [
@@ -1431,12 +1431,12 @@
           65536
         ],
         "tiles": 64,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5924211744286954,
+        "util_model": 0.5764142977765269,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 37.9149551634365,
+        "macs_per_cycle": 36.89051505769772,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 81920,
         "arithmetic_intensity": 3.2
@@ -1454,11 +1454,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 14338,
+        "cycles_total": 14722,
         "cycles_setup": 2048,
         "cycles_stream": 8448,
         "cycles_flush": 2176,
-        "cycles_drain": 1664,
+        "cycles_drain": 2048,
         "cycles_stall": 0,
         "mac_useful": 524288,
         "mac_useful_q": [
@@ -1468,12 +1468,12 @@
           131072
         ],
         "tiles": 128,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5713488631608313,
+        "util_model": 0.5564461350360005,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 36.566327242293205,
+        "macs_per_cycle": 35.61255264230403,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 131072,
         "arithmetic_intensity": 4.0
@@ -1491,11 +1491,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 13826,
+        "cycles_total": 14210,
         "cycles_setup": 2048,
         "cycles_stream": 8448,
         "cycles_flush": 2176,
-        "cycles_drain": 1152,
+        "cycles_drain": 1536,
         "cycles_stall": 0,
         "mac_useful": 524288,
         "mac_useful_q": [
@@ -1505,12 +1505,12 @@
           131072
         ],
         "tiles": 128,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.592506871112397,
+        "util_model": 0.5764954257565095,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 37.920439751193406,
+        "macs_per_cycle": 36.895707248416606,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 163840,
         "arithmetic_intensity": 3.2
@@ -1528,11 +1528,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 28674,
+        "cycles_total": 29442,
         "cycles_setup": 4096,
         "cycles_stream": 16896,
         "cycles_flush": 4352,
-        "cycles_drain": 3328,
+        "cycles_drain": 4096,
         "cycles_stall": 0,
         "mac_useful": 1048576,
         "mac_useful_q": [
@@ -1542,12 +1542,12 @@
           262144
         ],
         "tiles": 256,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5713887145148916,
+        "util_model": 0.5564839345153183,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 36.56887772895306,
+        "macs_per_cycle": 35.61497180898037,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 262144,
         "arithmetic_intensity": 4.0
@@ -1565,11 +1565,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 27650,
+        "cycles_total": 28418,
         "cycles_setup": 4096,
         "cycles_stream": 16896,
         "cycles_flush": 4352,
-        "cycles_drain": 2304,
+        "cycles_drain": 3072,
         "cycles_stall": 0,
         "mac_useful": 1048576,
         "mac_useful_q": [
@@ -1579,12 +1579,12 @@
           262144
         ],
         "tiles": 256,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.5925497287522604,
+        "util_model": 0.5765359983109297,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 37.92318264014467,
+        "macs_per_cycle": 36.8983038918995,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 327680,
         "arithmetic_intensity": 3.2
@@ -1602,11 +1602,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 2434,
+        "cycles_total": 2458,
         "cycles_setup": 128,
         "cycles_stream": 2064,
         "cycles_flush": 136,
-        "cycles_drain": 104,
+        "cycles_drain": 128,
         "cycles_stall": 0,
         "mac_useful": 16384,
         "mac_useful_q": [
@@ -1616,12 +1616,12 @@
           0
         ],
         "tiles": 8,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.10517666392769104,
+        "util_model": 0.10414971521562245,
         "mapping_ceiling": 0.125,
-        "macs_per_cycle": 6.7313064913722265,
+        "macs_per_cycle": 6.665581773799837,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 32768,
         "arithmetic_intensity": 0.5
@@ -1639,11 +1639,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 1202,
+        "cycles_total": 1214,
         "cycles_setup": 64,
         "cycles_stream": 1032,
         "cycles_flush": 68,
-        "cycles_drain": 36,
+        "cycles_drain": 48,
         "cycles_stall": 0,
         "mac_useful": 16384,
         "mac_useful_q": [
@@ -1653,12 +1653,12 @@
           4096
         ],
         "tiles": 4,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.2129783693843594,
+        "util_model": 0.21087314662273476,
         "mapping_ceiling": 0.25,
-        "macs_per_cycle": 13.630615640599002,
+        "macs_per_cycle": 13.495881383855025,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 20480,
         "arithmetic_intensity": 0.8
@@ -1676,11 +1676,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 2434,
+        "cycles_total": 2458,
         "cycles_setup": 128,
         "cycles_stream": 2064,
         "cycles_flush": 136,
-        "cycles_drain": 104,
+        "cycles_drain": 128,
         "cycles_stall": 0,
         "mac_useful": 32768,
         "mac_useful_q": [
@@ -1690,12 +1690,12 @@
           0
         ],
         "tiles": 8,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.21035332785538208,
+        "util_model": 0.2082994304312449,
         "mapping_ceiling": 0.25,
-        "macs_per_cycle": 13.462612982744453,
+        "macs_per_cycle": 13.331163547599674,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 32768,
         "arithmetic_intensity": 1.0
@@ -1713,11 +1713,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 1202,
+        "cycles_total": 1214,
         "cycles_setup": 64,
         "cycles_stream": 1032,
         "cycles_flush": 68,
-        "cycles_drain": 36,
+        "cycles_drain": 48,
         "cycles_stall": 0,
         "mac_useful": 32768,
         "mac_useful_q": [
@@ -1727,12 +1727,12 @@
           8192
         ],
         "tiles": 4,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.4259567387687188,
+        "util_model": 0.42174629324546953,
         "mapping_ceiling": 0.5,
-        "macs_per_cycle": 27.261231281198004,
+        "macs_per_cycle": 26.99176276771005,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 20480,
         "arithmetic_intensity": 1.6
@@ -1750,11 +1750,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 2434,
+        "cycles_total": 2458,
         "cycles_setup": 128,
         "cycles_stream": 2064,
         "cycles_flush": 136,
-        "cycles_drain": 104,
+        "cycles_drain": 128,
         "cycles_stall": 0,
         "mac_useful": 65536,
         "mac_useful_q": [
@@ -1764,12 +1764,12 @@
           0
         ],
         "tiles": 8,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.42070665571076415,
+        "util_model": 0.4165988608624898,
         "mapping_ceiling": 0.5,
-        "macs_per_cycle": 26.925225965488906,
+        "macs_per_cycle": 26.66232709519935,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 32768,
         "arithmetic_intensity": 2.0
@@ -1787,11 +1787,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 1202,
+        "cycles_total": 1214,
         "cycles_setup": 64,
         "cycles_stream": 1032,
         "cycles_flush": 68,
-        "cycles_drain": 36,
+        "cycles_drain": 48,
         "cycles_stall": 0,
         "mac_useful": 65536,
         "mac_useful_q": [
@@ -1801,12 +1801,12 @@
           16384
         ],
         "tiles": 4,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.8519134775374376,
+        "util_model": 0.8434925864909391,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 54.52246256239601,
+        "macs_per_cycle": 53.9835255354201,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 20480,
         "arithmetic_intensity": 3.2
@@ -1824,11 +1824,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 2434,
+        "cycles_total": 2458,
         "cycles_setup": 128,
         "cycles_stream": 2064,
         "cycles_flush": 136,
-        "cycles_drain": 104,
+        "cycles_drain": 128,
         "cycles_stall": 0,
         "mac_useful": 131072,
         "mac_useful_q": [
@@ -1838,12 +1838,12 @@
           32768
         ],
         "tiles": 8,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.8414133114215283,
+        "util_model": 0.8331977217249796,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 53.85045193097781,
+        "macs_per_cycle": 53.3246541903987,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 32768,
         "arithmetic_intensity": 4.0
@@ -1861,11 +1861,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 2402,
+        "cycles_total": 2426,
         "cycles_setup": 128,
         "cycles_stream": 2064,
         "cycles_flush": 136,
-        "cycles_drain": 72,
+        "cycles_drain": 96,
         "cycles_stall": 0,
         "mac_useful": 131072,
         "mac_useful_q": [
@@ -1875,12 +1875,12 @@
           32768
         ],
         "tiles": 8,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.8526228143213989,
+        "util_model": 0.8441879637262985,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 54.56786011656953,
+        "macs_per_cycle": 54.0280296784831,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 40960,
         "arithmetic_intensity": 3.2
@@ -1898,11 +1898,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 4866,
+        "cycles_total": 4914,
         "cycles_setup": 256,
         "cycles_stream": 4128,
         "cycles_flush": 272,
-        "cycles_drain": 208,
+        "cycles_drain": 256,
         "cycles_stall": 0,
         "mac_useful": 262144,
         "mac_useful_q": [
@@ -1912,12 +1912,12 @@
           65536
         ],
         "tiles": 16,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.8417591450883682,
+        "util_model": 0.8335368335368335,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 53.87258528565557,
+        "macs_per_cycle": 53.346357346357344,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 65536,
         "arithmetic_intensity": 4.0
@@ -1935,11 +1935,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 4802,
+        "cycles_total": 4850,
         "cycles_setup": 256,
         "cycles_stream": 4128,
         "cycles_flush": 272,
-        "cycles_drain": 144,
+        "cycles_drain": 192,
         "cycles_stall": 0,
         "mac_useful": 262144,
         "mac_useful_q": [
@@ -1949,12 +1949,12 @@
           65536
         ],
         "tiles": 16,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.8529779258642233,
+        "util_model": 0.8445360824742268,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 54.59058725531029,
+        "macs_per_cycle": 54.05030927835052,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 81920,
         "arithmetic_intensity": 3.2
@@ -1972,11 +1972,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 9730,
+        "cycles_total": 9826,
         "cycles_setup": 512,
         "cycles_stream": 8256,
         "cycles_flush": 544,
-        "cycles_drain": 416,
+        "cycles_drain": 512,
         "cycles_stall": 0,
         "mac_useful": 524288,
         "mac_useful_q": [
@@ -1986,12 +1986,12 @@
           131072
         ],
         "tiles": 32,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.8419321685508736,
+        "util_model": 0.833706492977814,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 53.88365878725591,
+        "macs_per_cycle": 53.357215550580094,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 131072,
         "arithmetic_intensity": 4.0
@@ -2009,11 +2009,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 9602,
+        "cycles_total": 9698,
         "cycles_setup": 512,
         "cycles_stream": 8256,
         "cycles_flush": 544,
-        "cycles_drain": 288,
+        "cycles_drain": 384,
         "cycles_stall": 0,
         "mac_useful": 524288,
         "mac_useful_q": [
@@ -2023,12 +2023,12 @@
           131072
         ],
         "tiles": 32,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.8531555925848782,
+        "util_model": 0.8447102495359868,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 54.6019579254322,
+        "macs_per_cycle": 54.06145597030316,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 163840,
         "arithmetic_intensity": 3.2
@@ -2046,11 +2046,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 19458,
+        "cycles_total": 19650,
         "cycles_setup": 1024,
         "cycles_stream": 16512,
         "cycles_flush": 1088,
-        "cycles_drain": 832,
+        "cycles_drain": 1024,
         "cycles_stall": 0,
         "mac_useful": 1048576,
         "mac_useful_q": [
@@ -2060,12 +2060,12 @@
           262144
         ],
         "tiles": 64,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.8420187069585775,
+        "util_model": 0.8337913486005089,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 53.88919724534896,
+        "macs_per_cycle": 53.36264631043257,
         "operand_bytes_per_cycle": 16,
         "operand_bytes_streamed": 262144,
         "arithmetic_intensity": 4.0
@@ -2083,11 +2083,11 @@
         "flags": 1
       },
       "model": {
-        "cycles_total": 19202,
+        "cycles_total": 19394,
         "cycles_setup": 1024,
         "cycles_stream": 16512,
         "cycles_flush": 1088,
-        "cycles_drain": 576,
+        "cycles_drain": 768,
         "cycles_stall": 0,
         "mac_useful": 1048576,
         "mac_useful_q": [
@@ -2097,12 +2097,12 @@
           262144
         ],
         "tiles": 64,
-        "model_git_hash": "37d0b2a"
+        "model_git_hash": "8efa5ac"
       },
       "derived": {
-        "util_model": 0.8532444537027393,
+        "util_model": 0.84479736000825,
         "mapping_ceiling": 1.0,
-        "macs_per_cycle": 54.60764503697531,
+        "macs_per_cycle": 54.067031040528,
         "operand_bytes_per_cycle": 20,
         "operand_bytes_streamed": 327680,
         "arithmetic_intensity": 3.2
@@ -2114,225 +2114,225 @@
       "name": "qkv",
       "M": 1,
       "chosen": "STRIP",
-      "cycles_total_full": 2690,
-      "cycles_total_strip": 1298,
-      "strip_speedup": 2.0724191063174113
+      "cycles_total_full": 2762,
+      "cycles_total_strip": 1334,
+      "strip_speedup": 2.070464767616192
     },
     {
       "name": "qkv",
       "M": 2,
       "chosen": "STRIP",
-      "cycles_total_full": 2690,
-      "cycles_total_strip": 1298,
-      "strip_speedup": 2.0724191063174113
+      "cycles_total_full": 2762,
+      "cycles_total_strip": 1334,
+      "strip_speedup": 2.070464767616192
     },
     {
       "name": "qkv",
       "M": 4,
       "chosen": "STRIP",
-      "cycles_total_full": 2690,
-      "cycles_total_strip": 1298,
-      "strip_speedup": 2.0724191063174113
+      "cycles_total_full": 2762,
+      "cycles_total_strip": 1334,
+      "strip_speedup": 2.070464767616192
     },
     {
       "name": "qkv",
       "M": 8,
       "chosen": "STRIP",
-      "cycles_total_full": 2690,
-      "cycles_total_strip": 2594,
-      "strip_speedup": 1.0370084811102545
+      "cycles_total_full": 2762,
+      "cycles_total_strip": 2666,
+      "strip_speedup": 1.0360090022505626
     },
     {
       "name": "qkv",
       "M": 16,
       "chosen": "STRIP",
-      "cycles_total_full": 5378,
-      "cycles_total_strip": 5186,
-      "strip_speedup": 1.0370227535672967
+      "cycles_total_full": 5522,
+      "cycles_total_strip": 5330,
+      "strip_speedup": 1.0360225140712946
     },
     {
       "name": "qkv",
       "M": 32,
       "chosen": "STRIP",
-      "cycles_total_full": 10754,
-      "cycles_total_strip": 10370,
-      "strip_speedup": 1.037029893924783
+      "cycles_total_full": 11042,
+      "cycles_total_strip": 10658,
+      "strip_speedup": 1.0360292737849504
     },
     {
       "name": "qkv",
       "M": 64,
       "chosen": "STRIP",
-      "cycles_total_full": 21506,
-      "cycles_total_strip": 20738,
-      "strip_speedup": 1.0370334651364645
+      "cycles_total_full": 22082,
+      "cycles_total_strip": 21314,
+      "strip_speedup": 1.036032654593225
     },
     {
       "name": "attn_out",
       "M": 1,
       "chosen": "STRIP",
-      "cycles_total_full": 898,
-      "cycles_total_strip": 434,
-      "strip_speedup": 2.0691244239631335
+      "cycles_total_full": 922,
+      "cycles_total_strip": 446,
+      "strip_speedup": 2.0672645739910314
     },
     {
       "name": "attn_out",
       "M": 2,
       "chosen": "STRIP",
-      "cycles_total_full": 898,
-      "cycles_total_strip": 434,
-      "strip_speedup": 2.0691244239631335
+      "cycles_total_full": 922,
+      "cycles_total_strip": 446,
+      "strip_speedup": 2.0672645739910314
     },
     {
       "name": "attn_out",
       "M": 4,
       "chosen": "STRIP",
-      "cycles_total_full": 898,
-      "cycles_total_strip": 434,
-      "strip_speedup": 2.0691244239631335
+      "cycles_total_full": 922,
+      "cycles_total_strip": 446,
+      "strip_speedup": 2.0672645739910314
     },
     {
       "name": "attn_out",
       "M": 8,
       "chosen": "STRIP",
-      "cycles_total_full": 898,
-      "cycles_total_strip": 866,
-      "strip_speedup": 1.0369515011547343
+      "cycles_total_full": 922,
+      "cycles_total_strip": 890,
+      "strip_speedup": 1.0359550561797752
     },
     {
       "name": "attn_out",
       "M": 16,
       "chosen": "STRIP",
-      "cycles_total_full": 1794,
-      "cycles_total_strip": 1730,
-      "strip_speedup": 1.0369942196531792
+      "cycles_total_full": 1842,
+      "cycles_total_strip": 1778,
+      "strip_speedup": 1.0359955005624297
     },
     {
       "name": "attn_out",
       "M": 32,
       "chosen": "STRIP",
-      "cycles_total_full": 3586,
-      "cycles_total_strip": 3458,
-      "strip_speedup": 1.0370156159629844
+      "cycles_total_full": 3682,
+      "cycles_total_strip": 3554,
+      "strip_speedup": 1.036015756893641
     },
     {
       "name": "attn_out",
       "M": 64,
       "chosen": "STRIP",
-      "cycles_total_full": 7170,
-      "cycles_total_strip": 6914,
-      "strip_speedup": 1.0370263234017936
+      "cycles_total_full": 7362,
+      "cycles_total_strip": 7106,
+      "strip_speedup": 1.036025893611033
     },
     {
       "name": "ffn_up",
       "M": 1,
       "chosen": "STRIP",
-      "cycles_total_full": 3586,
-      "cycles_total_strip": 1730,
-      "strip_speedup": 2.0728323699421964
+      "cycles_total_full": 3682,
+      "cycles_total_strip": 1778,
+      "strip_speedup": 2.0708661417322833
     },
     {
       "name": "ffn_up",
       "M": 2,
       "chosen": "STRIP",
-      "cycles_total_full": 3586,
-      "cycles_total_strip": 1730,
-      "strip_speedup": 2.0728323699421964
+      "cycles_total_full": 3682,
+      "cycles_total_strip": 1778,
+      "strip_speedup": 2.0708661417322833
     },
     {
       "name": "ffn_up",
       "M": 4,
       "chosen": "STRIP",
-      "cycles_total_full": 3586,
-      "cycles_total_strip": 1730,
-      "strip_speedup": 2.0728323699421964
+      "cycles_total_full": 3682,
+      "cycles_total_strip": 1778,
+      "strip_speedup": 2.0708661417322833
     },
     {
       "name": "ffn_up",
       "M": 8,
       "chosen": "STRIP",
-      "cycles_total_full": 3586,
-      "cycles_total_strip": 3458,
-      "strip_speedup": 1.0370156159629844
+      "cycles_total_full": 3682,
+      "cycles_total_strip": 3554,
+      "strip_speedup": 1.036015756893641
     },
     {
       "name": "ffn_up",
       "M": 16,
       "chosen": "STRIP",
-      "cycles_total_full": 7170,
-      "cycles_total_strip": 6914,
-      "strip_speedup": 1.0370263234017936
+      "cycles_total_full": 7362,
+      "cycles_total_strip": 7106,
+      "strip_speedup": 1.036025893611033
     },
     {
       "name": "ffn_up",
       "M": 32,
       "chosen": "STRIP",
-      "cycles_total_full": 14338,
-      "cycles_total_strip": 13826,
-      "strip_speedup": 1.037031679444525
+      "cycles_total_full": 14722,
+      "cycles_total_strip": 14210,
+      "strip_speedup": 1.0360309641097818
     },
     {
       "name": "ffn_up",
       "M": 64,
       "chosen": "STRIP",
-      "cycles_total_full": 28674,
-      "cycles_total_strip": 27650,
-      "strip_speedup": 1.0370343580470163
+      "cycles_total_full": 29442,
+      "cycles_total_strip": 28418,
+      "strip_speedup": 1.0360334998944332
     },
     {
       "name": "ffn_down",
       "M": 1,
       "chosen": "STRIP",
-      "cycles_total_full": 2434,
-      "cycles_total_strip": 1202,
-      "strip_speedup": 2.0249584026622296
+      "cycles_total_full": 2458,
+      "cycles_total_strip": 1214,
+      "strip_speedup": 2.0247116968698515
     },
     {
       "name": "ffn_down",
       "M": 2,
       "chosen": "STRIP",
-      "cycles_total_full": 2434,
-      "cycles_total_strip": 1202,
-      "strip_speedup": 2.0249584026622296
+      "cycles_total_full": 2458,
+      "cycles_total_strip": 1214,
+      "strip_speedup": 2.0247116968698515
     },
     {
       "name": "ffn_down",
       "M": 4,
       "chosen": "STRIP",
-      "cycles_total_full": 2434,
-      "cycles_total_strip": 1202,
-      "strip_speedup": 2.0249584026622296
+      "cycles_total_full": 2458,
+      "cycles_total_strip": 1214,
+      "strip_speedup": 2.0247116968698515
     },
     {
       "name": "ffn_down",
       "M": 8,
       "chosen": "STRIP",
-      "cycles_total_full": 2434,
-      "cycles_total_strip": 2402,
-      "strip_speedup": 1.0133222314737718
+      "cycles_total_full": 2458,
+      "cycles_total_strip": 2426,
+      "strip_speedup": 1.0131904369332234
     },
     {
       "name": "ffn_down",
       "M": 16,
       "chosen": "STRIP",
-      "cycles_total_full": 4866,
-      "cycles_total_strip": 4802,
-      "strip_speedup": 1.0133277800916285
+      "cycles_total_full": 4914,
+      "cycles_total_strip": 4850,
+      "strip_speedup": 1.0131958762886597
     },
     {
       "name": "ffn_down",
       "M": 32,
       "chosen": "STRIP",
-      "cycles_total_full": 9730,
-      "cycles_total_strip": 9602,
-      "strip_speedup": 1.0133305561341388
+      "cycles_total_full": 9826,
+      "cycles_total_strip": 9698,
+      "strip_speedup": 1.0131985976489999
     },
     {
       "name": "ffn_down",
       "M": 64,
       "chosen": "STRIP",
-      "cycles_total_full": 19458,
-      "cycles_total_strip": 19202,
-      "strip_speedup": 1.0133319445891054
+      "cycles_total_full": 19650,
+      "cycles_total_strip": 19394,
+      "strip_speedup": 1.0131999587501288
     }
   ],
   "ceilings_n_multiple_of_16": [
