@@ -13,6 +13,7 @@
 
 TB := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 SPLITSYS_CACHE ?= $(HOME)/.cache/splitsys
+SPLITSYS_SIM_BUILD ?= $(SPLITSYS_CACHE)/sim_build
 ORACLE_TARGET  := $(SPLITSYS_CACHE)/tb-oracle-target
 ORACLE_BIN     := $(ORACLE_TARGET)/release/splitsys-tb-oracle
 export SPLITSYS_ORACLE := $(ORACLE_BIN)
@@ -91,8 +92,11 @@ vec:
 
 $(ALL_UNITS): oracle rtl_export vec cycle
 	@echo "== [$@] SEED=$(SEED) SCALE=$(SCALE) RTL=$(RTL_SHA) ($(RTL_DIR))"
-	@start=$$(date +%s); \
-	$(MAKE) -C $(TB)/$@ SEED=$(SEED) SCALE=$(SCALE) RTL_DIR=$(RTL_DIR) VEC_DIR=$(VEC_DIR) SIM_BUILD_TAG=-$(RTL_SHA) > $(SPLITSYS_CACHE)/tb-$@.log 2>&1; rc=$$?; \
+	@start=$$(date +%s); res=$(SPLITSYS_SIM_BUILD)/$@-$(RTL_SHA)$(if $(filter 1,$(WAVES)),-waves)/results.xml; \
+	rm -f $$res; \
+	$(MAKE) -j1 -C $(TB)/$@ sim SEED=$(SEED) SCALE=$(SCALE) RTL_DIR=$(RTL_DIR) VEC_DIR=$(VEC_DIR) SIM_BUILD_TAG=-$(RTL_SHA) > $(SPLITSYS_CACHE)/tb-$@.log 2>&1; rc=$$?; \
+	if [ $$rc -eq 0 ] && { [ ! -f $$res ] || ! grep -q "<testcase" $$res; }; then \
+	  echo "== [$@] ERROR: simulation did not run (no fresh $$res); refusing to report a pass"; rc=1; fi; \
 	end=$$(date +%s); \
 	grep -E "TESTS=|PASS |FAIL |\*\* " $(SPLITSYS_CACHE)/tb-$@.log | grep -vE "^\s*$$" | tail -40; \
 	echo "== [$@] rc=$$rc wall=$$((end-start))s log=$(SPLITSYS_CACHE)/tb-$@.log"; \
