@@ -1,0 +1,32 @@
+# Rust
+target/
+**/target/
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+# cocotb / Verilator
+sim_build/
+obj_dir/
+results.xml
+*.vcd
+*.fst
+# Vivado
+*.jou
+*.log
+*.str
+.Xil/
+fpga/build/
+*.cache/
+*.runs/
+*.hw/
+*.ip_user_files/
+*.sim/
+*.dcp
+# keep known_good artifacts and reports
+!fpga/known_good/**
+!fpga/reports/**/*.log
+# misc
+*.zip
+.DS_Store
