@@ -253,6 +253,14 @@ function renderVerified() {
   const s = S.session || {};
   setBadge('ver-badge', srcLabel());
   const where = { hw: 'on hardware', sim: 'in RTL co-sim', model: 'on the mock board', replay: 'on hardware (replay)' }[srcLabel()] || '';
+  if (srcLabel() === 'model') {
+    // Mock-board output is computed by the golden model itself: comparing it to
+    // golden is circular, so nothing is counted as verified here.
+    $('ver-title').textContent = 'Verification: needs RTL co-sim or the board';
+    $('ver-body').innerHTML = `<div class="pending-box">Mock-board results are produced by the golden model, so checking them against golden proves nothing. They are <b>not counted</b> as verified.</div>
+      <div class="kv muted" style="margin-top:14px">${int(s.gemms_run || 0)} mock runs since ${esc((s.started_utc || '').replace('T', ' ').replace('Z', ' UTC'))}</div>`;
+    return;
+  }
   const mm = s.mismatches || 0;
   $('ver-title').textContent = `Verified ${where}:${mm === 0 ? 'zero mismatches' : mm + ' mismatches'}`;
   $('ver-body').innerHTML = `

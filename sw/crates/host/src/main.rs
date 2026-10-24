@@ -271,7 +271,7 @@ fn run_specs(
     let mut rows = Vec::new();
     let t0 = Instant::now();
     if src == "model" {
-        println!("NOTE: mock transport — every number below is MODEL data (source \"model\"), not hardware.");
+        println!("NOTE: mock board — every number below is MODEL data (source \"model\", mock: true), not hardware; mock runs are never counted as verified.");
     }
     println!(
         "{:<10} {:>3} {:>4} {:>4} {:<5} {:>9} {:>8} {:>8} {:>9}  {:<6} file",
@@ -325,9 +325,10 @@ fn run_specs(
         println!("summary: {}", p.display());
     }
     println!(
-        "{} run(s), {} verified; session {}: {} GEMMs verified, {} MACs, {} mismatches; link retries {}",
+        "{} run(s), {} passed checks{}; session {}: {} GEMMs verified, {} MACs, {} mismatches; link retries {}",
         specs.len(),
         if all_ok { "all" } else { "NOT all" },
+        if src == "model" { " (mock board: circular, not counted as verified)" } else { "" },
         session_path(results, src).display(),
         session.gemms_verified,
         session.macs_verified,

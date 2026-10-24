@@ -29,5 +29,5 @@ serialport = { version = "4", default-features = false }
 
 [features]
 # Mock SELFTEST uses the real self-test ROM jobs from splitsys-vec.
-default = []
+default = ["vec-rom"]
 vec-rom = ["dep:splitsys-vec"]

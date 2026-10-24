@@ -309,6 +309,7 @@ pub fn run_gemm(
         }
     }
     let rec = RunRecord {
+        mock: ctx.build_id.as_deref() == Some(MOCK_BUILD_ID_HEX),
         run_id: run_id.clone(),
         source: src.into(),
         build_id: ctx.build_id.clone().unwrap_or_default(),
@@ -417,6 +418,7 @@ mod tests {
             assert_eq!(r.counters, r.model.counters, "mock counters come from the model");
             assert_eq!(r.counters.mac_useful, (g.m * g.n * g.k) as u64);
             assert_eq!(r.source, "model");
+            assert!(r.mock);
             assert_eq!(r.build_id, "4d4f434b");
             crate::record::validate_run_json(&serde_json::to_value(&r).unwrap()).unwrap();
         }

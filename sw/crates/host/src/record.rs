@@ -87,6 +87,11 @@ pub struct RunRecord {
     pub model: ModelInfo,
     pub derived: Derived,
     pub check: Check,
+    /// True for runs on the mock board: golden_match is circular there (the mock
+    /// computes its output with the same golden model), so they are never counted
+    /// as verification.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub mock: bool,
     #[serde(default, skip_serializing_if = "is_default_prov")]
     pub provenance: Provenance,
 }
@@ -243,11 +248,11 @@ pub fn repo_root() -> PathBuf {
     PathBuf::from(".")
 }
 
-/// Directory for run records of a source. Mock (model) runs go to
-/// `results/model/mock/` so they can never be mistaken for hardware results.
+/// Directory for run records of a source. Mock-board (source "model") runs go to
+/// `results/mock/` so they can never be mistaken for hardware or perf-modeler results.
 pub fn runs_dir(results: &Path, source: &str) -> PathBuf {
     match source {
-        "model" => results.join("model").join("mock"),
+        "model" => results.join("mock"),
         s => results.join(s),
     }
 }
@@ -314,7 +319,9 @@ impl Session {
 
     pub fn add(&mut self, r: &RunRecord) {
         self.gemms_run += 1;
-        if r.verified() {
+        if r.mock {
+            // Circular check (mock output comes from golden): never counted as verified.
+        } else if r.verified() {
             self.gemms_verified += 1;
             self.macs_verified += r.counters.mac_useful;
         } else {
@@ -397,10 +404,10 @@ mod tests {
     #[test]
     fn paths_never_mix_sources() {
         let r = Path::new("results");
-        assert_eq!(runs_dir(r, "model"), Path::new("results/model/mock"));
+        assert_eq!(runs_dir(r, "model"), Path::new("results/mock"));
         assert_eq!(runs_dir(r, "hw"), Path::new("results/hw"));
         assert_eq!(session_path(r, "hw"), Path::new("results/session.json"));
-        assert_eq!(session_path(r, "model"), Path::new("results/model/mock/session.json"));
+        assert_eq!(session_path(r, "model"), Path::new("results/mock/session.json"));
         assert_eq!(run_file_name("2026-10-24T15:02:11Z-x"), "2026-10-24T15-02-11Z-x.json");
     }
 }
