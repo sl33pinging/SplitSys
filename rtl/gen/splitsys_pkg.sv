@@ -132,9 +132,9 @@ package splitsys_pkg;
 
   // ---- UART (SPEC §3.8)
   localparam int unsigned CLK_HZ = 100000000;
-  localparam int unsigned BAUD = 115200;
+  localparam int unsigned BAUD = 1562500;
   localparam int unsigned OVERSAMPLE = 16;
-  localparam int unsigned BAUD_DIV = 54;  // round(CLK_HZ / (BAUD * OVERSAMPLE))
+  localparam int unsigned BAUD_DIV = 4;  // round(CLK_HZ / (BAUD * OVERSAMPLE))
   localparam int unsigned RX_TIMEOUT = 1000000;  // max cycles between byte strobes of one frame (SPEC §3.8)
 
   // ---- protocol (SPEC §3.8)

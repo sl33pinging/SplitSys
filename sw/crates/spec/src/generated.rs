@@ -170,10 +170,10 @@ pub const RQ_SHIFT_MAX: u32 = 31;
 
 // ---- UART (SPEC §3.8)
 pub const CLK_HZ: u64 = 100000000;
-pub const BAUD: u64 = 115200;
+pub const BAUD: u64 = 1562500;
 pub const OVERSAMPLE: u64 = 16;
 /// round(CLK_HZ / (BAUD * OVERSAMPLE)): oversample tick divider.
-pub const BAUD_DIV: u64 = 54;
+pub const BAUD_DIV: u64 = 4;
 /// Max core cycles between rx_valid strobes of consecutive bytes of one frame (SPEC §3.8).
 pub const RX_TIMEOUT: u64 = 1000000;
 

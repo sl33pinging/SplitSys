@@ -196,10 +196,10 @@ shift_max = 31
 # ---------------------------------------------------------------- UART + protocol (SPEC §3.8)
 [uart]
 clk_hz = 100_000_000
-baud = 115_200
+baud = 1_562_500             # BAUD_DIV 4, exact (D-020); 115_200 (BAUD_DIV 54) was the KG2 value
 oversample = 16
 max_baud_error_permille = 20 # codegen rejects a CLK/BAUD/OVERSAMPLE combo worse than 2%
-rx_timeout = 1_000_000       # cycles of RX idle inside a frame before the parser resets (10 ms)
+rx_timeout = 1_000_000       # max cycles between frame-byte strobes before the parser resets (10 ms; = 1562 char times at 1.5625 Mbaud, D-020)
 
 [protocol]
 sync_req = 0xA5

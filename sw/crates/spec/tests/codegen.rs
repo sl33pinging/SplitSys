@@ -131,7 +131,8 @@ fn values_the_other_crates_rely_on() {
     assert_eq!((ss::FLAG_REQUANT_EN, ss::FLAG_OUT_INT32), (0x01, 0x02));
     assert_eq!((ss::M_MIN, ss::M_MAX, ss::K_MIN, ss::K_MAX, ss::N_MIN, ss::N_MAX), (1, 64, 1, 256, 1, 256));
     assert_eq!((ss::RQ_MULT_MIN, ss::RQ_MULT_MAX, ss::RQ_SHIFT_MIN, ss::RQ_SHIFT_MAX), (1, 32767, 1, 31));
-    assert_eq!((ss::CLK_HZ, ss::BAUD, ss::OVERSAMPLE), (100_000_000, 115_200, 16));
+    assert_eq!((ss::CLK_HZ, ss::BAUD, ss::OVERSAMPLE), (100_000_000, 1_562_500, 16));
+    assert_eq!(ss::RX_TIMEOUT, 1_000_000);
     assert_eq!((ss::SYNC_REQ, ss::SYNC_RSP, ss::MAX_PAYLOAD, ss::CRC8_POLY, ss::CRC8_INIT), (0xA5, 0x5A, 1024, 0x07, 0x00));
     assert_eq!(
         [ss::OP_PING, ss::OP_WRITE_MEM, ss::OP_READ_MEM, ss::OP_RUN_GEMM, ss::OP_POLL, ss::OP_READ_COUNTERS, ss::OP_SELFTEST, ss::OP_SET_DISPLAY],
@@ -160,7 +161,7 @@ fn values_the_other_crates_rely_on() {
     assert_eq!((ss::N_COUNTERS, ss::COUNTER_BYTES), (12, 6));
     assert_eq!((ss::CTR_CYCLES_TOTAL, ss::CTR_MAC_USEFUL, ss::CTR_MAC_USEFUL_Q0, ss::CTR_TILES), (0, 6, 7, 11));
     assert_eq!(ss::W_SKEW_BASE_STRIP, [0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 4, 4, 4, 4]);
-    assert_eq!(ss::BAUD_DIV, 54);
+    assert_eq!(ss::BAUD_DIV, 4); // exact: 100 MHz / (1,562,500 x 16) (D-020)
     assert_eq!(&ss::PING_MAGIC, b"SPLT");
 }
 
@@ -368,8 +369,28 @@ fn rejects_baud_with_large_divider_error() {
 
 #[test]
 fn rejects_rx_timeout_shorter_than_two_bytes() {
+    // 2 byte times = 2 x 10 x 64 = 1280 cycles at 1,562,500 baud.
     let errs = errors_after(|t| set(t, &["uart"], "rx_timeout", 1000));
     assert_rejects(&errs, "rx_timeout 1000 must be >= 2 byte times");
+}
+
+#[test]
+fn allowed_bauds_are_accepted() {
+    // D-020: 115,200 (KG2 fallback, divider 54, 0.47 % error) and the exact
+    // dividers 1,562,500 (4) and 3,125,000 (2) must all pass validation, with
+    // the committed RX_TIMEOUT unchanged.
+    for baud in [115_200i64, 1_562_500, 3_125_000] {
+        let mut t = table();
+        set(&mut t, &["uart"], "baud", baud);
+        let text = toml::to_string(&t).expect("serialize");
+        let s = Spec::from_toml_str(&text).unwrap_or_else(|e| panic!("baud {baud}: {e}"));
+        let want = match baud {
+            115_200 => 54,
+            1_562_500 => 4,
+            _ => 2,
+        };
+        assert_eq!(s.baud_div(), want, "baud {baud}");
+    }
 }
 
 #[test]
