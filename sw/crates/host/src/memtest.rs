@@ -161,7 +161,7 @@ mod tests {
         let addr = crate::transport::fake::spawn_tcp_bridge(MockConfig::default(), 33);
         let t = crate::transport::open(
             &crate::transport::TransportSpec::Tcp(addr),
-            115200,
+            115200, // any rate: tcp has no baud
             Some(1),
             MockConfig::default(),
         )

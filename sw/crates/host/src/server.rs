@@ -36,7 +36,8 @@ const MAX_RUNS: usize = 400;
 pub struct ServeOpts {
     pub port: u16,
     pub transport: TransportSpec,
-    pub baud: u32,
+    /// Serial rate, or auto (probe the known rates at each (re)connect, last good first).
+    pub baud: transport::BaudSel,
     pub timeout_scale: Option<u32>,
     pub results: PathBuf,
     pub root: PathBuf,
@@ -403,6 +404,8 @@ impl Shared {
             "host_version": env!("CARGO_PKG_VERSION"),
             "host_git_hash": runner::HOST_GIT_HASH,
             "transport": a.transport,
+            // Serial line rate of the live board (null for tcp / mock); also inside `transport`.
+            "baud": transport::baud_of(&a.transport).map(|b| json!({"rate": b, "label": transport::baud_label(b)})),
             "board": {
                 "status": board_status,
                 "error": a.board_error,
@@ -502,11 +505,13 @@ pub fn auto_preset_specs(case: Option<&str>) -> Result<Vec<GemmSpec>, String> {
     Ok(v)
 }
 
-fn worker(opts_t: TransportSpec, baud: u32, scale: Option<u32>, root: PathBuf, sh: Shared, rx: Receiver<Cmd>) {
+fn worker(opts_t: TransportSpec, baud: transport::BaudSel, scale: Option<u32>, root: PathBuf, sh: Shared, rx: Receiver<Cmd>) {
     let mut ctx = Context::new(sh.results.clone(), &root);
     let mut board: Option<Board> = None;
     let mut cache = LoadCache::default();
     let mut last_ping = Instant::now() - Duration::from_secs(60);
+    // The serial rate that answered last (tried first on reconnect with --baud auto).
+    let mut good_baud: Option<u32> = None;
     let set_status = |sh: &Shared, status: &'static str, err: Option<String>, b: Option<&Board>| {
         let mut a = sh.app.lock().expect("app");
         let changed = a.board_status != status || a.board_error != err;
@@ -556,25 +561,23 @@ fn worker(opts_t: TransportSpec, baud: u32, scale: Option<u32>, root: PathBuf, s
         // (Re)connect.
         if board.is_none() && last_ping.elapsed() > Duration::from_secs(2) {
             last_ping = Instant::now();
-            match transport::open(&opts_t, baud, scale, MockConfig::default()) {
-                Ok(t) => {
-                    let mut b = Board::new(t);
-                    match b.ping() {
-                        Ok(p) => {
-                            let id = format!("{:08x}", p.build_id);
-                            ctx.build_id = Some(id.clone());
-                            cache.clear();
-                            {
-                                let mut a = sh.app.lock().expect("app");
-                                a.adopt_board(&sh.results, b.source(), &id);
-                                a.proto_version = Some(p.version);
-                                a.transport = b.describe();
-                            }
-                            set_status(&sh, "live", None, Some(&b));
-                            board = Some(b);
-                        }
-                        Err(e) => set_status(&sh, "disconnected", Some(e.to_string()), None),
+            match crate::client::connect(&opts_t, baud, good_baud, scale, MockConfig::default()) {
+                Ok(c) => {
+                    let (b, p) = (c.board, c.ping);
+                    if c.baud.is_some() {
+                        good_baud = c.baud;
                     }
+                    let id = format!("{:08x}", p.build_id);
+                    ctx.build_id = Some(id.clone());
+                    cache.clear();
+                    {
+                        let mut a = sh.app.lock().expect("app");
+                        a.adopt_board(&sh.results, b.source(), &id);
+                        a.proto_version = Some(p.version);
+                        a.transport = b.describe();
+                    }
+                    set_status(&sh, "live", None, Some(&b));
+                    board = Some(b);
                 }
                 Err(e) => set_status(&sh, "disconnected", Some(e), None),
             }
@@ -1012,9 +1015,9 @@ fn newest_lm(dir: &Path) -> (Option<Value>, usize) {
 }
 
 fn lm_state(sh: &Shared) -> Value {
-    let (source, busy, live, replay_dir, replay_active) = {
+    let (source, busy, live, replay_dir, replay_active, transport_now) = {
         let a = sh.app.lock().expect("app");
-        (a.source.clone(), a.lm_busy, a.lm_live.clone(), a.replay.as_ref().map(|r| PathBuf::from(&r.dir)), a.replay_active)
+        (a.source.clone(), a.lm_busy, a.lm_live.clone(), a.replay.as_ref().map(|r| PathBuf::from(&r.dir)), a.replay_active, a.transport.clone())
     };
     let dir = crate::lm::lm_dir(&sh.results, &source);
     let (disk, n_live) = newest_lm(&dir);
@@ -1035,7 +1038,7 @@ fn lm_state(sh: &Shared) -> Value {
         "replay_records": n_replay,
         "replay_active": replay_active,
         "split": {"fpga": crate::lm::SPLIT_FPGA, "laptop": crate::lm::SPLIT_LAPTOP},
-        "wall_note": crate::lm::WALL_NOTE,
+        "wall_note": crate::lm::wall_note(&source, source == "model", &transport_now),
         "numerics": crate::lm::NUMERICS,
     })
 }
@@ -1365,7 +1368,7 @@ mod tests {
         };
         {
             let sh2 = sh.clone();
-            thread::spawn(move || worker(tcp, 115200, Some(1), repo_root(), sh2, rx));
+            thread::spawn(move || worker(tcp, transport::BaudSel::Auto, Some(1), repo_root(), sh2, rx));
         }
         tx.send(Cmd::Run(GemmSpec::named("ffn_up", 1, "STRIP", 1).unwrap())).unwrap();
         let t0 = Instant::now();

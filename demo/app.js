@@ -73,6 +73,14 @@ function svgFoot(svg, x, y, line, n) {
 }
 function latestOf(pred) { const r = runs(); for (let i = r.length - 1; i >= 0; i--) if (pred(r[i])) return r[i]; return null; }
 function srcLabel() { return S ? S.source : 'model'; }
+// Serial link for the header: 'serial:COM3@1562500' -> 'COM3 @ 1.5625 Mbaud'; tcp / mock -> ''.
+function linkLabel(transport) {
+  const m = /^serial:(.+)@(\d+)$/.exec(transport || '');
+  if (!m) return '';
+  const b = +m[2];
+  const rate = b >= 1e6 ? `${+(b / 1e6).toFixed(4)} Mbaud` : `${b} baud`;
+  return `${m[1]} @ ${rate}`;
+}
 
 // ---------- scaling ----------
 function fit() {
@@ -87,7 +95,11 @@ if (typeof window !== 'undefined') window.addEventListener('resize', fit);
 // ---------- header, banners, watermark ----------
 function renderChrome() {
   const b = S.board || {};
-  $('hdr-meta').textContent = `build ${b.build_id || '—'} · ${S.clock_mhz} MHz`;
+  $('hdr-build').textContent = `build ${b.build_id || '—'} · ${S.clock_mhz} MHz`;
+  // The live serial link and its rate (KG2 115200, KG3 1.5625 Mbaud); not shown under REPLAY.
+  const link = S.source === 'replay' ? '' : linkLabel(S.transport);
+  $('hdr-link').textContent = link;
+  $('hdr-link').style.display = link ? '' : 'none';
   // Host build (the dashboard assets are compiled in): hover, /api/state, `splitsys-host --version`.
   $('hdr-meta').title = `splitsys-host ${S.host_version || '?'} (git ${S.host_git_hash || '?'})`;
   const pill = $('status-pill');
@@ -707,7 +719,7 @@ function connectEvents() {
 }
 if (typeof document === 'undefined') {
   // Loaded by node (sw/crates/host/tests/app_js.rs): export the pure helpers only.
-  module.exports = { sameGemm, otherModeRun, ratio, buildCounts, buildsLine, buildsLineCounts, recordLabel, autoRowsWhereStripLost, shapeStr };
+  module.exports = { linkLabel, sameGemm, otherModeRun, ratio, buildCounts, buildsLine, buildsLineCounts, recordLabel, autoRowsWhereStripLost, shapeStr };
 } else {
 document.addEventListener('keydown', (e) => {
   if (e.key === '1' || e.key === '2' || e.key === '3' || e.key === '4') post('/api/scene', { scene: +e.key });

@@ -40,19 +40,23 @@ pub const SPLIT_FPGA: &str =
     "linear layers on the FPGA: q, k, v, o, w1, w2, w3 in every layer and the classifier (int8 x int8 -> int32, M = 1)";
 pub const SPLIT_LAPTOP: &str =
     "on the laptop: token embedding, RMSNorm, RoPE, attention scores + softmax, SwiGLU, int8 quantize/dequantize, greedy sampling";
-pub const WALL_NOTE: &str =
-    "laptop wall time including UART at 115200 baud; NOT accelerator speed (on-chip cycles come from the counters)";
+/// The hardware wall-time caveat, with the UART rate the record was made at.
+pub fn wall_note_hw(transport: &str) -> String {
+    let rate = crate::transport::baud_of(transport).map_or_else(String::new, |b| format!(" at {b} baud"));
+    format!("laptop wall time including UART{rate}; NOT accelerator speed (on-chip cycles come from the counters)")
+}
 pub const WALL_NOTE_MOCK: &str =
     "laptop wall time with the in-process mock board (no UART); NOT accelerator speed (on-chip cycles come from the model counters)";
 pub const WALL_NOTE_SIM: &str =
     "laptop wall time against the RTL co-simulation (tcp); NOT accelerator speed (on-chip cycles come from the counters)";
 
-/// The wall-time caveat for a record's source.
-pub fn wall_note(source: &str, mock: bool) -> &'static str {
+/// The wall-time caveat for a record's source; `transport` as in the record
+/// (`serial:COM3@1562500`) supplies the baud for hardware records.
+pub fn wall_note(source: &str, mock: bool, transport: &str) -> String {
     match (source, mock) {
-        (_, true) | ("model", _) => WALL_NOTE_MOCK,
-        ("sim", _) => WALL_NOTE_SIM,
-        _ => WALL_NOTE,
+        (_, true) | ("model", _) => WALL_NOTE_MOCK.into(),
+        ("sim", _) => WALL_NOTE_SIM.into(),
+        _ => wall_note_hw(transport),
     }
 }
 pub const NUMERICS: &str =
@@ -936,7 +940,7 @@ pub fn generate(
         }),
         generated_text: String::new(),
         text: String::new(),
-        summary: GenSummary { wall_note: wall_note(&src, ctx.build_id.as_deref() == Some(MOCK_BUILD_ID_HEX)).into(), ..Default::default() },
+        summary: GenSummary { wall_note: wall_note(&src, ctx.build_id.as_deref() == Some(MOCK_BUILD_ID_HEX), &board.describe()), ..Default::default() },
         stopped: false,
         steps: vec![],
     };

@@ -685,7 +685,7 @@ mod tests {
     fn mock_over_tcp_is_tagged_model_not_sim() {
         use crate::transport::{fake::spawn_tcp_bridge, open, TransportSpec};
         let addr = spawn_tcp_bridge(MockConfig::default(), 64);
-        let t = open(&TransportSpec::Tcp(addr), 115200, Some(1), MockConfig::default()).unwrap();
+        let t = open(&TransportSpec::Tcp(addr), 115200, Some(1), MockConfig::default()).unwrap(); // any rate: tcp has no baud
         let mut b = Board::new(t);
         let mut c = ctx();
         let mut cache = LoadCache::default();

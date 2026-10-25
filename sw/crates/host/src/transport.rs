@@ -2,6 +2,7 @@
 //! `mock` (in-process mock board). The protocol layer above is identical for all.
 
 use crate::mock::{MockBoard, MockConfig};
+use splitsys_spec as spec;
 use std::collections::VecDeque;
 use std::io::{self, Read, Write};
 use std::net::TcpStream;
@@ -208,6 +209,113 @@ fn ports_hint() -> String {
         "no serial ports found (is the board plugged in / attached? see docs/ENV.md USB strategy)".into()
     } else {
         format!("available serial ports: {}", ports.join(", "))
+    }
+}
+
+/// UART rate of the KG2 bitstreams (before D-020). KG3 and later use
+/// [`spec_baud`]. Only serial ports have a baud; tcp/mock ignore it.
+pub const KG2_BAUD: u32 = 115_200;
+
+/// The spec UART rate (`splitsys_spec::BAUD`, 1,562,500 since D-020 / KG3).
+pub fn spec_baud() -> u32 {
+    spec::BAUD as u32
+}
+
+/// `--baud`: a fixed rate, or `auto` = PING at the spec rate first, then at the
+/// KG2 rate (only at PING time, before any WRITE_MEM).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BaudSel {
+    Auto,
+    Fixed(u32),
+}
+
+impl BaudSel {
+    /// Rates to try, in order. `prefer` (e.g. the rate that answered last time) goes first.
+    pub fn candidates(self, prefer: Option<u32>) -> Vec<u32> {
+        let mut v = match self {
+            BaudSel::Fixed(b) => return vec![b],
+            BaudSel::Auto => vec![spec_baud(), KG2_BAUD],
+        };
+        if let Some(p) = prefer.filter(|p| v.contains(p)) {
+            v.retain(|&b| b != p);
+            v.insert(0, p);
+        }
+        v.dedup();
+        v
+    }
+    /// The rate used where no PING probe happens (e.g. `echo`).
+    pub fn primary(self) -> u32 {
+        match self {
+            BaudSel::Fixed(b) => b,
+            BaudSel::Auto => spec_baud(),
+        }
+    }
+}
+
+impl std::str::FromStr for BaudSel {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, String> {
+        if s.eq_ignore_ascii_case("auto") {
+            return Ok(BaudSel::Auto);
+        }
+        match s.replace(['_', ','], "").parse::<u32>() {
+            Ok(b) if b > 0 => Ok(BaudSel::Fixed(b)),
+            _ => Err(format!("--baud {s}: expected a rate in baud (e.g. {} or {KG2_BAUD}) or auto", spec_baud())),
+        }
+    }
+}
+
+impl std::fmt::Display for BaudSel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BaudSel::Auto => f.write_str("auto"),
+            BaudSel::Fixed(b) => write!(f, "{b}"),
+        }
+    }
+}
+
+/// Human label: 1562500 -> "1.5625 Mbaud", 115200 -> "115200 baud".
+pub fn baud_label(b: u32) -> String {
+    if b >= 1_000_000 {
+        let s = format!("{:.4}", f64::from(b) / 1e6);
+        format!("{} Mbaud", s.trim_end_matches('0').trim_end_matches('.'))
+    } else {
+        format!("{b} baud")
+    }
+}
+
+/// The baud in a serial transport description (`serial:COM3@1562500`), if any.
+pub fn baud_of(describe: &str) -> Option<u32> {
+    describe.strip_prefix("serial:")?.rsplit_once('@')?.1.parse().ok()
+}
+
+/// Which bitstream generation a rate belongs to, for messages.
+fn baud_owner(b: u32) -> &'static str {
+    if b == KG2_BAUD {
+        "KG2"
+    } else if b == spec_baud() {
+        "KG3+ / spec BAUD"
+    } else {
+        "no known bitstream"
+    }
+}
+
+/// The hint printed when nobody answers PING over serial.
+pub fn no_answer_hint(tried: &[u32], sel: BaudSel) -> String {
+    let rates: Vec<String> = tried.iter().map(|b| b.to_string()).collect();
+    let known = format!("KG2 runs at {KG2_BAUD}, KG3 at {}", spec_baud());
+    match sel {
+        BaudSel::Fixed(b) => {
+            let other = if b == KG2_BAUD { spec_baud() } else { KG2_BAUD };
+            format!(
+                "no answer at {b} baud ({}) - {known}: retry with --baud {other} (or --baud auto to probe both)",
+                baud_owner(b)
+            )
+        }
+        BaudSel::Auto => format!(
+            "no answer at {} baud - {known}; both were tried: is the board powered and programmed, and is this its COM port?",
+            rates.join(" or ")
+        ),
     }
 }
 
@@ -445,7 +553,7 @@ mod tests {
     fn missing_serial_port_error_is_clear() {
         let e = open(
             &TransportSpec::Serial("/dev/splitsys-does-not-exist".into()),
-            115200,
+            spec_baud(),
             None,
             MockConfig::default(),
         )
@@ -453,6 +561,28 @@ mod tests {
         .expect("must fail");
         assert!(e.contains("cannot open serial port"), "{e}");
         assert!(e.contains("serial port"), "{e}");
+        assert!(e.contains(&format!("at {} baud", spec_baud())), "{e}");
+    }
+
+    #[test]
+    fn baud_selection_parse_and_labels() {
+        assert_eq!("auto".parse::<BaudSel>(), Ok(BaudSel::Auto));
+        assert_eq!("115200".parse::<BaudSel>(), Ok(BaudSel::Fixed(115_200)));
+        assert_eq!("1_562_500".parse::<BaudSel>(), Ok(BaudSel::Fixed(1_562_500)));
+        assert!("0".parse::<BaudSel>().is_err());
+        assert!("fast".parse::<BaudSel>().is_err());
+        assert_eq!(BaudSel::Auto.candidates(None), vec![spec_baud(), KG2_BAUD]);
+        assert_eq!(BaudSel::Auto.candidates(Some(KG2_BAUD)), vec![KG2_BAUD, spec_baud()]);
+        assert_eq!(BaudSel::Auto.candidates(Some(9600)), vec![spec_baud(), KG2_BAUD]);
+        assert_eq!(BaudSel::Fixed(9600).candidates(Some(KG2_BAUD)), vec![9600]);
+        assert_eq!(BaudSel::Auto.primary(), spec_baud());
+        assert_eq!(baud_label(1_562_500), "1.5625 Mbaud");
+        assert_eq!(baud_label(2_000_000), "2 Mbaud");
+        assert_eq!(baud_label(115_200), "115200 baud");
+        assert_eq!(baud_of("serial:COM3@1562500"), Some(1_562_500));
+        assert_eq!(baud_of("serial:/dev/ttyUSB1@115200"), Some(115_200));
+        assert_eq!(baud_of("tcp:127.0.0.1:5555 (co-sim)"), None);
+        assert_eq!(baud_of("mock (in-process model board)"), None);
     }
 
     #[test]
@@ -465,7 +595,7 @@ mod tests {
             .port();
         let e = open(
             &TransportSpec::Tcp(format!("127.0.0.1:{port}")),
-            115200,
+            115200, // any rate: tcp has no baud
             None,
             MockConfig::default(),
         )

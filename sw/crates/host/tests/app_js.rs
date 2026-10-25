@@ -31,6 +31,14 @@ for (const x of [
 const fu = rec('ffn_up', 'FULL', 1, 64, 256, true, 'hw', 'x'), su = rec('ffn_up', 'STRIP', 1, 64, 256, true, 'hw', 'x');
 assert.strictEqual(A.otherModeRun([fu, su], su), fu);
 
+// Header link label: port and rate from the transport string; nothing for tcp / mock.
+assert.strictEqual(A.linkLabel('serial:COM3@1562500'), 'COM3 @ 1.5625 Mbaud');
+assert.strictEqual(A.linkLabel('serial:COM3@115200'), 'COM3 @ 115200 baud');
+assert.strictEqual(A.linkLabel('serial:/dev/ttyUSB1@2000000'), '/dev/ttyUSB1 @ 2 Mbaud');
+assert.strictEqual(A.linkLabel('tcp:127.0.0.1:5555 (co-sim)'), '');
+assert.strictEqual(A.linkLabel('mock (in-process model board)'), '');
+assert.strictEqual(A.linkLabel(undefined), '');
+
 // 2. Two decimals on every ratio.
 assert.strictEqual(A.ratio(2.0709), '2.07×');
 assert.strictEqual(A.ratio(1), '1.00×');

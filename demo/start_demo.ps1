@@ -1,8 +1,11 @@
 # SplitSys booth cold start (DEMO.md §1): host server + kiosk browser, after the board power cycle.
-#   powershell -ExecutionPolicy Bypass -File demo\start_demo.ps1 [-Transport serial:COM5] [-Port 8080] [-Replay results\hw]
+#   powershell -ExecutionPolicy Bypass -File demo\start_demo.ps1 [-Transport serial:COM5] [-Baud auto|1562500|115200] [-Port 8080] [-Replay results\hw]
+# -Baud auto (default): PING at 1562500 (KG3+, spec BAUD) and, if no answer, at 115200 (KG2); the rate that
+# answered is printed and pinned for the server. An explicit rate is used as is (no probe).
 # Owner: host-dashboard. Uses the native Windows build of splitsys-host (USB strategy b).
 param(
     [string]$Transport = "serial:auto",
+    [string]$Baud = "auto",
     [int]$Port = 8080,
     [string]$Replay = "",
     [switch]$Attract,
@@ -28,14 +31,24 @@ if (-not $candidates) {
 $exe = $candidates[0]
 Write-Host "host: $exe"
 
-# 2. Board check (prints build_id, or the list of serial ports on failure).
-& $exe --transport $Transport ping
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "PING failed. Check the USB cable / COM port (Device Manager), or run with -Replay results\hw for the recorded session." -ForegroundColor Yellow
+# 2. Board check (prints build_id and the baud that answered, or the list of serial ports on failure).
+$srvBaud = $Baud
+$pingOut = @(& $exe --transport $Transport --baud $Baud ping)
+$pingOk = ($LASTEXITCODE -eq 0)
+$pingOut | ForEach-Object { Write-Host $_ }
+if ($pingOk) {
+    $m = [regex]::Match(($pingOut -join "`n"), 'baud (\d+)')
+    if ($m.Success) {
+        $srvBaud = $m.Groups[1].Value
+        $gen = if ($srvBaud -eq "115200") { "KG2 rate" } elseif ($srvBaud -eq "1562500") { "KG3 / spec rate" } else { "explicit rate" }
+        Write-Host "board answered at $srvBaud baud ($gen); server pinned to --baud $srvBaud" -ForegroundColor Green
+    }
+} else {
+    Write-Host "PING failed (tried -Baud $Baud). Check the USB cable / COM port (Device Manager); KG2 runs at 115200, KG3 at 1562500 (-Baud 115200 / -Baud 1562500); or run with -Replay results\hw for the recorded session. The server keeps probing (--baud $srvBaud)." -ForegroundColor Yellow
 }
 
 # 3. Server (keeps running; reconnects to the board on its own).
-$srvArgs = @("--transport", $Transport, "--results", (Join-Path $root "results"), "serve", "--port", $Port)
+$srvArgs = @("--transport", $Transport, "--baud", $srvBaud, "--results", (Join-Path $root "results"), "serve", "--port", $Port)
 if ($Replay) { $srvArgs += @("--replay", $Replay) }
 if ($Attract) { $srvArgs += "--attract" }
 $srv = Start-Process -FilePath $exe -ArgumentList $srvArgs -WorkingDirectory $root -PassThru -WindowStyle Minimized

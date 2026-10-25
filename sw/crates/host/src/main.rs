@@ -1,14 +1,14 @@
 //! `splitsys-host`: CLI for the SplitSys board (hardware, co-sim, or mock).
 
 use clap::{Parser, Subcommand};
-use splitsys_host::client::Board;
+use splitsys_host::client::{self, Board, PingInfo};
 use splitsys_host::mock::MockConfig;
 use splitsys_host::record::{
     iso_utc, now_unix, repo_root, runs_dir, session_path, validate_run_json, write_json, Session,
 };
 use splitsys_host::runner::{self, Context, GemmSpec, LoadCache};
 use splitsys_host::server::{self, ServeOpts};
-use splitsys_host::transport::{self, TransportSpec};
+use splitsys_host::transport::{self, baud_label, BaudSel, TransportSpec};
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
@@ -23,9 +23,11 @@ struct Cli {
     /// mock | serial:COM5 | serial:/dev/ttyUSB1 | serial:auto | tcp:127.0.0.1:PORT
     #[arg(long, global = true, default_value = "serial:auto")]
     transport: TransportSpec,
-    /// UART baud rate (serial only).
-    #[arg(long, global = true, default_value_t = splitsys_spec::BAUD as u32)]
-    baud: u32,
+    /// UART baud rate (serial only): a rate, or auto = PING at the spec rate
+    /// (1562500, KG3+) and, if nothing answers, at 115200 (KG2). Only PING is sent
+    /// at a rate that has not answered.
+    #[arg(long, global = true, default_value = "auto")]
+    baud: BaudSel,
     /// Multiply per-frame timeouts (default: 1 serial, 200 tcp co-sim).
     #[arg(long, global = true)]
     timeout_scale: Option<u32>,
@@ -170,8 +172,26 @@ enum Cmd {
     },
 }
 
-fn open_board(cli: &Cli) -> Result<Board, String> {
-    transport::open(&cli.transport, cli.baud, cli.timeout_scale, MockConfig::default()).map(Board::new)
+/// Open the board and PING it (over serial with `--baud auto`, probing the known
+/// rates). Every command but `echo` starts here, so nothing else is ever sent at a
+/// rate that has not answered PING.
+fn connect_board(cli: &Cli) -> Result<(Board, PingInfo), String> {
+    let c = client::connect(&cli.transport, cli.baud, None, cli.timeout_scale, MockConfig::default())?;
+    if let (Some(b), false) = (c.baud, c.no_answer.is_empty()) {
+        let tried: Vec<String> = c.no_answer.iter().map(|(r, _)| r.to_string()).collect();
+        eprintln!(
+            "note: no answer at {} baud; the board answered at {b} baud ({}), build_id {:08x}. Pass --baud {b} to skip the probe.",
+            tried.join(", "),
+            if b == transport::KG2_BAUD { "the KG2 rate" } else { "the spec rate" },
+            c.ping.build_id
+        );
+    }
+    Ok((c.board, c.ping))
+}
+
+/// Open without PING (only `echo`: the echo bitstream does not speak the protocol).
+fn open_raw(cli: &Cli) -> Result<Board, String> {
+    transport::open(&cli.transport, cli.baud.primary(), cli.timeout_scale, MockConfig::default()).map(Board::new)
 }
 
 fn main() -> ExitCode {
@@ -190,10 +210,13 @@ fn real_main(cli: &Cli) -> Result<ExitCode, String> {
     let results = cli.results.clone().unwrap_or_else(|| root.join("results"));
     match &cli.cmd {
         Cmd::Ping => {
-            let mut b = open_board(cli)?;
-            let p = b.ping().map_err(|e| format!("{e} via {}", b.describe()))?;
+            let (b, p) = connect_board(cli)?;
+            // `baud N` is parsed by demo/start_demo.ps1 to pin the server's rate.
+            let baud = transport::baud_of(&b.describe())
+                .map(|r| if r >= 1_000_000 { format!("  baud {r} ({})", baud_label(r)) } else { format!("  baud {r}") })
+                .unwrap_or_default();
             println!(
-                "PING ok: build_id {:08x}  proto v{}  via {}  source {}",
+                "PING ok: build_id {:08x}  proto v{}{baud}  via {}  source {}",
                 p.build_id,
                 p.version,
                 b.describe(),
@@ -202,12 +225,11 @@ fn real_main(cli: &Cli) -> Result<ExitCode, String> {
             Ok(ExitCode::SUCCESS)
         }
         Cmd::Selftest { dump, max_diffs } => {
-            let mut b = open_board(cli)?;
+            let (mut b, _) = connect_board(cli)?;
             let s = b.selftest().map_err(|e| e.to_string())?;
             let pf = |p: bool| if p { "PASS" } else { "FAIL" };
             println!("SELFTEST FULL : {} (fletcher32 {:08x})", pf(s.pass_full), s.fletcher_full);
             println!("SELFTEST STRIP: {} (fletcher32 {:08x})", pf(s.pass_strip), s.fletcher_strip);
-            b.ping().ok(); // learn the build id so a mock-over-tcp board is labelled model
             println!("source {} via {}", b.effective_source().as_str(), b.describe());
             let mut ok = s.pass_full && s.pass_strip;
             if *dump {
@@ -243,7 +265,7 @@ fn real_main(cli: &Cli) -> Result<ExitCode, String> {
             if *addr + len > size || len == 0 {
                 return Err(format!("dump: [{addr}, {}) outside region {region} (size {size})", addr + len));
             }
-            let mut b = open_board(cli)?;
+            let (mut b, _) = connect_board(cli)?;
             let bytes = b.read_mem(r, *addr, len).map_err(|e| e.to_string())?;
             let text = splitsys_host::diag::hexdump(r, *addr, &bytes);
             match out {
@@ -304,7 +326,7 @@ fn real_main(cli: &Cli) -> Result<ExitCode, String> {
             Ok(ExitCode::SUCCESS)
         }
         Cmd::Echo { bytes } => {
-            let mut b = open_board(cli)?;
+            let mut b = open_raw(cli)?;
             if b.source() == transport::Source::Model {
                 return Err("echo needs a raw byte line (serial: with the heartbeat_uart_echo bitstream, or tcp:); the mock board speaks only the framed protocol".into());
             }
@@ -315,8 +337,7 @@ fn real_main(cli: &Cli) -> Result<ExitCode, String> {
         Cmd::Memtest { frames, seed } => {
             let frames = *frames;
             let seed = seed.unwrap_or_else(|| now_unix() as u64);
-            let mut b = open_board(cli)?;
-            b.ping().ok(); // learn the build id (mock-over-tcp is labelled model)
+            let (mut b, _) = connect_board(cli)?; // PING: learn the build id (mock-over-tcp is labelled model)
             println!(
                 "memtest: {frames} frames, seed {seed}, via {} (source {})",
                 b.describe(),
@@ -404,7 +425,7 @@ fn real_main(cli: &Cli) -> Result<ExitCode, String> {
                 poison: !no_poison,
                 stop: None,
             };
-            let mut b = open_board(cli)?;
+            let (mut b, _) = connect_board(cli)?;
             let mut ctx = Context::new(results.clone(), &root);
             let ok = splitsys_host::lm::cli_lm(&mut b, &mut ctx, &dir, &o)?;
             Ok(if ok { ExitCode::SUCCESS } else { ExitCode::FAILURE })
@@ -466,8 +487,7 @@ fn run_specs(
     poison: bool,
     suite: Option<&str>,
 ) -> Result<bool, String> {
-    let mut b = open_board(cli)?;
-    let ping = b.ping().map_err(|e| format!("{e} via {}", b.describe()))?;
+    let (mut b, ping) = connect_board(cli)?;
     let src = runner::effective_source(b.source(), Some(&format!("{:08x}", ping.build_id)));
     let mut ctx = Context::new(results.to_path_buf(), root);
     ctx.poison = poison;
@@ -577,8 +597,7 @@ fn random_batch(
         "auto" => vec![splitsys_spec::MODE_FULL], // operands from the FULL generator
         m => vec![runner::mode_code(m)?],
     };
-    let mut b = open_board(cli)?;
-    let ping = b.ping().map_err(|e| format!("{e} via {}", b.describe()))?;
+    let (mut b, ping) = connect_board(cli)?;
     let id = format!("{:08x}", ping.build_id);
     let src = runner::effective_source(b.source(), Some(&id));
     let mut ctx = Context::new(results.to_path_buf(), root);

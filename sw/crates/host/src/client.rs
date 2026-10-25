@@ -2,7 +2,8 @@
 //! access, and the typed opcodes of SPEC §3.8.
 
 use crate::frame::{encode_request, opcode_name, status_name, Decoded, Decoder};
-use crate::transport::{Source, Transport};
+use crate::mock::MockConfig;
+use crate::transport::{self, no_answer_hint, BaudSel, Source, Transport, TransportSpec};
 use splitsys_cycle as cycle;
 use splitsys_spec as spec;
 use std::fmt;
@@ -388,6 +389,62 @@ pub fn parse_counters(p: &[u8]) -> cycle::Counters {
     }
 }
 
+/// A board that answered PING, and at which serial rate.
+pub struct Connected {
+    pub board: Board,
+    pub ping: PingInfo,
+    /// The serial rate that answered (None for tcp / mock, which have no baud).
+    pub baud: Option<u32>,
+    /// Serial rates tried first that did not answer, with the error.
+    pub no_answer: Vec<(u32, String)>,
+}
+
+/// Open the transport and PING. Over serial with `--baud auto` this probes the
+/// known rates ([`BaudSel::candidates`], `prefer` first) and keeps the first that
+/// answers; nothing but PING is ever sent at a rate that has not answered. A
+/// failure names the rates tried and how to fix it ([`no_answer_hint`]).
+pub fn connect(
+    spec_t: &TransportSpec,
+    sel: BaudSel,
+    prefer: Option<u32>,
+    scale: Option<u32>,
+    cfg: MockConfig,
+) -> std::result::Result<Connected, String> {
+    if !matches!(spec_t, TransportSpec::Serial(_)) {
+        let mut board = Board::new(transport::open(spec_t, sel.primary(), scale, cfg)?);
+        let ping = board.ping().map_err(|e| format!("PING: {e} via {}", board.describe()))?;
+        return Ok(Connected { board, ping, baud: None, no_answer: vec![] });
+    }
+    probe_bauds(sel, prefer, |b| transport::open(spec_t, b, scale, cfg.clone()).map(Board::new))
+}
+
+/// The probe loop of [`connect`], over any way of opening a board at a rate.
+pub fn probe_bauds(
+    sel: BaudSel,
+    prefer: Option<u32>,
+    mut open: impl FnMut(u32) -> std::result::Result<Board, String>,
+) -> std::result::Result<Connected, String> {
+    let cands = sel.candidates(prefer);
+    // Between rates, stay silent for longer than the board's inter-byte RX_TIMEOUT
+    // so its frame parser has dropped whatever the wrong rate looked like.
+    let quiet = Duration::from_millis((2 * spec::RX_TIMEOUT * 1000 / spec::CLK_HZ).max(20));
+    let mut no_answer = Vec::new();
+    for (i, &b) in cands.iter().enumerate() {
+        if i > 0 {
+            std::thread::sleep(quiet);
+        }
+        // An open failure is the port (missing, busy), not the rate: report it as is.
+        let mut board = open(b)?;
+        match board.ping() {
+            Ok(ping) => return Ok(Connected { board, ping, baud: Some(b), no_answer }),
+            Err(e) => no_answer.push((b, format!("{e} via {}", board.describe()))),
+        }
+        // `board` (and the port) is closed here, before the next rate opens it.
+    }
+    let detail: Vec<String> = no_answer.iter().map(|(b, e)| format!("at {b} baud: {e}")).collect();
+    Err(format!("PING failed ({}); {}", detail.join("; "), no_answer_hint(&cands, sel)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -557,7 +614,7 @@ mod tests {
         let addr = spawn_tcp_bridge(MockConfig::default(), 7);
         let t = crate::transport::open(
             &crate::transport::TransportSpec::Tcp(addr),
-            115200,
+            115200, // any rate: tcp has no baud
             Some(1),
             MockConfig::default(),
         )
@@ -586,7 +643,7 @@ mod tests {
         );
         let t = crate::transport::open(
             &crate::transport::TransportSpec::Tcp(addr),
-            115200,
+            115200, // any rate: tcp has no baud
             Some(1),
             MockConfig::default(),
         )
@@ -627,5 +684,76 @@ mod tests {
         let e = b.ping().unwrap_err();
         assert!(matches!(e, HostError::Timeout { .. }), "{e:?}");
         assert_eq!(b.stats.timeouts, u64::from(MAX_RETRIES) + 1);
+    }
+
+    /// A fake serial line where only `answers` gets a board: any other rate is silent
+    /// (an echo line: our own bytes, never a response frame).
+    fn fake_at(answers: u32, opened: &mut Vec<u32>) -> impl FnMut(u32) -> std::result::Result<Board, String> + '_ {
+        move |b| {
+            opened.push(b);
+            let name = format!("serial:FAKE@{b}");
+            let mut board = if b == answers {
+                Board::new(Box::new(StreamTransport::new(FakeSerial::new(MockConfig::default()), Source::Hw, name, 1, None)))
+            } else {
+                use crate::transport::fake::EchoLine;
+                Board::new(Box::new(StreamTransport::new(EchoLine::default(), Source::Hw, name, 1, None)))
+            };
+            board.base_timeout = Duration::from_millis(10);
+            Ok(board)
+        }
+    }
+
+    #[test]
+    fn baud_auto_probes_spec_rate_then_kg2() {
+        use crate::transport::{spec_baud, KG2_BAUD};
+        // KG3-style board: answers at the spec rate, only one open.
+        let mut opened = vec![];
+        let c = probe_bauds(BaudSel::Auto, None, fake_at(spec_baud(), &mut opened)).unwrap();
+        assert_eq!((c.baud, c.no_answer.len()), (Some(spec_baud()), 0));
+        assert_eq!(c.ping.build_id, MOCK_BUILD_ID);
+        assert_eq!(opened, vec![spec_baud()]);
+        drop(c);
+        // KG2 board: the spec rate is silent, 115200 answers; nothing but PING went out.
+        let mut opened = vec![];
+        let c = probe_bauds(BaudSel::Auto, None, fake_at(KG2_BAUD, &mut opened)).unwrap();
+        assert_eq!(c.baud, Some(KG2_BAUD));
+        assert_eq!(c.no_answer.len(), 1);
+        assert_eq!(c.no_answer[0].0, spec_baud());
+        assert!(c.no_answer[0].1.contains("PING"), "{}", c.no_answer[0].1);
+        assert_eq!(c.board.describe(), format!("serial:FAKE@{KG2_BAUD}"));
+        drop(c);
+        assert_eq!(opened, vec![spec_baud(), KG2_BAUD]);
+        // The rate that answered last time goes first (server reconnects).
+        let mut opened = vec![];
+        probe_bauds(BaudSel::Auto, Some(KG2_BAUD), fake_at(KG2_BAUD, &mut opened)).unwrap();
+        assert_eq!(opened, vec![KG2_BAUD]);
+    }
+
+    #[test]
+    fn fixed_baud_never_probes_and_hints_the_other_rate() {
+        use crate::transport::{spec_baud, KG2_BAUD};
+        let mut opened = vec![];
+        let e = probe_bauds(BaudSel::Fixed(spec_baud()), None, fake_at(KG2_BAUD, &mut opened)).err().unwrap();
+        assert_eq!(opened, vec![spec_baud()]);
+        assert!(e.contains(&format!("no answer at {} baud", spec_baud())), "{e}");
+        assert!(e.contains("KG2 runs at 115200, KG3 at 1562500") || spec_baud() != 1_562_500, "{e}");
+        assert!(e.contains(&format!("retry with --baud {KG2_BAUD}")), "{e}");
+        let mut opened = vec![];
+        let e = probe_bauds(BaudSel::Fixed(KG2_BAUD), None, fake_at(spec_baud(), &mut opened)).err().unwrap();
+        assert!(e.contains(&format!("retry with --baud {}", spec_baud())), "{e}");
+        // Auto with a dead line: both rates named.
+        let mut opened = vec![];
+        let e = probe_bauds(BaudSel::Auto, None, fake_at(1, &mut opened)).err().unwrap();
+        assert_eq!(opened, vec![spec_baud(), KG2_BAUD]);
+        assert!(e.contains(&format!("no answer at {} or {KG2_BAUD} baud", spec_baud())), "{e}");
+    }
+
+    #[test]
+    fn connect_ignores_baud_on_mock_and_tcp() {
+        let c = connect(&TransportSpec::Mock, BaudSel::Auto, None, None, MockConfig::default()).unwrap();
+        assert_eq!(c.baud, None);
+        let addr = spawn_tcp_bridge(MockConfig::default(), 64);
+        let c = connect(&TransportSpec::Tcp(addr), BaudSel::Fixed(7), None, Some(1), MockConfig::default()).unwrap();
+        assert_eq!((c.baud, c.ping.build_id), (None, MOCK_BUILD_ID));
     }
 }
