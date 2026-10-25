@@ -28,6 +28,7 @@ use std::time::{Duration, Instant};
 const INDEX_HTML: &str = include_str!("../../../../demo/index.html");
 const APP_JS: &str = include_str!("../../../../demo/app.js");
 const STYLE_CSS: &str = include_str!("../../../../demo/style.css");
+const LM_JS: &str = include_str!("../../../../demo/lm.js");
 
 /// Keep this many recent runs in the snapshot.
 const MAX_RUNS: usize = 400;
@@ -53,6 +54,8 @@ enum Cmd {
     RunMany(Vec<GemmSpec>),
     Demo,
     Selftest,
+    /// G5: a tiny-LM generation (Scene 4); every linear layer on the board.
+    Lm(crate::lm::GenOpts),
 }
 
 struct Replay {
@@ -91,6 +94,10 @@ struct App {
     replay_active: bool,
     last_selftest: Option<Value>,
     started_utc: String,
+    /// Scene 4: a generation is running / the latest live record view.
+    lm_busy: bool,
+    lm_live: Option<Value>,
+    lm_stop: Arc<std::sync::atomic::AtomicBool>,
 }
 
 /// The label a transport implies before PING: serial = hw, tcp = sim, mock = model.
@@ -310,6 +317,9 @@ impl App {
             replay,
             last_selftest: None,
             started_utc: iso_utc(now_unix()),
+            lm_busy: false,
+            lm_live: None,
+            lm_stop: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }
 
@@ -623,6 +633,15 @@ fn worker(opts_t: TransportSpec, baud: u32, scale: Option<u32>, root: PathBuf, s
                 broadcast(&sh.subs, "state", &json!({"selftest": v}));
                 continue;
             }
+            Cmd::Lm(o) => {
+                if !lm_worker(b, &mut ctx, &root, &sh, &o) {
+                    set_status(&sh, "disconnected", Some("board stopped answering during the LM run".into()), None);
+                    board = None;
+                }
+                cache.clear(); // the LM run overwrote WBUF/ABUF/OBUF
+                last_ping = Instant::now();
+                continue;
+            }
         };
         let is_demo = matches!(cmd_kind, CmdKind::Demo);
         let paced = specs.len() > 1;
@@ -709,7 +728,7 @@ fn attract_loop(sh: Shared) {
         thread::sleep(Duration::from_millis(500));
         let (on, busy) = {
             let a = sh.app.lock().expect("app");
-            (a.attract && !a.replay_active, a.demo_running || a.running.is_some() || a.queue_len > 0)
+            (a.attract && !a.replay_active, a.demo_running || a.running.is_some() || a.queue_len > 0 || a.lm_busy)
         };
         if !on {
             last_run = Instant::now();
@@ -836,6 +855,28 @@ fn handle(sh: Shared, mut s: TcpStream) {
             let b = asset(&sh, "app.js", APP_JS);
             respond(&mut s, 200, "text/javascript; charset=utf-8", b.as_bytes())
         }
+        ("GET", "/lm.js") => {
+            let b = asset(&sh, "lm.js", LM_JS);
+            respond(&mut s, 200, "text/javascript; charset=utf-8", b.as_bytes())
+        }
+        ("GET", "/api/lm") => json_resp(&mut s, 200, &lm_state(&sh)),
+        ("POST", "/api/lm") => {
+            if body["stop"].as_bool() == Some(true) {
+                let a = sh.app.lock().expect("app");
+                a.lm_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+                return json_resp(&mut s, 200, &json!({"stopping": a.lm_busy}));
+            }
+            match lm_opts(&body) {
+                Ok(o) => {
+                    if sh.app.lock().expect("app").lm_busy {
+                        return json_resp(&mut s, 409, &json!({"error": "a generation is already running"}));
+                    }
+                    let _ = sh.cmd.send(Cmd::Lm(o));
+                    json_resp(&mut s, 200, &json!({"queued": true}))
+                }
+                Err(e) => json_resp(&mut s, 400, &json!({"error": e})),
+            }
+        }
         ("GET", "/style.css") => {
             let b = asset(&sh, "style.css", STYLE_CSS);
             respond(&mut s, 200, "text/css; charset=utf-8", b.as_bytes())
@@ -888,8 +929,8 @@ fn handle(sh: Shared, mut s: TcpStream) {
         }
         ("POST", "/api/scene") => {
             let sc = body["scene"].as_u64().unwrap_or(0);
-            if !(1..=3).contains(&sc) {
-                return json_resp(&mut s, 400, &json!({"error": "scene must be 1..3"}));
+            if !(1..=4).contains(&sc) {
+                return json_resp(&mut s, 400, &json!({"error": "scene must be 1..4"}));
             }
             sh.app.lock().expect("app").scene = sc as u8;
             broadcast(&sh.subs, "scene", &json!({"scene": sc}));
@@ -931,6 +972,160 @@ fn handle(sh: Shared, mut s: TcpStream) {
             }
         }
         _ => respond(&mut s, 404, "text/plain", b"not found"),
+    }
+}
+
+// ---------------------------------------------------------------- Scene 4 (tiny LM)
+
+/// POST /api/lm body -> options. Prompt: printable ASCII, 1..=80 chars; 1..=48 tokens.
+fn lm_opts(body: &Value) -> Result<crate::lm::GenOpts, String> {
+    let prompt = body["prompt"].as_str().unwrap_or("Once upon a time").to_string();
+    if prompt.is_empty() || prompt.len() > 80 || !prompt.bytes().all(|c| (0x20..0x7f).contains(&c)) {
+        return Err("prompt: 1..80 printable ASCII characters".into());
+    }
+    let tokens = body["tokens"].as_u64().unwrap_or(8);
+    if !(1..=48).contains(&tokens) {
+        return Err("tokens must be 1..48".into());
+    }
+    let mode = crate::lm::LmMode::parse(body["mode"].as_str().unwrap_or("auto"))?;
+    Ok(crate::lm::GenOpts { prompt, max_new_tokens: tokens as usize, mode, poison: true, stop: None })
+}
+
+/// Newest LM record in a directory (by file name = gen_id), as the dashboard view.
+fn newest_lm(dir: &Path) -> (Option<Value>, usize) {
+    let mut names: Vec<PathBuf> = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("json"))
+        .collect();
+    names.sort_by_key(|p| crate::lm::gen_order_key(&p.file_stem().map(|x| x.to_string_lossy().into_owned()).unwrap_or_default()));
+    let n = names.len();
+    let rec = names
+        .iter()
+        .rev()
+        .filter_map(|p| std::fs::read(p).ok())
+        .filter_map(|b| serde_json::from_slice::<crate::lm::LmRecord>(&b).ok())
+        .find(|r| r.kind == crate::lm::LM_KIND);
+    (rec.as_ref().map(crate::lm::record_view), n)
+}
+
+fn lm_state(sh: &Shared) -> Value {
+    let (source, busy, live, replay_dir, replay_active) = {
+        let a = sh.app.lock().expect("app");
+        (a.source.clone(), a.lm_busy, a.lm_live.clone(), a.replay.as_ref().map(|r| PathBuf::from(&r.dir)), a.replay_active)
+    };
+    let dir = crate::lm::lm_dir(&sh.results, &source);
+    let (disk, n_live) = newest_lm(&dir);
+    let (replay, n_replay) = match &replay_dir {
+        Some(d) => newest_lm(&d.join("lm")),
+        None => (None, 0),
+    };
+    json!({
+        "live_source": source,
+        "running": busy,
+        // A record this server ran wins over the newest file on disk.
+        "live": live.clone().or(disk),
+        "live_this_session": live.is_some(),
+        "live_dir": format!("results/{}", runs_dir(Path::new(""), &source).join("lm").display()).replace('\\', "/"),
+        "live_records": n_live,
+        "replay": replay,
+        "replay_dir": replay_dir.map(|d| d.join("lm").display().to_string().replace('\\', "/")),
+        "replay_records": n_replay,
+        "replay_active": replay_active,
+        "split": {"fpga": crate::lm::SPLIT_FPGA, "laptop": crate::lm::SPLIT_LAPTOP},
+        "wall_note": crate::lm::WALL_NOTE,
+        "numerics": crate::lm::NUMERICS,
+    })
+}
+
+/// Run one generation on the worker thread. Returns false if the board stopped answering.
+fn lm_worker(b: &mut Board, ctx: &mut Context, root: &Path, sh: &Shared, o: &crate::lm::GenOpts) -> bool {
+    use crate::lm::{LmEvent, Stories};
+    let dir = root.join(crate::lm::DEFAULT_MODEL_DIR);
+    let be = match Stories::load(&dir) {
+        Ok(be) => be,
+        Err(e) => {
+            broadcast(&sh.subs, "lm_failed", &json!({"error": e}));
+            return true;
+        }
+    };
+    let stop = {
+        let mut a = sh.app.lock().expect("app");
+        a.lm_busy = true;
+        a.lm_stop.store(false, std::sync::atomic::Ordering::Relaxed);
+        a.lm_stop.clone()
+    };
+    let mut o = o.clone();
+    o.stop = Some(stop);
+    let (_rec, err, _path) = crate::lm::generate(b, ctx, &be, &o, &mut |e| match e {
+        LmEvent::Started(r) | LmEvent::Step { rec: r, .. } | LmEvent::Finished(r) => {
+            let ev = match e {
+                LmEvent::Started(_) => "lm_started",
+                LmEvent::Finished(_) => "lm_finished",
+                _ => "lm_step",
+            };
+            sh.app.lock().expect("app").lm_live = Some(crate::lm::record_view(r));
+            broadcast(&sh.subs, ev, &json!({"gen_id": r.gen_id, "steps": r.steps.len(), "status": r.status}));
+        }
+        LmEvent::Call { step, call } => broadcast(
+            &sh.subs,
+            "lm_call",
+            &json!({"step": step, "idx": call.idx, "layer": call.layer, "name": call.name, "mode": call.mode,
+                "auto": call.auto, "bit_exact": call.bit_exact, "counters_eq_model": call.counters_eq_model,
+                "w_sent": call.w_sent, "cycles": call.counters.cycles_total, "M": call.m, "K": call.k, "N": call.n}),
+        ),
+    });
+    sh.app.lock().expect("app").lm_busy = false;
+    match err {
+        Some(_) => b.ping().is_ok(),
+        None => true,
+    }
+}
+
+#[cfg(test)]
+mod lm_scene_tests {
+    use super::*;
+
+    #[test]
+    fn lm_opts_validates_prompt_tokens_and_mode() {
+        let o = lm_opts(&json!({})).unwrap();
+        assert_eq!((o.prompt.as_str(), o.max_new_tokens, o.mode), ("Once upon a time", 8, crate::lm::LmMode::Auto));
+        assert!(lm_opts(&json!({"tokens": 0})).is_err());
+        assert!(lm_opts(&json!({"tokens": 49})).is_err());
+        assert!(lm_opts(&json!({"prompt": ""})).is_err());
+        assert!(lm_opts(&json!({"prompt": "x".repeat(81)})).is_err());
+        assert!(lm_opts(&json!({"prompt": "bad"})).is_err());
+        assert!(lm_opts(&json!({"mode": "both"})).is_err());
+        assert_eq!(lm_opts(&json!({"mode": "strip", "tokens": 48})).unwrap().mode, crate::lm::LmMode::Strip);
+    }
+
+    #[test]
+    fn newest_lm_picks_the_latest_record_and_ignores_other_files() {
+        let d = std::env::temp_dir().join(format!("splitsys-lm-newest-{}-{}", std::process::id(), now_unix() as u64));
+        let _ = std::fs::remove_dir_all(&d);
+        assert_eq!(newest_lm(&d).1, 0, "missing dir");
+        let lm = crate::lm::fake::FakeLm::stories_like(1);
+        let mut ctx = Context::new(d.clone(), &d);
+        let o = crate::lm::GenOpts { prompt: "Hi".into(), max_new_tokens: 1, mode: crate::lm::LmMode::Full, poison: false, stop: None };
+        for _ in 0..2 {
+            let mut b = Board::new(Box::new(transport::MockTransport::new(MockConfig::default())));
+            let (_r, e, _p) = crate::lm::generate(&mut b, &mut ctx, &lm, &o, &mut |_| {});
+            assert!(e.is_none());
+        }
+        let dir = crate::lm::lm_dir(&d, "model");
+        std::fs::write(dir.join("zzz-not-a-record.json"), b"{\"kind\":\"other\"}").unwrap();
+        let (v, n) = newest_lm(&dir);
+        assert_eq!(n, 3);
+        let v = v.unwrap();
+        let ids: Vec<String> = crate::lm::load_lm_records(&dir).into_iter().map(|r| r.gen_id).collect();
+        assert_eq!(ids.len(), 2);
+        assert_eq!(v["gen_id"], ids[1].as_str());
+        assert_eq!(v["source"], "model");
+        // GEMM-run totals ignore the lm/ subdirectory.
+        assert_eq!(Session::rebuild(&d, "model").gemms_run, 0);
+        let _ = std::fs::remove_dir_all(&d);
     }
 }
 

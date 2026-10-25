@@ -16,6 +16,7 @@
       <div class="tab" data-s="1"><b>1</b> Live</div>
       <div class="tab" data-s="2"><b>2</b> Results</div>
       <div class="tab" data-s="3"><b>3</b> Architecture</div>
+      <div class="tab" data-s="4"><b>4</b> LM</div>
     </div>
     <div class="pill" id="status-pill">CONNECTING</div>
   </div>
@@ -87,8 +88,29 @@
     </div>
   </div>
 
+  <!-- Scene 4: tiny LM (G5) -->
+  <div class="scene" id="scene4">
+    <div class="panel" id="p-lm-text" style="left:24px; top:20px; width:1180px; height:560px;">
+      <h2 id="lm-text-title">Tiny LM on the board</h2><span class="badge" id="lm-text-badge">—</span>
+      <div id="lm-text-body"></div>
+    </div>
+    <div class="panel" id="p-lm-ver" style="left:1220px; top:20px; width:676px; height:560px;">
+      <h2 id="lm-ver-title">Every GEMM checked bit-exact</h2><span class="badge" id="lm-ver-badge">—</span>
+      <div id="lm-ver-body"></div>
+    </div>
+    <div class="panel" id="p-lm-grid" style="left:24px; top:596px; width:1180px; height:388px;">
+      <h2 id="lm-grid-title">Which layers ran on the array</h2><span class="badge" id="lm-grid-badge">—</span>
+      <svg id="lm-grid-svg" width="1136" height="310" viewBox="0 0 1136 310"></svg>
+    </div>
+    <div class="panel" id="p-lm-split" style="left:1220px; top:596px; width:676px; height:388px;">
+      <h2>Linear layers on the FPGA, the rest on the laptop</h2><span class="badge" id="lm-split-badge">—</span>
+      <div id="lm-split-body"></div>
+    </div>
+  </div>
+
   <div id="watermark"><div class="wm">DEMO DATA</div><div class="corner" id="wm-corner">DEMO DATA</div></div>
 </div>
 <script src="/app.js"></script>
+<script src="/lm.js"></script>
 </body>
 </html>

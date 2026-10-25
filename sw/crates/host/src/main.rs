@@ -150,6 +150,24 @@ enum Cmd {
         #[arg(long, default_value_t = 0)]
         port: u16,
     },
+    /// G5: generate text with the tiny LM stories260K, every linear layer on the board
+    /// (bit-exact checked, counters vs model); records in results/<source>/lm/.
+    Lm {
+        #[arg(long, default_value = "Once upon a time")]
+        prompt: String,
+        /// New tokens to generate (after the prompt).
+        #[arg(long, default_value_t = 8)]
+        tokens: usize,
+        /// Directory with stories260K.bin and tok512.bin (default: <repo>/models/stories260K).
+        #[arg(long)]
+        model_dir: Option<PathBuf>,
+        /// full | strip | auto (cycle-model pick per GEMM)
+        #[arg(long, default_value = "auto")]
+        mode: String,
+        /// Skip the OBUF poison writes (less UART traffic; weaker stale-data check).
+        #[arg(long)]
+        no_poison: bool,
+    },
 }
 
 fn open_board(cli: &Cli) -> Result<Board, String> {
@@ -376,6 +394,20 @@ fn real_main(cli: &Cli) -> Result<ExitCode, String> {
         Cmd::MockBridge { port } => {
             mock_bridge(*port)?;
             Ok(ExitCode::SUCCESS)
+        }
+        Cmd::Lm { prompt, tokens, model_dir, mode, no_poison } => {
+            let dir = model_dir.clone().unwrap_or_else(|| root.join(splitsys_host::lm::DEFAULT_MODEL_DIR));
+            let o = splitsys_host::lm::GenOpts {
+                prompt: prompt.clone(),
+                max_new_tokens: *tokens,
+                mode: splitsys_host::lm::LmMode::parse(mode)?,
+                poison: !no_poison,
+                stop: None,
+            };
+            let mut b = open_board(cli)?;
+            let mut ctx = Context::new(results.clone(), &root);
+            let ok = splitsys_host::lm::cli_lm(&mut b, &mut ctx, &dir, &o)?;
+            Ok(if ok { ExitCode::SUCCESS } else { ExitCode::FAILURE })
         }
     }
 }

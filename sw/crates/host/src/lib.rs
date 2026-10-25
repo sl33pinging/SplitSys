@@ -9,6 +9,7 @@ pub mod batch;
 pub mod client;
 pub mod diag;
 pub mod frame;
+pub mod lm;
 pub mod memtest;
 pub mod mock;
 pub mod record;

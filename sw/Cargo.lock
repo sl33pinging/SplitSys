@@ -341,6 +341,7 @@ dependencies = [
  "serialport",
  "splitsys-cycle",
  "splitsys-golden",
+ "splitsys-lm",
  "splitsys-spec",
  "splitsys-vec",
 ]

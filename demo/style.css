@@ -85,7 +85,7 @@ table.err td.hot { color: var(--fail); font-weight: 700; }
 #watermark { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; pointer-events: none; display: none; overflow: hidden; }
 #watermark.on { display: block; }
 #watermark .wm { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-18deg); font-family: var(--mono); font-weight: 800; font-size: 210px; color: rgba(255, 92, 92, 0.13); white-space: nowrap; letter-spacing: 12px; }
-#watermark .corner { position: absolute; left: 1010px; top: 19px; background: var(--fail); color: #fff; font-weight: 800; font-size: 22px; padding: 6px 14px; border-radius: 6px; letter-spacing: 1px; }
+#watermark .corner { position: absolute; left: 948px; top: 19px; background: var(--fail); color: #fff; font-weight: 800; font-size: 22px; padding: 6px 14px; border-radius: 6px; letter-spacing: 1px; }
 
 .legend { display: flex; gap: 22px; font-size: 20px; color: var(--muted); align-items: center; flex-wrap: wrap; }
 .sw { display: inline-block; width: 18px; height: 18px; border-radius: 3px; vertical-align: -2px; margin-right: 6px; }
@@ -93,3 +93,8 @@ table.err td.hot { color: var(--fail); font-weight: 700; }
 .card-text b { color: var(--text); }
 table.err.compact { font-size: 19px; }
 table.err.compact td, table.err.compact th { padding: 3px 8px; }
+
+/* Scene 4: tiny LM */
+.lm-story { font-size: 46px; line-height: 1.4; height: 400px; overflow: hidden; white-space: pre-wrap; margin-top: 8px; }
+.lm-caret { color: var(--pass); }
+.lm-foot { font-size: 20px; margin-top: 14px; line-height: 1.35; }

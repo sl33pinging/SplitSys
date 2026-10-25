@@ -109,7 +109,7 @@ function renderChrome() {
   document.body.classList.toggle('has-banner', !!banner);
   $('watermark').classList.toggle('on', !!S.demo_data);
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', +t.dataset.s === S.scene));
-  for (let i = 1; i <= 3; i++) $('scene' + i).classList.toggle('on', S.scene === i);
+  for (let i = 1; i <= 4; i++) { const sc = $('scene' + i); if (sc) sc.classList.toggle('on', S.scene === i); }
 }
 
 // ---------- Scene 1: PE grid ----------
@@ -679,6 +679,7 @@ function renderAll() {
   renderRun(); renderVerified(); renderCost(); renderTicker();
   renderSweep(); renderBench(); renderErrTable(); renderAuto();
   renderBlock(); renderRoof(); renderTrade();
+  if (typeof renderLm === 'function') renderLm(); // Scene 4 (demo/lm.js)
 }
 async function refresh() {
   try {
@@ -709,7 +710,7 @@ if (typeof document === 'undefined') {
   module.exports = { sameGemm, otherModeRun, ratio, buildCounts, buildsLine, buildsLineCounts, recordLabel, autoRowsWhereStripLost, shapeStr };
 } else {
 document.addEventListener('keydown', (e) => {
-  if (e.key === '1' || e.key === '2' || e.key === '3') post('/api/scene', { scene: +e.key });
+  if (e.key === '1' || e.key === '2' || e.key === '3' || e.key === '4') post('/api/scene', { scene: +e.key });
   else if (e.key === ' ') { e.preventDefault(); post('/api/demo'); }
   else if (e.key === 'a' || e.key === 'A') post('/api/attract');
   else if (e.key === 'r' || e.key === 'R') post('/api/replay');
