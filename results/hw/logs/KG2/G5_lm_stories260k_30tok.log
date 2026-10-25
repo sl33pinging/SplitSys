@@ -1,0 +1,57 @@
+Sat Oct 24 21:20:51 PDT 2026
+splitsys-host 0.1.0 (git 5c59139)
+lm: stories260K (dim 64, hidden 172, 5 layers, vocab 512) loaded + quantized in 0.01 s; AUTO via serial:COM3@115200
+lm: linear layers on the FPGA: q, k, v, o, w1, w2, w3 in every layer and the classifier (int8 x int8 -> int32, M = 1)
+lm: on the laptop: token embedding, RMSNorm, RoPE, attention scores + softmax, SwiGLU, int8 quantize/dequantize, greedy sampling
+lm: source hw build 38a3950a | WBUF plan: 6 matrices pinned (54272 B), scratch 11264 B, 207616 of 261888 weight B streamed per step
+  [step  0 prompt   tok 403] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 300490 B tx, 35.55 s wall
+  [step  1 prompt   tok 407] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.31 s wall
+  [step  2 prompt   tok 261] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.30 s wall
+  [step  3 prompt   tok 378] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.33 s wall
+Once upon a time,  [step  4 generate tok 432] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.30 s wall
+ there  [step  5 generate tok 383] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.32 s wall
+ was  [step  6 generate tok 286] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.33 s wall
+ a  [step  7 generate tok 261] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.30 s wall
+ little  [step  8 generate tok 376] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.32 s wall
+ g  [step  9 generate tok 298] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.43 s wall
+ir  [step 10 generate tok 315] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.30 s wall
+l  [step 11 generate tok 421] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.35 s wall
+ named  [step 12 generate tok 395] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.36 s wall
+ Lily  [step 13 generate tok 317] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.33 s wall
+.  [step 14 generate tok 426] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.33 s wall
+ She  [step 15 generate tok 338] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.35 s wall
+ lo  [step 16 generate tok 401] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.38 s wall
+ved  [step 17 generate tok 396] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.30 s wall
+ to  [step 18 generate tok 267] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.33 s wall
+ play  [step 19 generate tok 337] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.33 s wall
+   [step 20 generate tok 410] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.33 s wall
+out  [step 21 generate tok 408] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.30 s wall
+s  [step 22 generate tok 419] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.33 s wall
+id  [step 23 generate tok 292] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.33 s wall
+e  [step 24 generate tok 411] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.42 s wall
+ in  [step 25 generate tok 322] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.30 s wall
+ the  [step 26 generate tok 265] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.30 s wall
+ p  [step 27 generate tok 282] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.39 s wall
+ar  [step 28 generate tok 295] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.31 s wall
+k  [step 29 generate tok 433] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.31 s wall
+.  [step 30 generate tok 426] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.31 s wall
+ One  [step 31 generate tok 385] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.37 s wall
+ day  [step 32 generate tok 328] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.30 s wall
+,  [step 33 generate tok 432] 37 GEMMs, 37 bit-exact, 37 counters==model, 29540 cycles on chip, 245623 B tx, 30.34 s wall
+
+---- lm summary (done) ----
+source            hw (build 38a3950a, transport serial:COM3@115200)
+prompt            "Once upon a time" (5 tokens incl. BOS)
+text              "Once upon a time, there was a little girl named Lily. She loved to play outside in the park. One day,"
+steps             34 (4 prompt, 30 generated tokens)
+GEMMs on board    1258
+bit-exact         1258 / 1258
+counters == model 1258 / 1258 (all 12 counters per GEMM)
+invariants ok     1258 / 1258
+on-chip cycles    29540 per step (295.4 us at 100 MHz), from the counters
+bytes sent        8406049 total, 245623 per step steady state; weights 7113216 B sent, 1790976 B reused from WBUF
+bytes received    707637
+wall time         1037.24 s total, 30.48 s per step: laptop wall time including UART at 115200 baud; NOT accelerator speed (on-chip cycles come from the counters)
+record            C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\lm\2026-10-25T04-20-52Z-lm.json
+rc=0
+Sat Oct 24 21:38:09 PDT 2026
