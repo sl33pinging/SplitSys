@@ -1,0 +1,8 @@
+Sat Oct 24 21:56:28 PDT 2026
+94bb7160ee61aff4b7f8cb9112cd7ed9 *fpga/build/kg3_top/top.bit
+PROGRAM: C:/Users/danie/FPGA_Projects/Calhack2026/fpga/build/kg3_top/top.bit
+PROGRAM: DONE pin = '1'
+PROGRAM_OK: C:/Users/danie/FPGA_Projects/Calhack2026/fpga/build/kg3_top/top.bit
+PING ok: build_id 21dd6850  proto v1  baud 1562500 (1.5625 Mbaud)  via serial:COM3@1562500  source hw
+rc=0
+Sat Oct 24 21:57:05 PDT 2026

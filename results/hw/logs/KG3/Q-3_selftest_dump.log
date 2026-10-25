@@ -1,0 +1,8 @@
+Sat Oct 24 21:57:05 PDT 2026
+SELFTEST FULL : PASS (fletcher32 6c1d81af)
+SELFTEST STRIP: PASS (fletcher32 8b1c6e80)
+source hw via serial:COM3@1562500
+FULL  job: OBUF bytes [0x0000, 0x0080) 128 bytes: 0 differ; fletcher32 readback 6c1d81af ROM 6c1d81af
+STRIP job: OBUF bytes [0x0080, 0x0100) 128 bytes: 0 differ; fletcher32 readback 8b1c6e80 ROM 8b1c6e80
+rc=0
+Sat Oct 24 21:57:05 PDT 2026
