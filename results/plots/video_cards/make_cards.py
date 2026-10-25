@@ -119,8 +119,8 @@ page("06_limits", """
 # 07 end
 page("07_end", """
 <h1>SplitSys</h1>
-<div class='sub' style='font-size:60px;color:#E8ECF1'><span class='ph'>&#10214;HUMAN: name&#10215;</span></div>
-<div class='sub mono' style='font-size:48px'><span class='ph'>&#10214;HUMAN: repo URL&#10215;</span></div>
+<div class='sub' style='font-size:60px;color:#E8ECF1'>Zhicheng (Daniel) Song · built solo</div>
+<div class='sub' style='font-size:44px'>Code, RTL and every hardware log: GitHub link on the Devpost page</div>
 <div class='sub' style='margin-top:60px'>Designed, verified and brought up solo at Cal Hacks 13.0</div>
 """, "")
 
