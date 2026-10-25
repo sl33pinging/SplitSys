@@ -4,7 +4,7 @@
 // ($, esc, int, setBadge, S) at render time only.
 'use strict';
 
-const LM = { st: null, cur: null, play: null, playKey: '', fetching: false };
+const LM = { st: null, cur: null, play: null, playKey: '', fetching: false, posting: false, pendingUntil: 0, ctlErr: '' };
 const LM_ROWS_NAMES = ['wq', 'wk', 'wv', 'wo', 'w1', 'w3', 'w2'];
 
 // ---------- pure helpers (exported to node for tests) ----------
@@ -101,6 +101,39 @@ function lmModeLine(modes) {
   return `${n(s)} STRIP · ${n(f)} FULL`;
 }
 
+// Token-count stepper: -/+ from the box value, clamped to 1..max (garbage -> 8).
+function lmStepTokens(v, d, max) {
+  const n = parseInt(String(v), 10);
+  const b = Number.isFinite(n) ? n : 8;
+  return Math.max(1, Math.min(max || 200, b + d));
+}
+
+// The token box value as sent to the server: a number if it parses as one, else
+// the raw text (the server rejects it with its own message, shown inline).
+function lmTokensValue(v) {
+  const t = String(v).trim();
+  return t !== '' && Number.isFinite(Number(t)) ? Number(t) : t;
+}
+
+function lmDur(s) {
+  if (s < 10) return s.toFixed(1) + ' s';
+  if (s < 90) return Math.round(s) + ' s';
+  const m = Math.floor(s / 60);
+  return m + ' min ' + String(Math.round(s - 60 * m)).padStart(2, '0') + ' s';
+}
+
+// Estimated laptop wall time for `tokens` new tokens from `rate` (GET /api/lm
+// .rate: the newest record on this exact transport/baud). An estimate only.
+function lmEstimate(rate, tokens, source, transport) {
+  const n = Number(tokens);
+  if (!rate || !(rate.s_per_step > 0)) return 'no measured s/token yet on ' + (transport || 'this transport') + ': no estimate';
+  if (!Number.isInteger(n) || n < 1) return '';
+  const sp = rate.s_per_step;
+  const where = rate.baud ? 'at ' + Number(rate.baud).toLocaleString('en-US') + ' baud' : 'on ' + String(rate.transport).split(' ')[0];
+  const src = source && source !== 'hw' ? String(source).toUpperCase() + ' record ' : 'measured ';
+  return `Estimate ≈ ${lmDur(n * sp)} laptop wall time (${n} × ${sp.toFixed(2)} s/token, ${src}${where}) + ≈ ${sp.toFixed(1)} s per prompt token`;
+}
+
 // ---------- rendering ----------
 function lmPanelBadges(badge, text) {
   for (const id of ['lm-text-badge', 'lm-ver-badge', 'lm-grid-badge', 'lm-split-badge']) setBadge(id, badge, text);
@@ -130,9 +163,10 @@ function renderLm() {
     : 'Tiny LM on the board: stories260K';
   const status = rec ? (pick.kind === 'replay' ? `playback ${Math.min(upto, rec.steps.length)}/${rec.steps.length} steps (accelerated)` : rec.status + (rec.stopped ? ' (stopped)' : '')) : '';
   $('lm-text-body').innerHTML = rec ? `
-    <div class="lm-story"><div>${lmStory(txt)}${LM.st && LM.st.running && pick.kind === 'live' ? '<span class="lm-caret">▌</span>' : ''}</div></div>
+    <div class="lm-story"><div>${lmStory(txt, 250)}${LM.st && LM.st.running && pick.kind === 'live' ? '<span class="lm-caret">▌</span>' : ''}</div></div>
     <div class="kv muted lm-foot">${lmEsc(pick.note)} · ${txt.tokens} tokens generated · ${lmEsc(status)} · greedy decoding · prompt “${lmEsc(rec.prompt)}”</div>`
-    : `<div class="pending-box">${lmEsc(pick.note || 'loading…')}<br>Run <span class="mono">splitsys-host lm --prompt "Once upon a time" --tokens 8</span> or press <b>G</b> here.</div>`;
+    : `<div class="pending-box">${lmEsc(pick.note || 'loading…')}<br>Run <span class="mono">splitsys-host lm --prompt "Once upon a time" --tokens 8</span> or use <b>Generate</b> below.</div>`;
+  renderLmCtl(replayActive);
   // --- verification panel
   const steps = rec ? rec.steps.slice(0, upto === undefined ? rec.steps.length : upto) : [];
   const last = steps.length ? steps[steps.length - 1] : null;
@@ -165,6 +199,62 @@ function renderLm() {
     <div class="kv"><b class="pass">FPGA</b> · ${lmEsc((LM.st && LM.st.split.fpga) || '')}</div>
     <div class="kv" style="margin-top:6px"><b>Laptop</b> · ${lmEsc((LM.st && LM.st.split.laptop) || '')}</div>
     ${p ? `<div class="kv muted" style="margin-top:10px">WBUF: ${p.pinned.length} matrices stay resident (${int(p.pinned_bytes)} B); ${int(p.streamed_bytes_per_step)} of ${int(p.total_bytes_per_step)} weight bytes re-sent per token</div>` : ''}`;
+}
+
+// Controls: enable/disable and the info line (server error, failure, or estimate).
+function renderLmCtl(replayActive) {
+  const go = $('lm-go');
+  if (!go) return;
+  const st = LM.st || {};
+  const lim = st.limits || { prompt_max: 80, tokens_max: 200 };
+  const busy = !!st.running || LM.posting || Date.now() < LM.pendingUntil;
+  go.disabled = busy || !!replayActive;
+  $('lm-stop').disabled = !st.running;
+  $('lm-tokens').max = lim.tokens_max;
+  $('lm-prompt').maxLength = lim.prompt_max;
+  $('lm-tok-lbl').textContent = 'new tokens (1–' + lim.tokens_max + ')';
+  const info = $('lm-ctl-info');
+  if (LM.ctlErr) info.innerHTML = `<span class="fail">${lmEsc(LM.ctlErr)}</span>`;
+  else if (replayActive) info.innerHTML = '<span class="muted">REPLAY view: press R to return to live before generating</span>';
+  else if (st.running) info.textContent = 'generating… Stop (or X) ends it after the current token';
+  else info.textContent = lmEstimate(st.rate, lmTokensValue($('lm-tokens').value), st.live_source, st.transport);
+}
+
+async function lmGenerate() {
+  if (LM.posting || (LM.st && LM.st.running) || Date.now() < LM.pendingUntil) return;
+  if (typeof S !== 'undefined' && S && S.source === 'replay') return;
+  const body = { prompt: $('lm-prompt').value, tokens: lmTokensValue($('lm-tokens').value), mode: 'auto' };
+  LM.posting = true; LM.ctlErr = '';
+  renderLmCtl(false);
+  try {
+    const r = await fetch('/api/lm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) LM.ctlErr = j.error || ('server answered ' + r.status);
+    else LM.pendingUntil = Date.now() + 4000;
+  } catch (e) { LM.ctlErr = 'dashboard server unreachable'; }
+  LM.posting = false;
+  lmRefresh(true);
+}
+
+function lmStop() {
+  fetch('/api/lm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stop: true }) }).then(() => lmRefresh(true)).catch(() => {});
+}
+
+function lmWireCtl() {
+  const pr = $('lm-prompt'), tk = $('lm-tokens');
+  if (!pr) return;
+  const max = () => (LM.st && LM.st.limits ? LM.st.limits.tokens_max : 200);
+  const touched = () => { LM.ctlErr = ''; renderLmCtl(typeof S !== 'undefined' && S && S.source === 'replay'); };
+  $('lm-minus').addEventListener('click', () => { tk.value = lmStepTokens(tk.value, -1, max()); touched(); });
+  $('lm-plus').addEventListener('click', () => { tk.value = lmStepTokens(tk.value, +1, max()); touched(); });
+  $('lm-go').addEventListener('click', () => lmGenerate());
+  $('lm-stop').addEventListener('click', () => lmStop());
+  for (const box of [pr, tk]) {
+    box.addEventListener('input', touched);
+    box.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); lmGenerate(); } else if (e.key === 'Escape') { e.preventDefault(); box.blur(); }
+    });
+  }
 }
 
 function renderLmGrid(rows, rec, last) {
@@ -215,9 +305,13 @@ function lmTick() {
 }
 
 if (typeof document === 'undefined') {
-  module.exports = { lmStory, lmPick, lmText, lmGrid, lmTotals, lmRate, lmModeLine };
+  module.exports = { lmStory, lmPick, lmText, lmGrid, lmTotals, lmRate, lmModeLine, lmStepTokens, lmTokensValue, lmEstimate, lmDur };
 } else {
   const qs4 = new URLSearchParams(location.search);
+  lmWireCtl();
+  // Screenshots: ?prompt= / ?tokens= prefill the boxes.
+  if (qs4.has('prompt')) $('lm-prompt').value = qs4.get('prompt');
+  if (qs4.has('tokens')) $('lm-tokens').value = qs4.get('tokens');
   if (qs4.has('shot')) {
     try {
       const x = new XMLHttpRequest();
@@ -226,6 +320,14 @@ if (typeof document === 'undefined') {
       LM.st = JSON.parse(x.responseText);
       LM.shot = true;
       if (qs4.has('upto')) LM.forceUpto = +qs4.get('upto');
+      // ?lmtry=1: submit the prefilled boxes once (synchronously) to capture the inline server error.
+      if (qs4.has('lmtry')) {
+        const y = new XMLHttpRequest();
+        y.open('POST', '/api/lm', false);
+        y.setRequestHeader('Content-Type', 'application/json');
+        y.send(JSON.stringify({ prompt: $('lm-prompt').value, tokens: lmTokensValue($('lm-tokens').value), mode: 'auto' }));
+        if (y.status !== 200) LM.ctlErr = JSON.parse(y.responseText).error;
+      }
     } catch (e) { /* render the empty state */ }
     renderLm();
   } else {
@@ -234,10 +336,10 @@ if (typeof document === 'undefined') {
     setInterval(lmTick, 200);
     const es4 = new EventSource('/events');
     const re = () => lmRefresh(true);
-    es4.addEventListener('lm_started', re);
+    es4.addEventListener('lm_started', () => { LM.pendingUntil = 0; re(); });
     es4.addEventListener('lm_step', re);
     es4.addEventListener('lm_finished', re);
-    es4.addEventListener('lm_failed', (e) => { try { LM.err = JSON.parse(e.data).error; } catch (x) { /* */ } re(); });
+    es4.addEventListener('lm_failed', (e) => { LM.pendingUntil = 0; try { LM.ctlErr = 'generation failed: ' + JSON.parse(e.data).error; } catch (x) { /* */ } re(); });
     es4.addEventListener('lm_call', (e) => {
       LM.live = JSON.parse(e.data);
       if (LM.cur !== LM.live.step) { LM.cur = LM.live.step; LM.liveCalls = []; }
@@ -248,8 +350,10 @@ if (typeof document === 'undefined') {
     es4.addEventListener('state', re);
     document.addEventListener('keydown', (e) => {
       if (!S || S.scene !== 4) return;
-      if (e.key === 'g' || e.key === 'G') fetch('/api/lm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'Once upon a time', tokens: 8, mode: 'auto' }) }).then(re).catch(() => {});
-      else if (e.key === 'x' || e.key === 'X') fetch('/api/lm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stop: true }) }).then(re).catch(() => {});
+      // Typing in the prompt / token boxes never triggers G / X (app.js typingTarget).
+      if (typingTarget(e.target) || e.ctrlKey || e.altKey || e.metaKey) return;
+      if (e.key === 'g' || e.key === 'G') lmGenerate();
+      else if (e.key === 'x' || e.key === 'X') lmStop();
     });
   }
 }

@@ -980,18 +980,80 @@ fn handle(sh: Shared, mut s: TcpStream) {
 
 // ---------------------------------------------------------------- Scene 4 (tiny LM)
 
-/// POST /api/lm body -> options. Prompt: printable ASCII, 1..=80 chars; 1..=48 tokens.
+/// Scene 4 input limits (stated in the UI via GET /api/lm `limits`).
+/// Prompt: printable ASCII, 1..=80 chars (at most 80 tokens + BOS even with the
+/// tokenizer's byte fallback). New tokens: 1..=200, so prompt + new tokens stay
+/// well under the model's seq_len (512 for stories260K); `lm::generate` also
+/// clamps the step count to seq_len.
+pub const LM_PROMPT_MAX: usize = 80;
+pub const LM_TOKENS_MAX: u64 = 200;
+
+/// POST /api/lm body -> options.
 fn lm_opts(body: &Value) -> Result<crate::lm::GenOpts, String> {
     let prompt = body["prompt"].as_str().unwrap_or("Once upon a time").to_string();
-    if prompt.is_empty() || prompt.len() > 80 || !prompt.bytes().all(|c| (0x20..0x7f).contains(&c)) {
-        return Err("prompt: 1..80 printable ASCII characters".into());
+    if prompt.is_empty() || prompt.len() > LM_PROMPT_MAX || !prompt.bytes().all(|c| (0x20..0x7f).contains(&c)) {
+        return Err(format!("prompt: 1..{LM_PROMPT_MAX} printable ASCII characters"));
     }
-    let tokens = body["tokens"].as_u64().unwrap_or(8);
-    if !(1..=48).contains(&tokens) {
-        return Err("tokens must be 1..48".into());
+    let tokens = match &body["tokens"] {
+        Value::Null => 8,
+        v => v.as_u64().ok_or_else(|| format!("tokens: a whole number 1..{LM_TOKENS_MAX}"))?,
+    };
+    if !(1..=LM_TOKENS_MAX).contains(&tokens) {
+        return Err(format!("tokens: 1..{LM_TOKENS_MAX}"));
     }
     let mode = crate::lm::LmMode::parse(body["mode"].as_str().unwrap_or("auto"))?;
     Ok(crate::lm::GenOpts { prompt, max_new_tokens: tokens as usize, mode, poison: true, stop: None })
+}
+
+/// The measured laptop wall time per step of the newest record in `dir` made on
+/// exactly this transport (`serial:COM3@1562500`: same port and baud), for the
+/// Scene 4 estimate: the record's whole wall time (record writes included) over
+/// its steps. Only the fields needed are parsed.
+fn lm_rate(dir: &Path, transport: &str) -> Option<Value> {
+    #[derive(serde::Deserialize)]
+    struct Sum {
+        wall_ms: f64,
+    }
+    #[derive(serde::Deserialize)]
+    struct Step {
+        summary: Sum,
+    }
+    #[derive(serde::Deserialize)]
+    struct Rec {
+        kind: String,
+        gen_id: String,
+        transport: String,
+        #[serde(default)]
+        error: Option<String>,
+        #[serde(default)]
+        steps: Vec<Step>,
+        summary: RecSum,
+    }
+    #[derive(serde::Deserialize)]
+    struct RecSum {
+        #[serde(default)]
+        wall_s: f64,
+    }
+    let mut names: Vec<PathBuf> = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("json"))
+        .collect();
+    names.sort_by_key(|p| crate::lm::gen_order_key(&p.file_stem().map(|x| x.to_string_lossy().into_owned()).unwrap_or_default()));
+    names
+        .iter()
+        .rev()
+        .filter_map(|p| std::fs::read(p).ok())
+        .filter_map(|b| serde_json::from_slice::<Rec>(&b).ok())
+        .find(|r| r.kind == crate::lm::LM_KIND && r.transport == transport && r.error.is_none() && !r.steps.is_empty())
+        .map(|r| {
+            let n = r.steps.len() as f64;
+            let s = if r.summary.wall_s > 0.0 { r.summary.wall_s / n } else { r.steps.iter().map(|s| s.summary.wall_ms).sum::<f64>() / n / 1000.0 };
+            json!({"s_per_step": s, "gen_id": r.gen_id, "transport": r.transport, "steps": r.steps.len(),
+                "baud": crate::transport::baud_of(&r.transport)})
+        })
 }
 
 /// Newest LM record in a directory (by file name = gen_id), as the dashboard view.
@@ -1020,7 +1082,19 @@ fn lm_state(sh: &Shared) -> Value {
         (a.source.clone(), a.lm_busy, a.lm_live.clone(), a.replay.as_ref().map(|r| PathBuf::from(&r.dir)), a.replay_active, a.transport.clone())
     };
     let dir = crate::lm::lm_dir(&sh.results, &source);
-    let (disk, n_live) = newest_lm(&dir);
+    // While this server holds a live record, skip parsing the newest file on disk
+    // (a 200-token record is ~7 MB and is rewritten every step); count only.
+    let (disk, n_live) = if live.is_some() {
+        let n = std::fs::read_dir(&dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("json"))
+            .count();
+        (None, n)
+    } else {
+        newest_lm(&dir)
+    };
     let (replay, n_replay) = match &replay_dir {
         Some(d) => newest_lm(&d.join("lm")),
         None => (None, 0),
@@ -1040,6 +1114,9 @@ fn lm_state(sh: &Shared) -> Value {
         "split": {"fpga": crate::lm::SPLIT_FPGA, "laptop": crate::lm::SPLIT_LAPTOP},
         "wall_note": crate::lm::wall_note(&source, source == "model", &transport_now),
         "numerics": crate::lm::NUMERICS,
+        "limits": {"prompt_max": LM_PROMPT_MAX, "tokens_max": LM_TOKENS_MAX},
+        "transport": transport_now,
+        "rate": lm_rate(&dir, &transport_now),
     })
 }
 
@@ -1092,16 +1169,45 @@ mod lm_scene_tests {
     use super::*;
 
     #[test]
+    fn lm_rate_uses_newest_record_on_the_same_transport() {
+        let d = std::env::temp_dir().join(format!("splitsys-lm-rate-{}-{}", std::process::id(), now_unix() as u64));
+        std::fs::create_dir_all(&d).unwrap();
+        let rec = |name: &str, transport: &str, wall_s: f64, walls: &[f64], err: Option<&str>| {
+            let steps: Vec<Value> = walls.iter().map(|w| json!({"summary": {"wall_ms": w}})).collect();
+            let v = json!({"kind": crate::lm::LM_KIND, "gen_id": name, "transport": transport, "error": err,
+                "summary": {"wall_s": wall_s}, "steps": steps});
+            std::fs::write(d.join(format!("{name}.json")), v.to_string()).unwrap();
+        };
+        rec("2026-10-25T04-00-00Z-lm", "serial:COM3@1562500", 8.8, &[2000.0, 2000.0, 2000.0, 2000.0], None);
+        rec("2026-10-25T05-00-00Z-lm", "serial:COM3@115200", 60.0, &[30000.0, 30000.0], None);
+        rec("2026-10-25T06-00-00Z-lm", "serial:COM3@1562500", 1.0, &[500.0], Some("mismatch"));
+        let r = lm_rate(&d, "serial:COM3@1562500").unwrap();
+        assert_eq!(r["gen_id"], "2026-10-25T04-00-00Z-lm");
+        assert!((r["s_per_step"].as_f64().unwrap() - 2.2).abs() < 1e-9, "{r}");
+        assert_eq!(r["baud"], 1562500);
+        assert_eq!(lm_rate(&d, "serial:COM3@115200").unwrap()["s_per_step"], 30.0);
+        assert!(lm_rate(&d, "serial:COM5@1562500").is_none());
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
     fn lm_opts_validates_prompt_tokens_and_mode() {
         let o = lm_opts(&json!({})).unwrap();
         assert_eq!((o.prompt.as_str(), o.max_new_tokens, o.mode), ("Once upon a time", 8, crate::lm::LmMode::Auto));
         assert!(lm_opts(&json!({"tokens": 0})).is_err());
-        assert!(lm_opts(&json!({"tokens": 49})).is_err());
+        assert!(lm_opts(&json!({"tokens": 49})).is_ok());
+        assert_eq!(lm_opts(&json!({"tokens": 200})).unwrap().max_new_tokens, 200);
+        assert_eq!(lm_opts(&json!({"tokens": 201})).unwrap_err(), "tokens: 1..200");
+        assert!(lm_opts(&json!({"tokens": -1})).is_err());
+        assert!(lm_opts(&json!({"tokens": "8"})).is_err());
+        assert!(lm_opts(&json!({"tokens": 2.5})).is_err());
+        assert_eq!(lm_opts(&json!({"prompt": "x".repeat(80)})).unwrap().prompt.len(), 80);
+        assert_eq!(lm_opts(&json!({"prompt": "caf\u{e9}"})).unwrap_err(), "prompt: 1..80 printable ASCII characters");
         assert!(lm_opts(&json!({"prompt": ""})).is_err());
         assert!(lm_opts(&json!({"prompt": "x".repeat(81)})).is_err());
         assert!(lm_opts(&json!({"prompt": "bad"})).is_err());
         assert!(lm_opts(&json!({"mode": "both"})).is_err());
-        assert_eq!(lm_opts(&json!({"mode": "strip", "tokens": 48})).unwrap().mode, crate::lm::LmMode::Strip);
+        assert_eq!(lm_opts(&json!({"mode": "strip", "tokens": 200})).unwrap().mode, crate::lm::LmMode::Strip);
     }
 
     #[test]

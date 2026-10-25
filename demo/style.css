@@ -96,6 +96,23 @@ table.err.compact { font-size: 19px; }
 table.err.compact td, table.err.compact th { padding: 3px 8px; }
 
 /* Scene 4: tiny LM */
-.lm-story { font-size: 46px; line-height: 1.4; height: 400px; overflow: hidden; white-space: pre-wrap; margin-top: 8px; }
+.lm-story { font-size: 40px; line-height: 1.4; height: 280px; overflow: hidden; white-space: pre-wrap; margin-top: 4px; }
+/* Scene 4 controls: prompt, token count, Generate / Stop (mouse; Edge kiosk safe). */
+.lm-ctl { position: absolute; left: 22px; right: 22px; bottom: 58px; height: 62px; display: flex; gap: 10px; align-items: center; }
+.lm-in { height: 62px; background: var(--bg); color: var(--text); border: 2px solid var(--line); border-radius: 8px; padding: 0 14px; font-family: var(--mono); font-size: 28px; outline: none; }
+.lm-in:focus { border-color: var(--full); }
+#lm-prompt { flex: 1; min-width: 0; }
+.lm-num { width: 100px; text-align: center; padding: 0 6px; -moz-appearance: textfield; }
+.lm-num::-webkit-outer-spin-button, .lm-num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.lm-lbl { font-size: 22px; color: var(--muted); margin-left: 6px; }
+.lm-btn { height: 62px; border-radius: 8px; border: 2px solid var(--line); background: #1c2128; color: var(--text); font-family: var(--sans); font-size: 26px; font-weight: 700; padding: 0 20px; cursor: pointer; }
+.lm-btn:disabled { opacity: 0.35; cursor: default; }
+.lm-step { width: 56px; padding: 0; font-size: 32px; }
+.lm-go { border-color: var(--pass); color: var(--pass); }
+.lm-go:not(:disabled):hover { background: var(--pass); color: var(--bg); }
+.lm-stop { border-color: var(--fail); color: var(--fail); }
+.lm-stop:not(:disabled):hover { background: var(--fail); color: #fff; }
+.lm-ctl-info { position: absolute; left: 22px; right: 22px; bottom: 14px; height: 36px; font-size: 20px; line-height: 36px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lm-ctl-info .fail { font-weight: 700; }
 .lm-caret { color: var(--pass); }
-.lm-foot { font-size: 20px; margin-top: 14px; line-height: 1.35; }
+.lm-foot { font-size: 20px; margin-top: 8px; line-height: 1.35; }

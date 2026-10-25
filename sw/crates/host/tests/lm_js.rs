@@ -63,6 +63,24 @@ assert.strictEqual(L.lmRate(0), '—');
 assert.strictEqual(L.lmModeLine({ STRIP: 1036 }), 'all 1,036 GEMMs in STRIP');
 assert.strictEqual(L.lmModeLine({ STRIP: 9, FULL: 3 }), '9 STRIP · 3 FULL');
 assert.strictEqual(L.lmModeLine({}), 'none yet');
+// Scene 4 controls: stepper clamps to 1..max, token box value, estimate wording.
+assert.strictEqual(L.lmStepTokens('8', 1, 200), 9);
+assert.strictEqual(L.lmStepTokens('1', -1, 200), 1);
+assert.strictEqual(L.lmStepTokens('200', 1, 200), 200);
+assert.strictEqual(L.lmStepTokens('', 1, 200), 9);
+assert.strictEqual(L.lmStepTokens('999', -1, 200), 200);
+assert.strictEqual(L.lmTokensValue(' 12 '), 12);
+assert.strictEqual(L.lmTokensValue('2.5'), 2.5);
+assert.strictEqual(L.lmTokensValue('abc'), 'abc');
+assert.strictEqual(L.lmTokensValue(''), '');
+const rate = { s_per_step: 2.17, baud: 1562500, transport: 'serial:COM3@1562500' };
+let est = L.lmEstimate(rate, 8, 'hw', 'serial:COM3@1562500');
+assert.strictEqual(est, 'Estimate ≈ 17 s laptop wall time (8 × 2.17 s/token, measured at 1,562,500 baud) + ≈ 2.2 s per prompt token');
+assert.ok(L.lmEstimate(rate, 200, 'hw').includes('≈ 7 min 14 s'), L.lmEstimate(rate, 200, 'hw'));
+assert.ok(L.lmEstimate({ s_per_step: 0.05, transport: 'mock (in-process model board)' }, 8, 'model').includes('MODEL record on mock)'));
+assert.ok(L.lmEstimate(null, 8, 'hw', 'serial:COM3@115200').includes('no measured s/token yet on serial:COM3@115200'));
+assert.strictEqual(L.lmEstimate(rate, 'abc', 'hw'), '');
+assert.strictEqual(L.lmDur(89.4), '89 s');
 console.log('lm.js helpers ok');
 "#;
 

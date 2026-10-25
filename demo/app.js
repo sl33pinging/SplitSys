@@ -717,11 +717,23 @@ function connectEvents() {
   es.onerror = () => { if (S) { S.board = Object.assign({}, S.board, { status: 'disconnected', error: 'dashboard server unreachable' }); renderChrome(); } };
   es.onopen = () => refresh();
 }
+// True if a key event aimed at `t` is text entry (Scene 4 prompt / token boxes):
+// the global scene keys (1-4, Space, A, R, F, G, X) must not fire then.
+function typingTarget(t) {
+  if (!t || !t.tagName) return false;
+  if (t.isContentEditable) return true;
+  const tag = String(t.tagName).toUpperCase();
+  if (tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  if (tag !== 'INPUT') return false;
+  const ty = String(t.type || 'text').toLowerCase();
+  return !['button', 'submit', 'reset', 'checkbox', 'radio', 'range', 'color', 'file', 'image', 'hidden'].includes(ty);
+}
 if (typeof document === 'undefined') {
   // Loaded by node (sw/crates/host/tests/app_js.rs): export the pure helpers only.
-  module.exports = { linkLabel, sameGemm, otherModeRun, ratio, buildCounts, buildsLine, buildsLineCounts, recordLabel, autoRowsWhereStripLost, shapeStr };
+  module.exports = { typingTarget, linkLabel, sameGemm, otherModeRun, ratio, buildCounts, buildsLine, buildsLineCounts, recordLabel, autoRowsWhereStripLost, shapeStr };
 } else {
 document.addEventListener('keydown', (e) => {
+  if (typingTarget(e.target) || e.ctrlKey || e.altKey || e.metaKey) return;
   if (e.key === '1' || e.key === '2' || e.key === '3' || e.key === '4') post('/api/scene', { scene: +e.key });
   else if (e.key === ' ') { e.preventDefault(); post('/api/demo'); }
   else if (e.key === 'a' || e.key === 'A') post('/api/attract');

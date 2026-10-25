@@ -93,6 +93,16 @@
     <div class="panel" id="p-lm-text" style="left:24px; top:20px; width:1180px; height:560px;">
       <h2 id="lm-text-title">Tiny LM on the board</h2><span class="badge" id="lm-text-badge">—</span>
       <div id="lm-text-body"></div>
+      <div class="lm-ctl" id="lm-ctl">
+        <input id="lm-prompt" class="lm-in" type="text" maxlength="80" value="Once upon a time" spellcheck="false" autocomplete="off" aria-label="Prompt">
+        <span class="lm-lbl" id="lm-tok-lbl">new tokens (1–200)</span>
+        <button id="lm-minus" class="lm-btn lm-step" type="button" aria-label="fewer tokens">&minus;</button>
+        <input id="lm-tokens" class="lm-in lm-num" type="number" min="1" max="200" step="1" value="8" aria-label="New tokens">
+        <button id="lm-plus" class="lm-btn lm-step" type="button" aria-label="more tokens">+</button>
+        <button id="lm-go" class="lm-btn lm-go" type="button">Generate</button>
+        <button id="lm-stop" class="lm-btn lm-stop" type="button">Stop</button>
+      </div>
+      <div class="lm-ctl-info" id="lm-ctl-info"></div>
     </div>
     <div class="panel" id="p-lm-ver" style="left:1220px; top:20px; width:676px; height:560px;">
       <h2 id="lm-ver-title">Every GEMM checked bit-exact</h2><span class="badge" id="lm-ver-badge">—</span>

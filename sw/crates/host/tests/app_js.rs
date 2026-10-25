@@ -61,6 +61,18 @@ const lost = A.autoRowsWhereStripLost([ar(1, 100, 90), ar(2, 100, 110), ar(3, 10
 assert.deepStrictEqual(lost.map((r) => r.M), [3, 2]);
 assert.strictEqual(A.shapeStr({ M: 22, K: 250, N: 17, requant: true }), '22×250×17');
 assert.strictEqual(A.shapeStr({ M: 8, K: 17, N: 8, requant: false }), '8×17×8 i32');
+// Scene 4 text boxes swallow the global scene keys (1-4, Space, A, R, F, G, X).
+const T = A.typingTarget;
+assert.strictEqual(T({ tagName: 'INPUT', type: 'text' }), true);
+assert.strictEqual(T({ tagName: 'input', type: 'number' }), true);
+assert.strictEqual(T({ tagName: 'INPUT' }), true);
+assert.strictEqual(T({ tagName: 'TEXTAREA' }), true);
+assert.strictEqual(T({ tagName: 'DIV', isContentEditable: true }), true);
+assert.strictEqual(T({ tagName: 'INPUT', type: 'checkbox' }), false);
+assert.strictEqual(T({ tagName: 'BUTTON' }), false);
+assert.strictEqual(T({ tagName: 'BODY' }), false);
+assert.strictEqual(T(null), false);
+assert.strictEqual(T({}), false);
 console.log('app.js helpers ok');
 "#;
 
