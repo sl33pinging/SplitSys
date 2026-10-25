@@ -146,6 +146,12 @@ It then jumps to Scene 2 with the newest points highlighted.
 - [ ] **Dashboard:** Scene 1 live, `BOARD LIVE` badge green, `build_id` matches `fpga/known_good/CURRENT` (KG3 = 0x21DD6850). If asked: the benchmark sweep was measured on KG1 (0x52A66216), and KG2 and KG3 have the same datapath. Both re-ran the 200-GEMM random batch with identical counters.
 - [ ] **Language model (Scene 4):** press `4`, then `G`. It generates 8 tokens live from "Once upon a time", about 2 s per step (Saturday: 2.16 s, 26 s for all 12 steps). `X` stops it. Say "the board does the linear layers; the laptop does the rest".
 - [ ] Attract loop running; operator console visible only on the laptop.
+- [ ] **Live-table setup (13.0 judging: 3 min pitch + 2 min Q&A; WINNERS_RESEARCH §3):**
+  - Board at eye level, LEDs and 7-segment facing the judges; dashboard attract loop running on the monitor.
+  - Start the pitch with the board powered off so the cold boot from flash is the first thing they see (§7.0). Keep the start_demo command ready to paste.
+  - "Judge causes, hardware responds": offer the power switch and BTN0 (self-test, LED0 and LED1). Both are existing, tested inputs. There is no physical FULL/STRIP input; mode is set per job from the host, so do not improvise one.
+  - Recorded video stored locally on the laptop as the fallback (not only a URL).
+  - Time the 3-minute pitch once at the table; leave the full 2 minutes for questions.
 - [ ] **Fallback ready:**
   - **KG2 at 115,200 baud** over JTAG: `scripts/vivado -mode batch -source fpga/tcl/program.tcl -tclargs fpga/known_good/KG2/top.bit`. Then run `start_demo.ps1` as above. It auto-detects 115,200, but generation takes about 30 s per step.
   - **REPLAY** (`R`, or `start_demo.ps1 -Replay results\hw`) shows the recorded runs, and Scene 4 replays a recorded generation. Pick the recorded story in the REPLAY view before judging, and read its build, baud and GEMM count off the screen; don't assume which run it is.
@@ -156,7 +162,7 @@ It then jumps to Scene 2 with the newest points highlighted.
 ---
 
 
-## 7. Two-minute pitch
+## 7. Pitches (3-minute judging pitch, 2-minute variants)
 
 <!--
 Owner: demo-storyteller. Sources for every number in §7–§8 (full derivations in README.md HONESTY KEY):
@@ -187,7 +193,7 @@ Owner: demo-storyteller. Sources for every number in §7–§8 (full derivations
         61 identical generated tokens, then diverges; teacher-forced top-1 250/256; f32 == published readme text.
         Echo 100 KB: 25.4 s (16 ms timer) vs 1.57 s (1 ms), results/hw/logs/KG3/Q-1, Q-7.
   [V] tb/SIGNOFF.md, tb/system/SIGNOFF_SYSTEM.md, DECISIONS D-016/D-017/D-020   [S] SPEC v1.1 constants
-Word counts (≤ 280 each, ~150 wpm → under 2:00) include the stage directions, so the spoken
+Word counts (≤ 280 each for the 2-minute pitches, ≤ 420 for pitch:general3; ~150 wpm → under 2:00 / 3:00) include the stage directions, so the spoken
 part is shorter. Check: see the "Pitch word counts" command in §9.
 -->
 
@@ -197,7 +203,46 @@ part is shorter. Check: see the "Pitch word counts" command in §9.
 - If the board is in REPLAY or SIM, say so in the first sentence.
 - Any wall time you speak names its link: "two seconds per token over the serial link". The on-chip number is 295 µs.
 
-### 7.1 Default (Cal Hacks judges)
+### 7.0 Three-minute judging pitch (Cal Hacks 13.0: 3 min pitch + 2 min Q&A)
+
+The 13.0 format is "three minutes to pitch and two minutes for judges to ask questions", with a live or pre-recorded demo (cal-hacks-13-0.devpost.com, per docs/WINNERS_RESEARCH.md §0). Order per WINNERS_RESEARCH §3: cold boot, live LLM, FULL→STRIP with one big number, model exact, one Application sentence, honest limits. Budget ≤ 420 words including stage directions.
+
+<!-- pitch:general3 -->
+*[Board off, LEDs facing the judges. Flip the power switch.]* This FPGA is a tiny AI chip I designed, verified and brought up solo. It just configured itself from its own flash in about a second. No laptop programmed it.
+
+*[Scene 4, press G.]* And it's running a real language model, stories260K, a tiny public one. Every linear layer runs on this chip, bit-exact. Attention, softmax and the norms run on the laptop. On-chip, a step takes 295 microseconds; the two seconds you see are mostly the serial link.
+
+*[Scene 1, run `ffn_up` M=1, FULL.]* Here's the problem. When a model writes one word at a time, each matrix multiply is one row tall. My 8-by-8 array can fill only 1 of its 8 rows. Measured: 6.95% of the multipliers doing useful work.
+
+*[Same job, STRIP. Point at the big number.]* So the chip rewires itself into a 4-by-16 strip. Same 64 multipliers, no reconfiguration. Measured: 14.40%. Across the four matmuls of a transformer block, that's 2.02 to 2.07 times the utilization, read from the hardware counters, and bit-exact against my Rust reference.
+
+*[Scene 2, hollow model markers.]* Before the board session I wrote a cycle model of the chip. On 773 matrix multiplies on this board, it predicted all twelve hardware counters exactly. The language model adds 2,146 more, all bit-exact, all matching the model.
+
+STRIP isn't always better: on some shapes its tile padding makes it slower. So the model picks the shape per matrix, and on 126 shapes measured both ways, it never picked the slower one.
+
+*[Scene 3.]* Who is this for? Small-batch, decode-bound inference, where a square array pays for idle multipliers. Reshaping the array is a way to stop paying for them.
+
+*[Verified panel.]* The honest limits. Splitting costs 25% more operand bandwidth and about 2,200 more lookup tables, mostly in the wider output path; I measured that. This is 64 multipliers on a small FPGA, so it's a utilization result, not a speed claim against a CPU or GPU. Next: stream weights from DRAM, where FULL's lower bandwidth might win.
+
+Happy to go deeper.
+<!-- /pitch -->
+
+<!-- Sources for 7.0: boot "about a second" = human observation, docs/STATUS.md 22:08 (KG3) [no log]. 295 microseconds = 29,540
+     cycles/step, results/hw/lm KG3 record [HW]. "two seconds" = 2.16 s/step, KG3 at 1,562,500 baud + 1 ms FTDI timer [HW, laptop
+     wall]; on KG2 or the 16 ms timer say "the seconds you see". "1 of its 8 rows" = SPEC M=1 mapping ceiling 12.5% [S].
+     6.95% / 14.40% = results/hw/2026-10-24T20-40-41Z-ffn_up-m1-{full,strip}.json: 16384/(64*3682) = 0.069527,
+     16384/(64*1778) = 0.143982 [HW]. 2.02–2.07 = M=1 ratios 2.0247..2.0709 across qkv/attn_out/ffn_up/ffn_down [HW].
+     773 x 12 counters, 0 of 9,276 differ [HW]. 2,146 = LM GEMMs 444 + 1258 + 444, bit_exact and counters_eq_model on all [HW].
+     126 = pick-check pooled across KG1/KG2/KG3 (125 on KG1 alone), 126/126, 5 measured ties on KG1 [HW].
+     25% = 20 vs 16 B/cycle [S]. "about 2,200" = cost.json delta.total.lut 2243 [B]. "Application" sentence = approved framing
+     (WINNERS_RESEARCH §3), no market claim. "before the board session": model 72da652 committed 10:10 PDT, first HW GEMM 13:26. -->
+
+**Category angles (one or two sentences each, swapped in after the cold boot; WINNERS_RESEARCH §3).**
+- **Best Hardware Hack:** physical first. Let the judge flip the power switch and press BTN0 (self-test: LED0 and LED1 come on). Then: "a real model running on logic I designed", and only then the 2.02–2.07×.
+- **Best Solo Hack:** say "solo" once, early: "designed, verified and brought up by one person". Then one breadth line: "RTL, a cycle model, the board bring-up and the language-model port, every layer checked against the next." Then the one crisp idea: the 2× mode switch.
+- **Most Technically Complex Hack:** move the model result up to second: "a cycle model predicted all twelve hardware counters exactly, on 773 matrix multiplies, with no calibration", then the verification line (11 of 11 suites signed off, a pin-level system simulation at 625 of 625 jobs per demo bitstream, 0 mismatches on the board).
+
+### 7.1 Two-minute default (Cal Hacks judges)
 
 <!-- pitch:general -->
 *[Scene 1, point at the board.]* LLM chips are built around big grids of multipliers called systolic arrays. When a model writes text one token at a time, each matrix multiply is a single row tall, and most of the grid sits idle.
@@ -342,5 +387,5 @@ Say which mode you are in. Never present replayed or simulated data as live.
 - [ ] `scripts/wsl 'python results/plots/make_plots.py --check'`: plots regenerated from the committed records; the source line under each plot lists records per build (KG1 52a66216, KG2 38a3950a, KG3 21dd6850).
 - [ ] No HW placeholder left: `grep -c "$(printf '\342\237\246')HW" README.md docs/devpost.md docs/DEMO.md` prints 0 for all three (the printf emits the opening placeholder bracket, so this line doesn't count itself). Only HUMAN placeholders remain (table number, URLs, hero photo); fill them before submitting.
 - [ ] Every spoken number has been re-read from `results/` that morning. If new HW records were committed overnight, the 773 / 393,129,309 / 9,276 counts change: recount with `git ls-files 'results/hw/*.json'`.
-- [ ] Pitch word counts (each ≤ 280): `awk '/<!-- pitch:/{f=1;n=$0;next}/<!-- \/pitch -->/{print n, c; c=0; f=0} f{c+=NF}' docs/DEMO.md`
+- [ ] Pitch word counts (general3 ≤ 420, the others ≤ 280): `awk '/<!-- pitch:/{f=1;n=$0;next}/<!-- \/pitch -->/{print n, c; c=0; f=0} f{c+=NF}' docs/DEMO.md`
 - [ ] Each pitch has been rehearsed once against a skeptical-engineer Q&A from §8.2.

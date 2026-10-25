@@ -106,7 +106,14 @@ HONESTY KEY (red-team: audit every number in this file against this key).
   ⟦HUMAN: …⟧ = not decided yet. Never replace with a guess.
 -->
 
-**Big systolic arrays leave most of their rows idle on one-token-at-a-time LLM decode. SplitSys is an 8×8 int8 array that rewires itself into a 4×16 array at runtime. Measured on the board's hardware counters, that doubles decode utilization: 2.02–2.07× across the four matmuls of a transformer block at M = 1 [HW]. A cycle model written before the board was touched predicted all 12 counters exactly, on every one of 773 hardware GEMMs [HW]. The same board runs every linear layer of a small public language model, bit-exact. The price is 25% more operand bandwidth per cycle and an area cost I measured.**
+**I built a tiny AI chip on an FPGA that rewires itself to keep twice as many multipliers busy while a language model writes one word at a time, and it runs a real (tiny) language model live.**
+
+SplitSys is an 8×8 int8 systolic array I designed and built solo on a Spartan-7 FPGA. In LLM decode (one token at a time, M = 1), an 8×8 array can fill only 1 of its 8 rows, a 12.5% mapping ceiling [S]; measured, `ffn_up` reaches 6.95% [HW]. So SplitSys rewires itself at runtime into a 4×16 array. Measured on the board's hardware counters, that is 2.02–2.07× the utilization across the four matmuls of a transformer block at M = 1 [HW]. A cycle model written before the board session predicted all 12 counters exactly, on every one of 773 hardware GEMMs [HW]. The same board runs every linear layer of stories260K, a small public language model, bit-exact; attention, softmax and the norms run on the laptop [HW]. STRIP isn't always better, so the cycle model picks the mode per matrix; on 125 shapes measured both ways on the first build (126 across all three) it never picked the slower one [HW]. The price is 25% more operand bandwidth per cycle [S] and an area cost I measured [B]. This is a utilization result inside the array, not a speed claim against a CPU or GPU.
+
+<!-- Top-of-README sources (same as HONESTY KEY): "twice as many multipliers busy" = M=1 STRIP/FULL utilization ratio,
+     util = mac_useful/(64*cycles_total), 2.0247..2.0709 [HW]; ffn_up 16384/(64*3682) = 0.069527 (20-40-41Z-ffn_up-m1-full).
+     12.5% = SPEC M=1 FULL mapping ceiling. 773 / 12 counters / 0 differ, LM 2,146/2,146 bit-exact, 125/125 KG1 and
+     126/126 pooled pick-check: see [HW] above. -->
 
 > ⟦HUMAN: GIF or photo of the board running, PE grid lit on the monitor⟧
 
