@@ -40,3 +40,6 @@ usage_statistics*
 vivado_pid*.str
 # host mock-board run records (never verification evidence)
 results/mock/
+# hardware session logs are evidence: always tracked
+!results/hw/logs/
+!results/hw/logs/**

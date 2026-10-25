@@ -19,7 +19,7 @@ All commands run from the repo root `C:\Users\danie\FPGA_Projects\Calhack2026` i
 | H-4 self-test | PASS 13:26: 0/256 OBUF bytes differ | PASS 16:19: 0/256 |
 | H-5 random GEMMs | PASS 13:37: 200 GEMMs, 0 output/counter mismatches | PASS 16:29: 200 GEMMs, 0 mismatches |
 | H-6 benchmarks | PASS 13:41: 56/56, model error 0.000 % | not rerun |
-| H-7 dashboard cold start | Lead summary lists H-7 under KG1; docs/STATUS.md has no separate dated H-7 row for KG1 | PASS 17:04 (with H-8e): `start_demo.ps1` 1.9 s wall (~2 s); STATUS records total ≈ 3–5 s; target < 60 s |
+| H-7 dashboard cold start | PASS (dashboard part, ~13:52–14:15, not clock-read): live kiosk on the monitor, BOARD LIVE build 52a66216, scripted demo (Space) ran and ended on Scene 2 with HW data (human screenshot); 16 dashboard records @52a66216 committed cd75ccc. Cold-start drill not possible without flash → done on KG2 | PASS 17:04 (with H-8e): `start_demo.ps1` 1.9 s wall (~2 s); STATUS records total ≈ 3–5 s; target < 60 s |
 | H-8 QSPI flash + boot | not flashed | PASS: flash programmed and verified 16:42 (34 s); cold power-up from flash in **~1 s** (~16:50) |
 | Archived | KG1 ~13:43 (7b3af2c), kept | KG2 16:31 (ccd7e3b); **`fpga/known_good/CURRENT` → KG2** |
 

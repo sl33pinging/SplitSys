@@ -1,0 +1,208 @@
+
+****** Vivado v2025.2.1 (64-bit)
+  **** SW Build 6403652 on Thu Mar 19 19:48:24 GMT 2026
+  **** IP Build 6403511 on Thu Mar 19 12:41:45 MDT 2026
+  **** SharedData Build 6403650 on Thu Mar 19 14:02:13 MDT 2026
+  **** Start of session at: Sat Oct 24 16:40:54 2026
+    ** Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+    ** Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
+
+Sourcing tcl script 'C:/Users/danie/AppData/Roaming/Xilinx/Vivado/Vivado_init.tcl'
+source fpga/tcl/flash.tcl
+# proc fail {step msg} {
+#     puts "FLASH_FAIL: $step: $msg"
+#     catch {close_hw_manager}
+#     exit 1
+# }
+# set usage "usage: flash.tcl <bit> \[<cfgmem_part>\] \[--image-only|--program|--verify-only|--erase\]"
+# set mode program
+# set pos {}
+# foreach a $argv {
+#     switch -- $a {
+#         --image-only  { set mode image }
+#         --program     { set mode program }
+#         --verify-only { set mode verify }
+#         --erase       { set mode erase }
+#         default {
+#             if {[string match --* $a]} { puts $usage; exit 2 }
+#             lappend pos $a
+#         }
+#     }
+# }
+# if {[llength $pos] < 1 || [llength $pos] > 2} { puts $usage; exit 2 }
+# set ROOT [file normalize [file join [file dirname [info script]] .. ..]]
+# set bit [lindex $pos 0]
+# set part_name [expr {[llength $pos] == 2 ? [lindex $pos 1] : "mt25ql128-spi-x1_x2_x4"}]
+# set FLASH_MB 16   
+# if {[file pathtype $bit] ne "absolute"} { set bit [file join $ROOT $bit] }
+# if {[file isfile $bit] && [file extension $bit] ne ".bit"} {
+#     set fh [open $bit]; set rel [string trim [read $fh]]; close $fh
+#     set bit [file join $ROOT $rel]
+# }
+# if {![file isfile $bit]} { fail args "bitfile not found: $bit" }
+# set bit [file normalize $bit]
+# set_param board.repoPaths [list]
+# set mem ""
+# foreach p [get_cfgmem_parts -quiet $part_name] {
+#     if {[lsearch -exact [get_property COMPATIBLE_PARTS $p] spartan7] >= 0} { set mem $p; break }
+# }
+# if {$mem eq ""} { fail cfgmem_part "no cfgmem part '$part_name' compatible with spartan7 (try: get_cfgmem_parts *mt25ql128*)" }
+# puts "FLASH: cfgmem part [get_property NAME $mem] ([get_property MEM_MANUFACTURER $mem], [get_property MEM_DENSITY $mem] Mbit, [get_property MEM_TYPE $mem] [get_property DATA_WIDTH $mem])"
+FLASH: cfgmem part mt25ql128-spi-x1_x2_x4 (Micron, 128 Mbit, spi x1_x2_x4)
+# package require md5
+# proc file_md5 {f} { return [string tolower [::md5::md5 -hex -file $f]] }
+# set name [file tail [file dirname $bit]]
+# set out_dir [file join $ROOT fpga build flash]
+# file mkdir $out_dir
+# set bin [file join $out_dir $name.bin]
+# set prm [file join $out_dir $name.prm]
+# puts "FLASH: bit $bit md5 [file_md5 $bit]"
+FLASH: bit C:/Users/danie/FPGA_Projects/Calhack2026/fpga/known_good/KG2/top.bit md5 63dea71fd7e8c151f836143c8bac2b2a
+# if {[catch {
+#     write_cfgmem -force -format bin -interface SPIx4 -size $FLASH_MB \
+#         -loadbit [list up 0x00000000 $bit] -file $bin
+# } e]} { fail write_cfgmem $e }
+Command: write_cfgmem -force -format bin -interface SPIx4 -size 16 -loadbit {up 0x00000000 C:/Users/danie/FPGA_Projects/Calhack2026/fpga/known_good/KG2/top.bit} -file C:/Users/danie/FPGA_Projects/Calhack2026/fpga/build/flash/KG2.bin
+Creating config memory files...
+Creating bitstream load up from address 0x00000000
+Loading bitfile C:/Users/danie/FPGA_Projects/Calhack2026/fpga/known_good/KG2/top.bit
+Writing file C:/Users/danie/FPGA_Projects/Calhack2026/fpga/build/flash/KG2.bin
+Writing log file C:/Users/danie/FPGA_Projects/Calhack2026/fpga/build/flash/KG2.prm
+===================================
+Configuration Memory information
+===================================
+File Format        BIN
+Interface          SPIX4
+Size               16M
+Start Address      0x00000000
+End Address        0x00FFFFFF
+
+Addr1         Addr2         Date                    File(s)
+0x00000000    0x001411F3    Oct 24 16:30:11 2026    C:/Users/danie/FPGA_Projects/Calhack2026/fpga/known_good/KG2/top.bit
+0 Infos, 0 Warnings, 0 Critical Warnings and 0 Errors encountered.
+write_cfgmem completed successfully
+# if {![file isfile $bin] || ![file isfile $prm]} { fail write_cfgmem "no $bin / $prm written" }
+# set bin_md5 [file_md5 $bin]
+# set info [file join $out_dir $name.txt]
+# set fh [open $info w]
+# puts $fh "bit      [string map [list $ROOT/ {}] $bit]"
+# puts $fh "bit_md5  [file_md5 $bit]"
+# puts $fh "bin      [string map [list $ROOT/ {}] $bin]"
+# puts $fh "bin_md5  $bin_md5"
+# puts $fh "bin_size [file size $bin]"
+# puts $fh "cfgmem   [get_property NAME $mem]"
+# puts $fh "args     write_cfgmem -format bin -interface SPIx4 -size $FLASH_MB -loadbit {up 0x00000000 <bit>}"
+# puts $fh "date     [clock format [clock seconds] -format {%Y-%m-%dT%H:%M:%S%z}]"
+# close $fh
+# puts "FLASH: image $bin ([file size $bin] bytes) md5 $bin_md5"
+FLASH: image C:/Users/danie/FPGA_Projects/Calhack2026/fpga/build/flash/KG2.bin (1315316 bytes) md5 81547a2596be6283032d9b1e3448c4ba
+# if {$mode eq "image"} { puts "FLASH_IMAGE_OK: $bin"; exit 0 }
+# open_hw_manager
+open_hw_manager: Time (s): cpu = 00:00:15 ; elapsed = 00:00:12 . Memory (MB): peak = 642.594 ; gain = 51.383
+# if {[catch {connect_hw_server -allow_non_jtag} e]} { fail connect_hw_server $e }
+INFO: [Labtools 27-2285] Connecting to hw_server url TCP:localhost:3121
+INFO: [Labtools 27-2222] Launching hw_server...
+INFO: [Labtools 27-2221] Launch Output:
+
+****** Xilinx hw_server v2025.2.1
+  **** Build date : Mar 10 2026 at 23:31:30
+    ** Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+
+
+INFO: [Labtools 27-3415] Connecting to cs_server url TCP:localhost:0
+INFO: [Labtools 27-3417] Launching cs_server...
+INFO: [Labtools 27-2221] Launch Output:
+
+
+******** Xilinx cs_server v2025.2.0
+  ****** Build date   : Nov 13 2025-15:16:52
+    **** Build number : 2025.2.1763075812
+      ** Copyright 2017-2022 Xilinx, Inc. All Rights Reserved.
+      ** Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
+
+
+
+connect_hw_server: Time (s): cpu = 00:00:00 ; elapsed = 00:00:11 . Memory (MB): peak = 649.520 ; gain = 6.926
+# set targets [get_hw_targets -quiet]
+# if {[llength $targets] == 0} {
+#     fail open_hw_target "no JTAG target. Is the micro-USB plugged in, the board powered, and the device NOT attached to WSL (usbipd detach)?"
+# }
+# if {[llength $targets] > 1} { puts "FLASH: several targets, using the first: $targets" }
+# if {[catch {open_hw_target [lindex $targets 0]} e]} { fail open_hw_target $e }
+INFO: [Labtoolstcl 44-466] Opening hw_target localhost:3121/xilinx_tcf/Xilinx/88740424039FA
+# set devs [get_hw_devices -quiet xc7s50*]
+# if {[llength $devs] != 1} { fail hw_device "expected one xc7s50 device, found: [get_hw_devices -quiet]" }
+# set dev [lindex $devs 0]
+# current_hw_device $dev
+# refresh_hw_device -update_hw_probes false $dev
+INFO: [Labtools 27-1434] Device xc7s50 (JTAG device index = 0) is programmed with a design that has no supported soft debug core(s) in it.
+# if {[catch {create_hw_cfgmem -hw_device $dev $mem} e]} { fail create_hw_cfgmem $e }
+# set cfg [get_property PROGRAM.HW_CFGMEM $dev]
+# set_property PROGRAM.ADDRESS_RANGE  {use_file} $cfg
+# set_property PROGRAM.FILES          [list $bin] $cfg
+# set_property PROGRAM.PRM_FILE       $prm $cfg
+# set_property PROGRAM.UNUSED_PIN_TERMINATION {pull-none} $cfg
+# set_property PROGRAM.CHECKSUM 0 $cfg
+# switch -- $mode {
+#     program { set flags {ERASE 1 BLANK_CHECK 1 CFG_PROGRAM 1 VERIFY 1} }
+#     verify  { set flags {ERASE 0 BLANK_CHECK 0 CFG_PROGRAM 0 VERIFY 1} }
+#     erase   { set flags {ERASE 1 BLANK_CHECK 1 CFG_PROGRAM 0 VERIFY 0} }
+# }
+# foreach {k v} $flags { set_property PROGRAM.$k $v $cfg }
+# puts "FLASH: mode $mode, operations: $flags"
+FLASH: mode program, operations: ERASE 1 BLANK_CHECK 1 CFG_PROGRAM 1 VERIFY 1
+# if {[catch {
+#     create_hw_bitstream -hw_device $dev [get_property PROGRAM.HW_CFGMEM_BITFILE $dev]
+#     program_hw_devices $dev
+#     refresh_hw_device -update_hw_probes false $dev
+# } e]} { fail cfgmem_helper_bitstream $e }
+INFO: [Labtools 27-3164] End of startup status: HIGH
+INFO: [Labtools 27-2302] Device xc7s50 (JTAG device index = 0) is programmed with a design that has 1 SPI core(s).
+# set t0 [clock seconds]
+# if {[catch {program_hw_cfgmem -hw_cfgmem $cfg} e]} { fail "program_hw_cfgmem ($mode)" $e }
+Mfg ID : 20   Memory Type : ba   Memory Capacity : 18   Device ID 1 : 0   Device ID 2 : 0
+Performing Erase Operation...
+Erase Operation successful.
+Performing Blank Check Operation...
+Blank Check Operation successful. The part is blank.
+Performing Program and Verify Operations...
+Program/Verify Operation successful.
+INFO: [Labtoolstcl 44-377] Flash programming completed successfully
+program_hw_cfgmem: Time (s): cpu = 00:00:00 ; elapsed = 00:00:34 . Memory (MB): peak = 650.910 ; gain = 0.000
+# puts "FLASH: program_hw_cfgmem ($mode) ok in [expr {[clock seconds] - $t0}] s"
+FLASH: program_hw_cfgmem (program) ok in 34 s
+# if {$mode eq "program" || $mode eq "verify"} {
+#     if {[catch {boot_hw_device $dev} e]} { fail boot_hw_device $e }
+#     after 3000
+#     refresh_hw_device -update_hw_probes false $dev
+#     set done ""
+#     catch {set done [get_property REGISTER.CONFIG_STATUS.BIT14_DONE_PIN $dev]}
+#     puts "FLASH: after boot_hw_device DONE pin = '$done'"
+#     if {$done ne "1"} {
+#         puts "FLASH_BOOT_FAIL: flash $mode passed, but the FPGA did not configure from flash (DONE low)."
+#         puts "  Most likely: mode jumper J14 (next to the FPGA, sheet 11, on M2) is not installed."
+#         puts "  The FPGA is unconfigured now. Restore over JTAG:"
+#         puts "  scripts/vivado -mode batch -source fpga/tcl/program.tcl -tclargs [string map [list $ROOT/ {}] $bit]"
+#         catch {close_hw_manager}
+#         exit 4
+#     }
+# } else {
+#     puts "FLASH: erase only; the FPGA runs the SPI helper design. Re-program over JTAG:"
+#     puts "  scripts/vivado -mode batch -source fpga/tcl/program.tcl -tclargs [string map [list $ROOT/ {}] $bit]"
+# }
+INFO: [Labtoolstcl 44-664] Will wait up to 180 seconds for booting to complete.
+INFO: [Labtools 27-32] Done pin status: HIGH
+INFO: [Labtools 27-1434] Device xc7s50 (JTAG device index = 0) is programmed with a design that has no supported soft debug core(s) in it.
+FLASH: after boot_hw_device DONE pin = '1'
+# catch {close_hw_target}
+INFO: [Labtoolstcl 44-464] Closing hw_target localhost:3121/xilinx_tcf/Xilinx/88740424039FA
+# catch {disconnect_hw_server}
+# close_hw_manager
+# switch -- $mode {
+#     program { puts "FLASH_OK: $bin (md5 $bin_md5) written, verified, FPGA booted from flash" }
+#     verify  { puts "FLASH_VERIFY_OK: flash matches $bin (md5 $bin_md5), FPGA booted from flash" }
+#     erase   { puts "FLASH_ERASE_OK" }
+# }
+FLASH_OK: C:/Users/danie/FPGA_Projects/Calhack2026/fpga/build/flash/KG2.bin (md5 81547a2596be6283032d9b1e3448c4ba) written, verified, FPGA booted from flash
+# exit 0
+INFO: [Common 17-206] Exiting Vivado at Sat Oct 24 16:42:34 2026...

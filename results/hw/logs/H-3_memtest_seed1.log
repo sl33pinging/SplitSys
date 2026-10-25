@@ -1,0 +1,14 @@
+memtest: 10000 frames, seed 1, via serial:COM3@115200 (source hw)
+     1000/10000 frames     516842 bytes  bad frames 0  errors 0
+     2000/10000 frames    1016757 bytes  bad frames 0  errors 0
+     3000/10000 frames    1526933 bytes  bad frames 0  errors 0
+     4000/10000 frames    2020021 bytes  bad frames 0  errors 0
+     5000/10000 frames    2528763 bytes  bad frames 0  errors 0
+     6000/10000 frames    3059672 bytes  bad frames 0  errors 0
+     7000/10000 frames    3571184 bytes  bad frames 0  errors 0
+     8000/10000 frames    4091066 bytes  bad frames 0  errors 0
+     9000/10000 frames    4608151 bytes  bad frames 0  errors 0
+    10000/10000 frames    5123818 bytes  bad frames 0  errors 0
+MEMTEST PASS: seed 1 frames 10000 bytes 5123818 bad_frames 0 bad_bytes 0 errors 0 | NACK_CRC 0 bad_rsp_crc 0 timeouts 0 busy 0 retries 0
+regions (frames): WBUF 2550 ABUF 2489 OBUF 2516 RQPARAM 2445
+rc=0
