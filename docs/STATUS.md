@@ -181,6 +181,8 @@ States: `todo` · `running` · `done` (owner handoff, lead checked) · `PASS` (r
 | 19:46 | human | decision | AI disclosure: **brief mention only** — add 'Claude Code (AI coding agents)' to Built with; keep first-person text. |
 | 20:05 | red-team-reviewer | **G4: all agent-owned items PASS** | Delta re-audit 3cd857f..b152bc0: AI mention exactly as decided; tagline/mutant/timing/sign-off fixes verified; dashboard per-build attribution recomputed correct; 2.07× consistent; shape pairing incl. cross-build label; REPLAY ticker; offline; tests 64 pass. Remaining human-owned: Devpost draft submission, Scenes 2–3 check on the physical monitor, MatX quotes + location confirmation online. New SEV-3: booth runs grow the live counter past 473 (4 runs at 20:02 left untracked) → **lead policy: booth runs are not committed**; Q&A line added by storyteller. |
 
+| 20:20 | human | done | **Scenes 2 and 3 checked on the physical monitor** with KG2 live (G4 dashboard item closed). Remaining G4 item: Devpost draft submission (human). |
+
 ## Pre-Phase-H human checklist
 - [x] Install Windows Rust + build splitsys-host natively (done by human ~11:30; release build 52 s; lead verified mock ping + selftest PASS from the Windows exe).
 - [ ] Confirm USB strategy (b).
