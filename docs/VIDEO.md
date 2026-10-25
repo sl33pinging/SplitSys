@@ -29,14 +29,14 @@ Spoken words: about 270 (277 in this table, 271 in the SRT, which writes some nu
 | 1:00–1:08 | **S2** Scene 2 model-vs-measured table and curves (hollow model markers on measured points) | `Model vs measured` | "Before the board session, I wrote a cycle model of the chip. On 773 hardware runs, it predicted all twelve counters exactly," |
 | 1:08–1:14 | **C 04_model_exact.png** | — | "and every output matched my golden model bit for bit." |
 | 1:14–1:32 | **S2** continued: the M=64 benchmark bars, then the auto-mode panel | `Auto mode: the model picks` | "The split isn't always better. At M equals 64, STRIP is only slightly ahead on these benchmarks, and on 31 of 97 random shapes FULL was faster, because four-by-sixteen tiles pad worse. So the model picks the mode for every job." |
-| 1:32–1:42 | **S3** Scene 3 architecture and roofline | `Cost of splitting` | "It costs 25 percent more operand bandwidth and 2,243 more lookup tables, mostly a wider requantizer. I measured that too." |
+| 1:32–1:42 | **S3** Scene 3 architecture and roofline | `Cost of splitting` | "It costs 25 percent more operand bandwidth by design, and 2,243 more lookup tables after place and route, mostly a wider requantizer." |
 | 1:42–1:50 | **B4** finger presses BTN0, then LED0 and LED1 light | `Self-test · real time` | "A button press runs the on-board self-test: one FULL and one STRIP job." |
 | 1:50–1:56 | **C 06_limits.png** | — | "This isn't a speed claim against a CPU or GPU. It's about making every multiplier count." |
 | 1:56–2:00 | **C 07_end.png** (placeholders filled) | — | "SplitSys. Built solo at Cal Hacks 13.0." |
 
 Notes:
 1. **B5 option.** If you film a face-to-camera shot, use it at 0:08–0:12 instead of the title card, and say "I'm ⟦name⟧, and I built SplitSys solo." Then show the title card under B3 for one second as a lower-third, or skip it.
-2. **Speed labels.** Scene 4 at 8 tokens is about 26 s of real time (12 steps at 2.16 s; recorded run 2026-10-25T04-59-16Z). The slot is 10 s. Either cut to the last 10 s (a cut, not a speed change; no label needed), or speed it up and put `2× speed` on screen for the whole sped-up span. Never speed up B1, S1 or B4; they are the "real time" proof.
+2. **Speed labels.** Scene 4 at 8 tokens is about 26 s of real time (12 steps at 2.16 s; recorded run 2026-10-25T04-59-16Z). The slot is 10 s. Either cut to the last 10 s (a cut, not a speed change; no label needed), or trim to the last 20 s and set Clipchamp speed to exactly 2× (20 s → 10 s), with `2× speed` on screen for the whole sped-up span. Never use any other factor. Never speed up B1, S1 or B4; they are the "real time" proof.
 3. Say "measured" or "model" for every number, as written. Don't ad-lib other numbers.
 4. If any shot is from REPLAY (amber banner on the dashboard), keep the banner visible and add `REPLAY · recorded` to the label.
 
@@ -47,7 +47,7 @@ Same footage and cards, trimmed. 111 spoken words.
 | Time | Picture | Voiceover |
 |---|---|---|
 | 0:00–0:06 | B1 cold boot (real time) | "This is an AI accelerator I built solo. It boots from its own flash." |
-| 0:06–0:18 | B3 into S4 (generation; `2× speed` label if sped up), B2 cut-in | "It runs a real, tiny language model's linear layers on this chip, about two seconds a token, almost all of it the serial link." |
+| 0:06–0:18 | B3 into S4 (generation; if sped up, exactly 2× on the last ≤20 s of S4, labelled `2× speed`), B2 cut-in | "It runs a real, tiny language model's linear layers on this chip, about two seconds a token, almost all of it the serial link." |
 | 0:18–0:24 | C 02_idle_rows | "One token at a time leaves seven of eight rows idle." |
 | 0:24–0:36 | S1 FULL then STRIP at M=1 | "So it rewires itself from eight by eight into four by sixteen. Utilization goes from 6.95 to 14.40 percent, measured." |
 | 0:36–0:42 | C 03_stat | "2.02 to 2.07 times across four transformer matmuls." |
@@ -96,7 +96,7 @@ Clipchamp menu names change between versions; the steps describe what to do, and
 2. **Import**: B1–B5 phone clips, S1–S4 screen clips, the seven cards `results/plots/video_cards/01_title.png` … `07_end.png`, and your voiceover audio (step 6).
 3. **Video track (main)**, in this order, using the timecodes in (a): B1 → C01 (or B5) → B3 → S4 with a B2 cut-in → C05 → C02 → S1 → C03 → S2 → C04 → S2 (bars, auto panel) → S3 → B4 → C06 → C07. Cards are still images: drag each card's edge to the slot length in (a). Use straight cuts; at most a 0.3 s crossfade into and out of cards.
 4. **Mute all clip audio** (select clip → audio → volume 0), or keep B1's switch click at low volume.
-5. **Text track (labels)**: add the on-screen labels from (a) as Text, top-left, white on a dark semi-transparent box, ≥ 48 px at 1080p. Any sped-up span gets `2× speed` for its whole length. Any REPLAY footage gets `REPLAY · recorded`.
+5. **Text track (labels)**: add the on-screen labels from (a) as Text, top-left, white on a dark semi-transparent box, ≥ 48 px at 1080p. Any sped-up span must be exactly 2× and gets `2× speed` for its whole length. Any REPLAY footage gets `REPLAY · recorded`.
 6. **Voiceover**: record with Windows **Sound Recorder** (quiet room, phone or headset mic about 15 cm away), reading section (a) one row at a time. Leave a 1 s gap between rows, so you can slide each row onto its slot. Import, put it on the audio track, and split it so each line starts at its timecode.
 7. **Captions, burned in**: turn on Clipchamp's auto-captions for the voiceover, then correct every number against `docs/VIDEO_captions.srt` (auto-captions mishear "6.95", "4×16", "stories260K"). Style: white, bold, ≥ 48 px at 1080p, black outline or a dark box, bottom centre, at most 2 lines. If Clipchamp can't burn in captions on your version, add the SRT lines as Text instead. Also keep the SRT for the YouTube upload (step 9).
 8. **Fill the end-card placeholders** before export: either edit the two strings in `results/plots/video_cards/make_cards.py` (07_end block), then run `python results/plots/video_cards/make_cards.py` and re-render with the command in (g), or cover the orange boxes with Clipchamp Text. No `⟦HUMAN` text may remain in the export.

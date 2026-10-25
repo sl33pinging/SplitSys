@@ -103,13 +103,12 @@ for every job.
 
 22
 00:01:32,000 --> 00:01:36,500
-It costs 25% more operand bandwidth
-and 2,243 more lookup tables,
+It costs 25% more operand bandwidth by design,
+and 2,243 more lookup tables after routing,
 
 23
 00:01:36,500 --> 00:01:42,000
 mostly a wider requantizer.
-I measured that too.
 
 24
 00:01:42,000 --> 00:01:50,000
