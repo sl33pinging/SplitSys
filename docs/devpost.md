@@ -26,6 +26,11 @@ Public source for "splittable systolic array" (Inspiration): https://matx.com/re
         -> 61 identical generated tokens; f32_greedy_reproduces_published_readme passes.
       Flash: results/hw/logs/KG2/H-8_flash_program.log, results/hw/logs/KG3/Q-8_flash_program.log ("ok in 34 s",
         FLASH_OK). Boot ~1 s: human (STATUS ~16:50, 22:08). Dashboard 2.1 s wall: STATUS 22:19 (laptop-side).
+Tagline (176 chars, framing approved by human via lead, docs/WINNERS_RESEARCH.md §3 option A): "twice as many multipliers
+        busy" = utilization ratio at M=1, util = mac_useful/(64*cycles_total) = mean fraction of the 64 MACs doing useful
+        work; 2.0247..2.0709 [HW]. Verified 20-40-41Z ffn_up m1: 16384/(64*3682) = 0.069527, 16384/(64*1778) = 0.143982.
+        "1 of 8 rows" / 12.5% = SPEC mapping ceiling at M=1 [S]. "2.16 s per step" = KG3 LM record [HW, laptop wall].
+        "125 ... (126 across all three)" = pick-check above. "LLM" = Llama-architecture model; size disclosed as tiny.
 [S] docs/SPEC.md constants. ⟦HUMAN: …⟧ = placeholder for the human; never guess.
 Before pasting: strip these HTML comments and the [M]/[B]/[V]/[S]/[HW] tags if Devpost renders them
 oddly. Keep the words "model" / "measured" in the prose, though.
@@ -35,10 +40,15 @@ Voice: solo entry, first person singular. The "we" in four section headings is D
 
 **Project name:** SplitSys
 
-**Tagline (≤ 200 chars):** An 8×8 int8 systolic array on a Spartan-7 FPGA that rewires into 4×16 for LLM decode: up to 2.07× the decode utilization, measured on-chip, and a cycle model that predicted every counter.
+**Tagline (≤ 200 chars):** I built a tiny AI chip on an FPGA that rewires itself to keep twice as many multipliers busy while a language model writes one word at a time, and it's running a real LLM live.
 
 **Table number:** ⟦HUMAN: table number (cannot change after Sun 09:00)⟧
 **Team:** solo entry (one person); eligible for Best Solo Hack.
+
+SplitSys is an 8×8 int8 systolic-array accelerator I designed and built solo on a Spartan-7 FPGA. In LLM decode (one token at a time, M = 1), the 8×8 array can fill only 1 of its 8 rows, a 12.5% mapping ceiling (measured: 6.95% for `ffn_up`), so SplitSys rewires itself into a 4×16 "STRIP" shape and measures **2.02–2.07× higher utilization** [HW].
+A cycle model I wrote before the board session predicted **all 12 hardware counters exactly on 773 GEMMs** run on the board [HW], and the board runs the public stories260K model with **every linear layer on the FPGA**, live, at 2.16 s per step end to end (mostly the serial link, not the chip) [HW].
+
+**Limits, up front:** attention, softmax and normalisation run on the laptop. stories260K is a tiny model. The gain is utilization inside the array, measured in on-chip cycles, not a speed claim against a CPU or GPU. STRIP isn't always better, so a cycle model picks the mode per matrix; on 125 shapes measured both ways on the first build (126 across all three) it never picked the slower one [HW].
 
 ---
 
@@ -64,7 +74,7 @@ SplitSys is a GEMM accelerator on a RealDigital Urbana board (AMD Spartan-7 XC7S
 - **The model was exact.** A cycle model, frozen before the hardware session, predicted all 12 counters on all 773 hardware GEMMs with 0 error. Not one of the 9,276 counter values differed [HW]. No calibration was applied.
 - **Prefill (M = 64):** both modes fill the array. Measured: 55.65% FULL vs 57.65% STRIP for `ffn_up` [HW]. The small STRIP edge comes from a shorter drain (4 rows per tile instead of 8), not from the split.
 - **STRIP isn't always better.** On 31 of 97 random shapes run in both modes, STRIP took more cycles, by up to 1.32× [HW]. Each of those shapes needs more STRIP tiles. The model predicted those exactly too.
-- **So the model picks the mode.** In auto mode, on 100 random GEMMs on the board, the model chose FULL 38 times and STRIP 62 times. On all 33 shapes where it predicted STRIP would be slower, it ran FULL, and measured cycles equaled its prediction on 100 of 100 [HW]. By the model, always-FULL would have taken 1.054× as long and always-STRIP 1.016× [MODEL]. That is a small gain on this mix, but it never takes the slow-shape penalty.
+- **So the model picks the mode.** In auto mode, on 100 random GEMMs on the board, the model chose FULL 38 times and STRIP 62 times. On all 33 shapes where it predicted STRIP would be slower, it ran FULL, and measured cycles equaled its prediction on 100 of 100 [HW]. By the model, always-FULL would have taken 1.054× as long and always-STRIP 1.016× [MODEL]. That is a small gain on this mix, but it never takes the slow-shape penalty. Checked against measurements: on 125 shapes measured both ways on the first build (126 across all three), the model's pick was never the slower one [HW].
 - **A real model, on the board.** stories260K (karpathy/tinyllamas, MIT) runs with all 37 linear-layer GEMMs per token on the FPGA, int8 × int8 → int32. Embedding, RMSNorm, RoPE, attention softmax, SwiGLU and sampling run on the laptop.
   - Three runs on two bitstreams: 2,146 GEMMs, all bit-exact, with every counter equal to the model [HW].
   - The 30-token run wrote: *"Once upon a time, there was a little girl named Lily. She loved to play outside in the park. One day,"*
