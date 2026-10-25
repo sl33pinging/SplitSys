@@ -17,7 +17,8 @@ Public source for "splittable systolic array" (Inspiration): https://matx.com/re
       ffn_up M=1: 20-40-41Z util 0.069527 / 0.143982 (2.0709); M=1 range 2.0247..2.0709; M=64 0.556484 / 0.576536.
       H-5 pairs 97: STRIP more cycles on 31 (max 3566/2711 = 1.315x, M=22 K=250 N=17).
       AUTO (results/hw/logs/KG2/G5_auto_random100_seed1.log): FULL 38 / STRIP 62; 33 predicted-STRIP-slower all FULL;
-        measured == model 100/100; MODEL always-FULL 1.054x, always-STRIP 1.016x. KG1 pick-check 125/125 (recomputed).
+        measured == model 100/100; MODEL always-FULL 1.054x, always-STRIP 1.016x. Pick-check: 125/125 shapes on KG1
+        (126/126 pooled across all three builds; KG2 H-5 97/97, KG3 97/97; recomputed, matches red-team G5).
       LM results/hw/lm/ (3 tracked): KG2 8 tok 444/444, KG2 30 tok 1258/1258, KG3 8 tok 444/444 bit-exact and
         counters == model; 29,540 cycles/step (295 us); wall 30.76 s/step (KG2, 115200, FTDI timer 16 ms),
         2.16 s/step (KG3, 1562500, 1 ms) per fpga/known_good/KG3/archive.txt lead_note.

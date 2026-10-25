@@ -148,7 +148,7 @@ It then jumps to Scene 2 with the newest points highlighted.
 - [ ] Attract loop running; operator console visible only on the laptop.
 - [ ] **Fallback ready:**
   - **KG2 at 115,200 baud** over JTAG: `scripts/vivado -mode batch -source fpga/tcl/program.tcl -tclargs fpga/known_good/KG2/top.bit`. Then run `start_demo.ps1` as above. It auto-detects 115,200, but generation takes about 30 s per step.
-  - **REPLAY** (`R`, or `start_demo.ps1 -Replay results\hw`) shows the recorded runs, and Scene 4 replays a recorded generation. Check before judging which one it shows; the 30-token KG2 story is `results/hw/lm/2026-10-25T04-20-52Z-lm.json`.
+  - **REPLAY** (`R`, or `start_demo.ps1 -Replay results\hw`) shows the recorded runs, and Scene 4 replays a recorded generation. Pick the recorded story in the REPLAY view before judging, and read its build, baud and GEMM count off the screen; don't assume which run it is.
 - [ ] Backup video on the laptop desktop; REPLAY mode tested.
 - [ ] Spare USB cable, power strip, chargers in reach.
 - [ ] Devpost submitted with the correct table number.
@@ -178,6 +178,8 @@ Owner: demo-storyteller. Sources for every number in §7–§8 (full derivations
         AUTO (KG2, results/hw/logs/KG2/G5_auto_random100_seed1.log): FULL 38 / STRIP 62, 33 predicted-slower -> FULL,
         measured == model 100/100, 1,225,768 cycles; MODEL always-FULL 1.054x, always-STRIP 1.016x.
         Model pick vs measured on KG1 shapes run both ways: 125/125 (5 measured ties), storyteller recomputation.
+        Pooled across KG1/KG2/KG3 tracked records: 126/126 (extra shape M=9 K=3 N=9, KG2 check run + auto); KG2 H-5 97/97,
+        KG3 97/97. Agrees with red-team G5 recompute (lead: dashboard shows 126/126).
         LM results/hw/lm/ (3 tracked records): KG2 8 tok 444/444, KG2 30 tok 1258/1258, KG3 8 tok 444/444; 37 GEMMs/step,
         29,540 cycles/step = 295.4 us, 259,328 MACs/step (13.7%); wall 30.76 s/step (KG2, 115,200, 16 ms timer),
         2.16 s/step (KG3, 1,562,500, 1 ms timer); 245,623 bytes sent per step (steady state); WBUF 65,536 B,
@@ -229,7 +231,7 @@ part is shorter. Check: see the "Pitch word counts" command in §9.
 
 *[Scene 2.]* At prefill both shapes fill the array. STRIP is still slightly ahead, measured 57.65% against 55.65%, but that's drain, four rows per tile instead of eight, not mapping.
 
-The method is model-first, in the spirit of *Efficiently Scaling Transformer Inference*. A cycle model predicted all twelve hardware counters before measurement. Error on the board: zero, on all 773 GEMMs. So the host lets the model pick the shape per job. On 125 shapes I'd measured both ways, it never picked the slower one.
+The method is model-first, in the spirit of *Efficiently Scaling Transformer Inference*. A cycle model predicted all twelve hardware counters before measurement. Error on the board: zero, on all 773 GEMMs. So the host lets the model pick the shape per job. On 125 shapes I'd measured both ways on the first build, 126 across all three, it never picked the slower one.
 
 *[Scene 3.]* The cost of splitting: STRIP streams 20 operand bytes per cycle against 16, so 25% more. In area, post-route, it's +2,243 LUTs and 16 DSPs. Only about 670 LUTs are the split muxing. The rest is the 16-lane requantizer that a 16-wide tile needs.
 
@@ -238,7 +240,7 @@ The method is model-first, in the spirit of *Efficiently Scaling Transformer Inf
 
 <!-- 12.5/25 = SPEC §4 ceilings [S]; 7.0/14.4 [M]; 57.65/55.65 [HW]; 2,243 LUT, 16 DSP, "about 670" = 667 = 378+289 LUT
      (breakdown.delta array+sequencer) [B]; 125 = KG1 shapes measured in both modes, model pick had the lowest measured
-     cycles on 125/125 (5 ties) [HW]. -->
+     cycles on 125/125 (5 ties) [HW]; 126 = pooled across all three builds, 126/126 [HW]. -->
 
 ### 7.3 Annapurna Labs variant
 
@@ -287,7 +289,7 @@ Each answer takes under 30 seconds. [HW] numbers are from the 773 committed GEMM
 | Question | Answer (short) |
 | --- | --- |
 | STRIP is faster even at prefill. Isn't FULL pointless? | No. On the benchmark shapes STRIP is 1.013–1.036× at M ≥ 8 [HW], and that edge is drain, 4 rows per tile against 8. But on 31 of 97 random shapes, FULL was faster, by up to 1.32× [HW], because STRIP's 4×16 tiles pad worse. FULL also wins when bandwidth is the limit: 16 B/cycle instead of 20. I didn't build that regime (no DRAM). |
-| Does auto mode help? | A little, and it's safe. On 100 random GEMMs on the board, the model picked FULL 38 times and STRIP 62, and ran FULL on all 33 shapes where it predicted STRIP slower [HW]. Measured cycles equaled its prediction on all 100. By the model, always-STRIP would have cost 1.6% more and always-FULL 5.4% more [MODEL; the un-chosen mode wasn't run]. On 125 shapes I'd measured both ways, its pick was never the slower one [HW]. |
+| Does auto mode help? | A little, and it's safe. On 100 random GEMMs on the board, the model picked FULL 38 times and STRIP 62, and ran FULL on all 33 shapes where it predicted STRIP slower [HW]. Measured cycles equaled its prediction on all 100. By the model, always-STRIP would have cost 1.6% more and always-FULL 5.4% more [MODEL; the un-chosen mode wasn't run]. On 125 shapes I'd measured both ways on KG1, its pick was never the slower one; 126 of 126 across all three builds [HW]. |
 | Why is decode at 7% / 14%, not 12.5% / 25%? | Those are mapping ceilings [S]. Each tile also spends fixed cycles on setup (16), flush (17), and drain plus writeback. For `ffn_up` that's 115 cycles per FULL tile against 64 cycles of useful streaming, so 7.0% and 14.4% [M]. |
 | Why does prefill top out around 56%? | The same per-tile overhead. Stages don't overlap, so the array idles during drain. With K = 64, the useful K cycles are about 56–58% of a tile [M]. `ffn_down` (K = 256) reaches 83.4% (FULL) and 84.5% (STRIP) [M]. |
 | Your simulation matches the model exactly. Isn't that circular? | Partly, and that's why I don't lean on it. SIM == MODEL only shows the RTL implements the spec. The real test was the board: 0 counter differences on 773 runs [HW]. |
@@ -324,7 +326,7 @@ Each answer takes under 30 seconds. [HW] numbers are from the 773 committed GEMM
 ## 9. Failure fallbacks (in order)
 
 1. **Live on KG3** (1,562,500 baud; needs the 1 ms latency timer to be quick).
-2. **Live on KG2** (115,200 baud), programmed over JTAG: `scripts/vivado -mode batch -source fpga/tcl/program.tcl -tclargs fpga/known_good/KG2/top.bit`, then `start_demo.ps1`, which auto-detects the rate. GEMM scenes work normally. Language-model generation takes about 30 s per step, so in Scene 4 use REPLAY of the 30-token story instead.
+2. **Live on KG2** (115,200 baud), programmed over JTAG: `scripts/vivado -mode batch -source fpga/tcl/program.tcl -tclargs fpga/known_good/KG2/top.bit`, then `start_demo.ps1`, which auto-detects the rate. GEMM scenes work normally. Language-model generation takes about 30 s per step, so in Scene 4 pick the recorded story in the REPLAY view instead.
 3. Board self-test (BTN0, LEDs) plus REPLAY mode of the recorded `hw` session (amber banner).
 4. Backup video.
 
@@ -332,7 +334,7 @@ Say which mode you are in. Never present replayed or simulated data as live.
 
 **What to say in each mode.**
 - **REPLAY:** "This is a recording of Saturday's hardware runs. The board is running its self-test live." Show LED0 and LED1.
-- **LM REPLAY:** "This story was generated on the board earlier, on the 115,200-baud bitstream: 1,258 GEMMs, all bit-exact. Replay speed is not board speed."
+- **LM REPLAY:** "This story was generated on the board earlier. It's a recording, and replay speed is not board speed." Then say the build, baud and GEMM count shown on screen; don't quote numbers from memory.
 - **SIM only:** use it only if the booth board fails: "these numbers are from co-simulation of the same RTL, labeled SIM." Never round SIM into HW. The SIM numbers you may say: `ffn_up` M=1 FULL 6.95% → STRIP 14.40%, and M=64 55.65% / 57.65%, from 70 co-sim runs with every counter equal to the model [SIM].
 - **Board dead:** give the self-test and video pitch. The numbers come from the README tables with their source labels.
 

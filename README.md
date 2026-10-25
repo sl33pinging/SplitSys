@@ -34,8 +34,8 @@ HONESTY KEY (red-team: audit every number in this file against this key).
               KG3 (D-020): tb/SIGNOFF.md "Sign-off for the KG3 candidate" 11/11 suites, 66/66 tests at head ac893cd
               (adds real-divisor UART tests); tb/system/SIGNOFF_SYSTEM.md "SIGN-OFF for the KG3 candidate" 625/625;
               cosim-check 8/8 host steps (10 GEMMs, 0 mismatches), eligible YES (SIGNOFF_SYSTEM.md; commits ac893cd, 087e504).
-  [HW] HW     results/hw/*.json, top level, git-TRACKED only (git ls-files; 4 untracked KG2 ffn_up records from
-              2026-10-25T03:02-03:03Z and the 3 untracked results/hw/lm records after 05:21Z are excluded), source "hw":
+  [HW] HW     results/hw/*.json, top level, git-TRACKED only (git ls-files; all untracked booth records, in results/hw
+              and results/hw/lm, are excluded), source "hw":
               773 GEMM run records on the board (COM3), from three bitstreams with the same datapath RTL (see [B]):
               KG1, build_id 52a66216 (fpga/known_good/KG1, bit_md5 6a85a822b28e7d9f2097a8a902d865bf): 272 records
                 200 H-5 `run --random 100 --mode both --seed 1` (e180386), log results/hw/logs/H-5_random_both_seed1.log;
@@ -53,8 +53,8 @@ HONESTY KEY (red-team: audit every number in this file against this key).
                 sw/crates/cycle sw/crates/spec spec changes only BAUD/BAUD_DIV/rx_timeout comment + spec tests.
                 The cycle model code and latencies are unchanged.
               H-5 shapes on all three builds: the 200 KG2 H-5 and 200 KG3 Q-5 counter sets equal KG1's on 200/200 (by gemm name).
-              Derived by the storyteller from the records (recomputed 2026-10-24 22:2x PDT; the committed results/session.json
-              still says 473, and the working copy 777 includes the 4 untracked records):
+              Derived by the storyteller from the committed records (recomputed 2026-10-24 22:2x PDT). results/session.json is
+              a live running total kept by the dashboard server and is not committed (lead cf9120b); no total here uses it:
                 all 773: golden_match 773/773, mismatches 0, outputs_compared 3,099,658, mac_useful sum 393,129,309,
                   invariants_ok 773/773, 12 counters x 773 = 9,276 counter values, 0 differ from the record's model block,
                   cycles_stall 0 on all, latencies_provisional false on all. 59 are int32 bypass.
@@ -71,6 +71,9 @@ HONESTY KEY (red-team: audit every number in this file against this key).
               Model pick vs measured (storyteller recomputation of STATUS 20:44): on KG1 the 125 distinct (M,K,N,requant)
                 shapes measured in both modes (97 H-5 + 28 H-6), the model's pick (min model cycles_total, ties -> FULL)
                 had the lowest measured cycles_total on 125/125 (5 of them measured ties). KG2 and KG3 H-5: 97/97 each.
+                Pooled across all three builds (tracked records, a shape counts if measured in both modes on one build):
+                126/126; the extra shape is M=9 K=3 N=9 requant on KG2 (H-1 check run FULL 23-19-53Z + auto STRIP 03-46-15Z).
+                Recomputed 2026-10-24 22:5x PDT (storyteller; agrees with red-team G5 recompute; lead reports the dashboard shows 126/126).
               LM (results/hw/lm/*.json, tracked: 3; per-step summaries; logs results/hw/logs/KG2/G5_lm_stories260k_{8,30}tok.log,
                 results/hw/logs/KG3/Q-6_lm_8tok.log):
                 04-07-28Z KG2 38a3950a @115200, host 5c59139: 8 tokens, 12 steps, gemms 444, bit_exact 444, counters_eq_model 444,
@@ -184,14 +187,15 @@ At M = 1 the measured STRIP/FULL ratio is 2.07× for `qkv`, `attn_out` and `ffn_
 
 With `--mode auto` the host scores both modes with the cycle model and runs the one with fewer predicted cycles (ties go to FULL). The model is the same frozen code as above.
 
-- **Checked against old data first.** On KG1, 125 distinct shapes were measured in both modes (97 random + 28 benchmark). On all 125 the model's pick had the lowest measured cycle count; 5 of them were measured ties [HW].
+- **Checked against old data first.** On KG1, 125 distinct shapes were measured in both modes (97 random + 28 benchmark). On 125/125 the model's pick had the lowest measured cycle count; 5 of them were measured ties [HW]. Across all three builds the count is 126/126 [HW].
 - **Then run live on the board (KG2):** 100 random GEMMs, `run --random 100 --mode auto --seed 1`. The model picked FULL 38 times and STRIP 62 times. It predicted STRIP slower on 33 shapes, and all 33 ran FULL. All 100 were bit-exact, and measured cycles equaled the model on 100 of 100 [HW].
 - **What it bought:** auto took 1,225,768 cycles in total [HW]. Running the same 100 jobs always-FULL would take 1.054× that, and always-STRIP 1.016× [MODEL: the un-chosen mode was not run]. So on this mix auto beats always-STRIP by only 1.6%: picking STRIP every time is nearly as good, and auto's value is that it never takes the 31-shape penalty above.
 
 <!-- [HW] results/hw/logs/KG2/G5_auto_random100_seed1.log "AUTO:" lines + 100 records with mode_select; recomputed:
      FULL 38 / STRIP 62; strip-slower 33 -> FULL 33; ties 5 -> FULL; measured == model 100/100; 1,225,768 cycles.
      MODEL always-FULL 1,292,418 / 1,225,768 = 1.0544; always-STRIP 1,244,981 / 1,225,768 = 1.0157.
-     125/125: storyteller recomputation from KG1 records (see HONESTY KEY), reproduces STATUS 20:44. -->
+     125/125: storyteller recomputation from KG1 records (see HONESTY KEY), reproduces STATUS 20:44.
+     126/126 pooled across KG1/KG2/KG3 tracked records (HONESTY KEY). -->
 
 ### A real tiny language model, linear layers on the board
 
@@ -289,7 +293,7 @@ All counts below are from `tb/SIGNOFF.md` and `tb/system/SIGNOFF_SYSTEM.md` [V] 
   - **Language model:** 2,146 linear-layer GEMMs across three runs (KG2 444 + 1,258, KG3 444), all bit-exact, with counters equal to the model (`results/hw/lm/`). These are stored separately and are not in the 773.
   - **Boots from flash:** Vivado wrote each live image to the board's QSPI flash (Micron MT25QL128, 128 Mbit, part per the schematic) and verified it. Erase, blank check, program and verify took 34 s, and the FPGA then booted from flash with DONE high (`results/hw/logs/KG2/H-8_flash_program.log`, `results/hw/logs/KG3/Q-8_flash_program.log`). With jumper J14 fitted, the board configures itself at power-on in about 1 s (observed by eye, no log). Neither Vivado nor JTAG is needed at the booth.
   - **Cold start to dashboard:** on KG3, `demo\start_demo.ps1` detected the 1,562,500 baud rate and build 21dd6850, and brought up the dashboard in 2.1 s of laptop wall time (`docs/STATUS.md`, 22:19). This is laptop-side startup time, not accelerator speed.
-  - **Totals over all 773 GEMM run records:** 393,129,309 MACs verified, 3,099,658 outputs compared, 0 mismatches. Per build: KG1 272 GEMMs, 127,321,042 MACs; KG2 301 GEMMs, 159,491,513 MACs; KG3 200 GEMMs, 106,316,754 MACs. I computed these from the committed records. The committed `results/session.json` predates the newer runs and still shows 473.
+  - **Totals over all 773 GEMM run records:** 393,129,309 MACs verified, 3,099,658 outputs compared, 0 mismatches. Per build: KG1 272 GEMMs, 127,321,042 MACs; KG2 301 GEMMs, 159,491,513 MACs; KG3 200 GEMMs, 106,316,754 MACs. I computed these from the committed records. `results/session.json` is a live running total kept by the dashboard server and is not committed; all totals here are counted from the committed per-run records.
 
 ## Cost of splitting
 
@@ -345,6 +349,7 @@ scripts/wsl 'cd sw && cargo run -p splitsys-cycle -- all'            # regenerat
 scripts/wsl 'python results/plots/make_plots.py --check'             # regenerate plots (deterministic)
 bash fpga/tcl/s4_rebuild.sh --no-commit                              # all 4 bitstreams at one hash + results/cost.json
 bash models/fetch_stories260k.sh                                     # stories260K weights (pinned revision + sha256)
+scripts/wsl 'cd sw && SPLITSYS_LM_REQUIRE_MODEL=1 cargo test -p splitsys-lm --test stories260k'  # fail, not SKIP, if weights missing
 ```
 
 On hardware (Windows; the board enumerated as COM3 in my session). `--baud auto` probes 1,562,500 (KG3) and then 115,200 (KG2):
