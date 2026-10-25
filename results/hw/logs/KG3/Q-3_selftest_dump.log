@@ -6,3 +6,4 @@ FULL  job: OBUF bytes [0x0000, 0x0080) 128 bytes: 0 differ; fletcher32 readback 
 STRIP job: OBUF bytes [0x0080, 0x0100) 128 bytes: 0 differ; fletcher32 readback 8b1c6e80 ROM 8b1c6e80
 rc=0
 Sat Oct 24 21:57:05 PDT 2026
+Sat Oct 24 22:06:11 PDT 2026 human: KG3 kg3_top (21dd6850) BTN0 -> LED0 + LED1 on, RGB dark
