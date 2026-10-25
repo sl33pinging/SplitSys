@@ -1,0 +1,39 @@
+<!doctype html><html><head><meta charset='utf-8'><title>02_idle_rows</title><style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1920px;height:1080px;background:#0B0D10;color:#E8ECF1;overflow:hidden;
+ font-family:ui-sans-serif,system-ui,"Segoe UI",sans-serif}
+.card{position:absolute;inset:0;padding:90px 140px 150px 140px;display:flex;flex-direction:column;justify-content:center}
+.mono{font-family:ui-monospace,"Cascadia Mono",Consolas,monospace}
+.kicker{font-size:34px;color:#9AA4AF;letter-spacing:.04em;text-transform:uppercase;margin-bottom:28px}
+h1{font-size:150px;font-weight:700;line-height:1.05;letter-spacing:-.01em}
+h2{font-size:76px;font-weight:700;line-height:1.1}
+.sub{font-size:44px;color:#9AA4AF;margin-top:34px;line-height:1.3}
+.big{font-size:230px;font-weight:700;line-height:1;color:#FF9F43}
+.full{color:#4C9AFF}.strip{color:#FF9F43}.pass{color:#3DDC97}.dim{color:#9AA4AF}
+.src{position:absolute;left:140px;right:140px;bottom:44px;font-size:24px;color:#9AA4AF;
+ border-top:1px solid #262C33;padding-top:16px;line-height:1.35}
+.badge{display:inline-block;font-size:26px;padding:4px 14px;border:2px solid #3DDC97;color:#3DDC97;
+ border-radius:6px;margin:0 14px;vertical-align:middle;font-family:ui-monospace,"Cascadia Mono",Consolas,monospace}
+.row{display:flex;gap:36px;margin-top:56px}
+.panel{background:#14181D;border:1px solid #262C33;border-radius:12px;padding:30px 34px;flex:1}
+.panel .t{font-size:32px;color:#9AA4AF}
+.panel .v{font-size:52px;font-weight:700;margin-top:8px}
+.panel .d{font-size:36px;color:#E8ECF1;margin-top:8px}
+ul{list-style:none;margin-top:40px}
+li{font-size:40px;line-height:1.3;margin:0 0 24px 0;padding-left:48px;position:relative}
+li:before{content:"";position:absolute;left:0;top:24px;width:22px;height:4px;background:#FF9F43}
+.grid{display:grid;grid-template-columns:repeat(8,78px);grid-gap:8px;flex:none}
+.pe{width:78px;height:78px;border-radius:6px;background:#1A1F25;border:1px solid #262C33}
+.pe.on{background:#4C9AFF;border-color:#4C9AFF}
+.ph{color:#0B0D10;background:#FF9F43;padding:0 18px;border-radius:8px}
+</style></head><body><div class='card'>
+<div style='display:flex;gap:100px;align-items:center'>
+ <div>
+  <div class='kicker'>LLM decode &middot; M = 1</div>
+  <h2>One token at a time<br>&rarr; 7 of 8 rows idle</h2>
+  <div class='sub'>Writing one token, each matrix multiply is<br>a single row tall. In the square 8&times;8 array<br>only row 0 has work; rows 1&ndash;7 sit dark.</div>
+  <div class='sub' style='font-size:40px'>Best case 1/8 = <span class='mono'>12.5%</span> utilization.<br>Measured on <span class='mono'>ffn_up</span>: <span class='mono full'>6.95%</span><span class='badge'>HW</span></div>
+ </div>
+ <div class='grid'><div class='pe on'></div><div class='pe on'></div><div class='pe on'></div><div class='pe on'></div><div class='pe on'></div><div class='pe on'></div><div class='pe on'></div><div class='pe on'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div><div class='pe'></div></div>
+</div>
+</div><div class='src'>Ceiling: docs/SPEC.md section 4 (M/8 at M=1). 6.95% = results/hw/2026-10-24T20-40-41Z-*-m1-full.json, derived.util 0.069527 (hardware counters, build 0x52A66216).</div></body></html>
