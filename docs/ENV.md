@@ -28,7 +28,7 @@ Last result: `ALL REQUIRED OK`, exit 0. Optional WARNs: socat, ccache, mold (wai
   - `SPLITSYS_VIVADO_VERSION=2025.2.1`
   - `OBJCACHE=ccache` and `CCACHE_DIR` when ccache is installed (Verilator picks this up automatically)
   - PATH order: venv/bin, ~/.local/bin, ~/.cargo/bin, `$SPLITSYS_ROOT/scripts`, then the system PATH. The WSL PATH also carries the Windows PATH (interop `appendWindowsPath`), so `vivado` resolves to the **2025.1** install unless `env.sh` is sourced. Always source `env.sh`.
-- **`scripts/wsl_keepalive start|status|stop`**: stops WSL from shutting down when idle (see Known issues). Run `start` once at the beginning of a session.
+- **`scripts/wsl_keepalive start|status|stop`**: stops WSL from shutting down when idle (see Known issues). **Recommended for every session.** Run `start` once at the beginning. It is running now: at 17:09 PDT on 2026-10-24, `status` showed pid 927, with the distro up 18303 s (since about 12:04, with no idle restarts).
 - **`scripts/screenshot <url> <out.png> [W,H]`**: a headless Windows Edge screenshot. See "Dashboard screenshots".
 
 ## Inventory
@@ -131,8 +131,9 @@ So `xc7s50csga324-2` exists. The csga324 speed grades available are -1, -1IL, -1
 | 7-seg anodes D0/D1_AN | **Active low** | sch p4: each AN net drives the base of a PNP (MBT3906DW1) high-side switch through 1.5k; the master XDC also says "Active LOW". |
 | 7-seg segments D0/D1_SEG | **Active low**, SEG[0..7] = A, B, C, D, E, F, G, DP | sch p4: SEG nets → 100R → cathodes of the common-anode KW4-281ASB. |
 | Which display is left; which AN is the leftmost digit | **D0 is the LEFT display; AN[0] is the LEFTMOST digit of each display** (AN[3] the rightmost) | **Measured at H-1** (2026-10-24, build 52a66216: `heartbeat_uart_echo` showed `6.126 6A25` for 0x52A66216). The schematic cannot tell this (layout). RTL defaults `LEFT_IS_D1 = 0`, `AN0_IS_RIGHT = 0` since dc1dea0; bitstreams built at 52a66216 (incl. KG1) still have the old assumption (D1 left, AN[3] leftmost). Details: docs/HW_CHECKLIST.md Board facts. |
+| QSPI flash and boot mode | Flash IC10 = **Micron MT25QL128** (MT25QL128ABA8ESF, 3 V, 128 Mbit = **16 MB**). Vivado cfgmem part **`mt25ql128-spi-x1_x2_x4`** (the `-qspi-` names are Zynq-only). **Jumper J14 fitted = Master SPI (boots from flash at power-up); J14 open = JTAG (the board's default).** JTAG programming works in both positions. **KG2 is in the flash (H-8, Sat 2026-10-24) and the board boots from it in about 1 s**; cold start to dashboard takes about 2 s. | sch p11 (IC10, mode table "Master SPI 001, JTAG 101 Default", J14 on M2). `get_cfgmem_parts *mt25ql128*`. H-8: `results/hw/logs/KG2/H-8_flash_program.log` (`program_hw_cfgmem ok in 34 s`, `DONE pin = '1'`, `FLASH_OK`, image md5 `81547a2596be6283032d9b1e3448c4ba`). Flash commands and the undo steps: docs/HW_CHECKLIST.md H-8. |
 
-**Caveat on the UART direction:** the schematic gives only *which FT2232H pin* each net reaches. The step "BDBUS0 = TXD (FTDI output), BDBUS1 = RXD (FTDI input)" comes from the FTDI DS_FT2232H pin table **from memory**: that datasheet is not in the repo or on disk and was not read during the event. The direction is therefore not fully verified until H-2 passes. `fpga-integrator` is building a fallback bitstream with the two pins swapped. If H-2 shows the swap was needed, record the result here.
+**UART direction: confirmed on hardware at H-2** (2026-10-24, COM3, build 52a66216). With the default pins (FPGA RX = B16, TX = A16) a 10,000-byte echo and a 100,000-byte soak both came back with 0 mismatched bytes. The FTDI pin-direction step in the table, which was from memory of DS_FT2232H, is therefore settled. The swapped-pin fallback bitstream was not needed and has been retired. Source: docs/HW_CHECKLIST.md H-2 row.
 - **Vendor-file quirks (do not "fix" the master; handle them in the project XDC):** every `set_property` line is *active* (318 of them, none commented out), so a project XDC must use only the needed lines. HDMI lines use the misspelled IOSTANDARD `TDMS_33` (Vivado's name is `TMDS_33`). There is a port typo `HDMI_DO_P` (letter O) and a port name with a hyphen, `HDMI_I2C-SDA`. The header says V2I1. Confirm against the board silkscreen in Phase H.
 
 **Searches run (bounded, read-only):**
@@ -161,14 +162,17 @@ scripts/screenshot http://127.0.0.1:8080/ results/plots/scene1.png 1920,1080
 
 ## USB strategy
 
-**Default: (b), pending the human's confirmation in Phase H.** Build and run `splitsys-host` natively on Windows against the board's COM port. Windows Vivado programs over JTAG. Nothing moves between WSL and Windows during the demo.
-- Windows-side Rust is **not installed**. The steps are in the next section.
-- Strategy (a) fallback: usbipd-win 5.3.0 is installed (`usbipd.exe` present), so `usbipd attach --wsl` is available if (b) fails.
+**In use: (b), confirmed in Phase H.** Build and run `splitsys-host` natively on Windows against the board's COM port. Windows Vivado programs over JTAG (or the board boots KG2 from QSPI flash with J14 fitted; see Board facts). Nothing moves between WSL and Windows during the demo.
+- Windows-side Rust is **installed and the host build is verified** (next section).
+- **COM port facts seen in Phase H:** the board's USB bridge is an **FT2232H, VID:PID 0403:6010**. **Channel B = UART = COM3** on this laptop (its PnP DeviceID is `FTDIBUS\...B\0000`), and **channel A = JTAG** (used by Vivado's hw_server). `usbipd list` shows the device as **Shared**, not Attached. That is correct for (b): Windows keeps the device. Only strategy (a) would need `usbipd attach --wsl`. COM numbers are per machine, so on another laptop use `serial:auto` or check Device Manager.
+- Strategy (a) fallback: usbipd-win 5.3.0 is installed (`usbipd.exe` present), so `usbipd attach --wsl` is available if (b) fails. Attaching takes the device away from Windows (COM3 and Vivado JTAG disappear), so run `usbipd detach` before going back to (b) (docs/HW_CHECKLIST.md P-2).
 
 ## Windows host build (USB strategy b)
 
-### What the Windows side already has (read-only check, 2026-10-24)
-- **Rust: absent.** No `cargo`, `rustup`, or `rustc` on PATH, and no `%USERPROFILE%\.cargo` or `%USERPROFILE%\.rustup`.
+**Status: verified in Phase H (2026-10-24).** Windows rustup is installed with toolchain **`1.99.1-x86_64-pc-windows-msvc`** (the same pin as WSL). `scripts\win_build_host.ps1` builds `sw\target\release\splitsys-host.exe` with the MSVC linker; a release build takes **about 52 s**. The host ran every Phase H step over `serial:COM3`. The subsections below are the pre-install check and the install steps, kept for rebuilding on another machine.
+
+### What the Windows side had before the install (read-only check, 2026-10-24)
+- **Rust: absent at the time** (installed since; see Status above). No `cargo`, `rustup`, or `rustc` on PATH, and no `%USERPROFILE%\.cargo` or `%USERPROFILE%\.rustup`.
 - **MSVC: present.** `vswhere.exe` reports **Visual Studio Build Tools 2026** (18.2.11415.280) at `C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools`. It has the workload `Microsoft.VisualStudio.Workload.VCTools` ("Desktop development with C++") and the component `VC.Tools.x86.x64`. `link.exe` is at `...\BuildTools\VC\Tools\MSVC\14.50.35717\bin\Hostx64\x64\link.exe`. `cl`/`link` are not on the normal PATH, which is expected: rustc finds them through the VS installer.
 - **Windows SDK: present.** Component `Windows11SDK.26100`, and `C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\{um,ucrt}\x64\{kernel32,ucrt}.lib` exist.
 - No MinGW gcc. C: has 150 GB free.
@@ -176,9 +180,9 @@ scripts/screenshot http://127.0.0.1:8080/ results/plots/scene1.png 1920,1080
 ### Toolchain choice: MSVC (`1.99.1-x86_64-pc-windows-msvc`)
 The C++ build tools and the SDK are already installed, so the MSVC toolchain needs **no** Visual Studio download. Only rustup and Rust itself are needed. The GNU toolchain would not save anything: its rustc archive alone is 103 MB against 77 MB for MSVC, and it is the less common Windows target. It stays a fallback (below). The version is pinned to **1.99.1**, the same as WSL, because CLAUDE.md forbids upgrading toolchains mid-event. `splitsys-host`'s dependency tree (serde, serde_json, clap, serialport with default features off, windows-sys) has **no C code** (`cc` is not in `Cargo.lock`), so only the linker matters.
 
-Verified from WSL: `cargo check --locked --release -p splitsys-host --target x86_64-pc-windows-msvc` passes. The Windows code paths, including serialport's, type-check. Linking was **not** verified; it needs Windows Rust.
+Verified from WSL: `cargo check --locked --release -p splitsys-host --target x86_64-pc-windows-msvc` passes. The Windows code paths, including serialport's, type-check. Linking was later verified natively on Windows (Status above).
 
-### Steps for the human (one time, before Phase H)
+### Steps for the human (one time; done on this laptop)
 1. Download `https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe` (12.7 MB).
 2. In PowerShell, from the download folder:
    `.\rustup-init.exe -y --profile minimal --default-toolchain 1.99.1-x86_64-pc-windows-msvc`
@@ -194,7 +198,7 @@ Verified from WSL: `cargo check --locked --release -p splitsys-host --target x86
 ### Finding the COM port
 - `splitsys-host --transport serial:auto ping` uses the port if exactly one exists. With zero or several, it fails and prints every port as `COMn (USB vid:pid product)`.
 - Device Manager → *Ports (COM & LPT)* → "USB Serial Port (COMn)". PowerShell: `[System.IO.Ports.SerialPort]::GetPortNames()`, or `Get-CimInstance Win32_PnPEntity | Where-Object Name -match 'COM\d+' | Select-Object Name, DeviceID`.
-- The Urbana's FT2232H has two channels. Per the schematic, channel A is JTAG and **channel B is the UART**. If Windows shows **two** COM ports for the board, `serial:auto` refuses. Pick channel B: its FTDI `DeviceID` usually ends in `B` (for example `FTDIBUS\VID_0403+PID_6010+...B\0000`). VID/PID 0403:6010 and the A/B suffix convention come from memory of FTDI's drivers and are **not verified**. If Vivado's JTAG driver claims channel A, only one COM port appears. Record what the board actually shows at H-2.
+- The Urbana's FT2232H has two channels. Per the schematic, channel A is JTAG and **channel B is the UART**. If Windows shows **two** COM ports for the board, `serial:auto` refuses. Pick channel B: its FTDI `DeviceID` usually ends in `B` (for example `FTDIBUS\VID_0403+PID_6010+...B\0000`). **Seen in Phase H on this laptop:** VID/PID 0403:6010, channel B = COM3 with DeviceID `FTDIBUS\...B\0000`, and channel A = JTAG (see USB strategy). If Vivado's JTAG driver claims channel A, only one COM port appears.
 - Close PuTTY or any other program holding the port before running the host. Only one program can open a COM port at a time.
 
 ### Running the demo (`demo\start_demo.ps1`, owner host-dashboard)
