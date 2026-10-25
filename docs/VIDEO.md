@@ -14,13 +14,13 @@ data says otherwise, so the video doesn't claim it:
 
 ## (a) Final ~2:00 shot list with voiceover
 
-Spoken words: about 270 (273 in this table, 267 in the SRT, which writes some numbers as digits), under the 280-word limit, about 2:00 at ~140 words per minute. Codes: **B** = phone shot (section c), **S** = screen capture (section d), **C** = card PNG in `results/plots/video_cards/`.
+Spoken words: about 270 (277 in this table, 271 in the SRT, which writes some numbers as digits), under the 280-word limit, about 2:00 at ~140 words per minute. Codes: **B** = phone shot (section c), **S** = screen capture (section d), **C** = card PNG in `results/plots/video_cards/`.
 
 | Time | Picture | On-screen label (Clipchamp text, top-left) | Voiceover (exact) |
 |---|---|---|---|
 | 0:00–0:08 | **B1** power switch flip, cold boot, LEDs and 7-seg come up. Real time, no cut. | `Real time · boots from flash` | "This board is an AI accelerator I built solo. It just booted itself from its own flash." |
 | 0:08–0:12 | **C 01_title.png** (or **B5** face-to-camera, see note 1) | — | "It's called SplitSys." |
-| 0:12–0:16 | **B3** wide: board and monitor together, story text appearing | `Live on the board` | "It's running a real public language model, stories260K." |
+| 0:12–0:16 | **B3** wide: board and monitor together, story text appearing | `Live on the board` | "It runs the matrix multiplies of a real, tiny language model, stories260K." |
 | 0:16–0:26 | **S4** Scene 4 generation, cut in 2–3 s of **B2** (LEDs and 7-seg flicker) | `Live · 2× speed` if you speed it up (note 2) | "Every linear layer runs on this chip; attention and softmax stay on the laptop. About two seconds per token, and almost all of that is the serial link." |
 | 0:26–0:30 | **C 05_llm.png** | — | "On-chip, a token takes 295 microseconds." |
 | 0:30–0:38 | **C 02_idle_rows.png** | — | "When a model writes one token at a time, each matrix multiply is a single row tall. In a square eight-by-eight array, seven of eight rows sit idle." |
@@ -47,7 +47,7 @@ Same footage and cards, trimmed. 111 spoken words.
 | Time | Picture | Voiceover |
 |---|---|---|
 | 0:00–0:06 | B1 cold boot (real time) | "This is an AI accelerator I built solo. It boots from its own flash." |
-| 0:06–0:18 | B3 into S4 (generation; `2× speed` label if sped up), B2 cut-in | "It runs a real language model: every linear layer on this chip, about two seconds a token, almost all of it the serial link." |
+| 0:06–0:18 | B3 into S4 (generation; `2× speed` label if sped up), B2 cut-in | "It runs a real, tiny language model's linear layers on this chip, about two seconds a token, almost all of it the serial link." |
 | 0:18–0:24 | C 02_idle_rows | "One token at a time leaves seven of eight rows idle." |
 | 0:24–0:36 | S1 FULL then STRIP at M=1 | "So it rewires itself from eight by eight into four by sixteen. Utilization goes from 6.95 to 14.40 percent, measured." |
 | 0:36–0:42 | C 03_stat | "2.02 to 2.07 times across four transformer matmuls." |

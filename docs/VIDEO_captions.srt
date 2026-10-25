@@ -14,8 +14,8 @@ It's called SplitSys.
 
 4
 00:00:12,000 --> 00:00:16,500
-It's running a real public language model,
-stories260K.
+It runs the matrix multiplies
+of a real, tiny language model, stories260K.
 
 5
 00:00:16,500 --> 00:00:21,500

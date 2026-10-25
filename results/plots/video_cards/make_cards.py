@@ -94,7 +94,7 @@ page("04_model_exact", """
 
 # 05 LLM
 page("05_llm", """
-<div class='kicker'>Live: a real public language model</div>
+<div class='kicker'>Live: a real (tiny) public language model</div>
 <h2 style='font-size:88px'>stories260K &mdash; every linear<br>layer on the FPGA</h2>
 <div class='row'>
  <div class='panel'><div class='t'>On the FPGA</div><div class='v' style='font-size:42px;line-height:1.3'>q, k, v, o and the 3 FFN matrices in all 5 layers, plus the classifier<br><span class='dim' style='font-size:34px'>37 int8 GEMMs per token, M = 1</span></div></div>
