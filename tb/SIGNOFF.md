@@ -85,3 +85,45 @@ The same command at HEAD dc1dea0 (tb tree 38ab06f, before the tb/system display 
 11/11, 64/64: `head=dc1dea0 rtl=dc1dea0 tb=38ab06f golden=382bda8 vec=8b48b12 cycle=c8b8125 spec_rs=d4fda53 spec=8a4691f run=20261024-133210-14921 ns=ve`, eligible YES.
 Logs: `~/.cache/splitsys/tb/ve/logs/<run>/`. No unit suite instantiates `board_io` or `top`, so the orientation change
 is covered at system level (tb/system `display` suite, see tb/system/SIGNOFF_SYSTEM.md).
+
+## Sign-off for the KG3 candidate (D-020: BAUD 1,562,500, BAUD_DIV 54 -> 4), 2026-10-24 21:48-21:50 PDT
+
+Change under test: spec 21dd685 regenerated `rtl/gen/splitsys_pkg.sv` (`BAUD` 1,562,500, `BAUD_DIV` 4). No other
+RTL source changed. tb commit ac893cd adds real-divisor UART coverage (see below). HEAD = ac893cd, so rtl/ = 21dd685 content.
+
+**Command:** `scripts/wsl 'SPLITSYS_CACHE_TAG=ve make -C tb -j12 signoff'` passed **11/11 suites and 66/66 tests**:
+pe 9, skew 6, uart 7, counters 6, buffers 5, requant 4, packet 12, packet_ns 1, array 6, core 5, core_ns 5.
+SEED=1, SCALE=1, 0 failures, about 140 s wall, `sign-off eligible: YES`:
+
+```
+== provenance: head=ac893cd rtl=ac893cd tb=4d4b256 golden=382bda8 vec=8b48b12 cycle=c8b8125 spec_rs=8abf9ec spec=04f481c run=20261024-214813-62267 ns=ve
+== sign-off eligible: YES
+```
+
+Logs are in `~/.cache/splitsys/tb/ve/logs/20261024-214813-62267/`.
+
+**uart (7 tests; the 3 `test_spec_*` tests use the real divisor, DIV_OVERRIDE = 0, i.e. the package BAUD_DIV):**
+- `test_spec_divisor_baud`: the package CLK_HZ/BAUD/OVERSAMPLE equal spec.toml `[uart]`. It reports
+  `BAUD_DIV=4, 64 clk/bit, actual baud 1562500.0 vs 1562500, error +0.000%`. TX->RX loopback sends 308 bytes
+  back-to-back (8 directed and 300 random). Every bit is checked stable at its first, middle, and last clock.
+  Start-to-start is 641 clk (limit 640..642). Bytes are exact and there are 0 frame errors.
+- `test_spec_rx_line_error` (new): uart_rx at 64 clk/bit, fed by a bit-banged line with a fractional bit period on
+  one continuous timeline. In each case, half the bytes arrive at full line rate (start bit right after the stop bit)
+  and half arrive with random fractional idle gaps. Cases:
+  - FT2232H 12 MHz/7.625 = 1,573,770.5 baud (+0.72%, 63.542 clk/bit), 265 bytes
+  - FT2232H 12 MHz/7.75 = 1,548,387.1 baud (-0.90%, 64.583 clk/bit), 265 bytes
+  - -0.72%, +0.90%, +-1.5%, and +-3%, 73 bytes each
+
+  Every case has exact bytes, 0 frame errors, and rx_active low at the end (968 bytes in all).
+  Sensitivity: a temporary +5% case fails (20/73 bytes, 50 frame errors), so the bracket is not vacuous. That edit
+  was not committed.
+- `test_spec_rx_frame_error_and_glitch` (new): 36 glitches of 1, 2, 3, 4, 8, 16, 24, 30, and 31 clk, each at all
+  4 divider phases, produce no output and leave rx_active low. A stop bit held low gives exactly one rx_frame_err
+  and no byte. Then 5 back-to-back recovery bytes arrive exactly.
+- The 4 earlier fast-divisor tests (DIV_F = 2) are unchanged and pass.
+
+**packet:** `setup()` now asserts that the sim-only `RX_TIMEOUT_CYC` override (2000) is at least 2 character times
+at the spec divisor (2*10*BAUD_DIV*OVERSAMPLE = 1,280). Sensitivity: `PKT_RX_TIMEOUT=1279` fails with
+`override=1279, two_chars=1280`. All 12 + 1 packet tests pass, including the exact RX-timeout edge test.
+
+Other suites have no UART timing dependency and are unchanged; they re-ran clean.

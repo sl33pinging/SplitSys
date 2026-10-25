@@ -94,3 +94,28 @@ RTL: last commit touching rtl/ = dc1dea0 (`LEFT_IS_D1` 1->0, `AN0_IS_RIGHT` 1->0
   Records in `~/.cache/splitsys/ve/results/sim/` (not the repo). Provenance:
   `head=7b3af2c rtl=7b3af2c tb=b020f8f golden=382bda8 vec=8b48b12 cycle=c8b8125 spec_rs=d4fda53 spec=8a4691f run=20261024-134230-25213 ns=ve`
   (7b3af2c vs bee1cec: fpga/known_good and results/hw commits only; rtl/ and tb/ identical).
+
+### SIGN-OFF for the KG3 candidate (D-020: BAUD 1,562,500, BAUD_DIV 4), 2026-10-24 21:48-21:57 PDT
+RTL source is unchanged. Spec 21dd685 regenerated the package (BAUD_DIV 54 -> 4). HEAD is ac893cd (tb: real-divisor UART
+tests and cosim/system `UART_DIV=0`). **Speed note:** both runs below use the sim-only divisor `UART_DIV_OVERRIDE=1`
+(16 clk/bit). Real-divisor coverage comes from tb/uart (see tb/SIGNOFF.md) and from the UART_DIV=0 smoke below.
+- `scripts/wsl 'SPLITSYS_CACHE_TAG=ve make -C tb/system SIGNOFF=1 SEED=1 WORKERS=18'` -> **625/625 PASS**
+  (display 8, selftest 3, strip 100, modeswitch 52, full 200, directed 262). It took 220 s, `sign-off eligible: YES`, and
+  all 12 counters equal the model on every job. Provenance:
+  `head=ac893cd rtl=ac893cd tb=4d4b256 golden=382bda8 vec=8b48b12 cycle=c8b8125 spec_rs=8abf9ec spec=04f481c run=20261024-215046-65985 ns=ve`
+- `scripts/wsl 'SPLITSYS_CACHE_TAG=ve make -C tb cosim-check RESULTS=$HOME/.cache/splitsys/ve/results'` -> **8/8 host
+  steps PASS**: ping, selftest, ffn_up M=1 strip, ffn_up M=1 full, qkv M=8 both, attn_out M=5 both int32, bench smoke, ping.
+  That is 10 GEMMs with 0 mismatches, PING build_id 0ac893cd, and `sign-off eligible: YES`. New since KG2: splitsys-host is
+  built from the **committed** tree (`HOST_REV=HEAD` -> `git clone --shared` at ac893cd in `~/.cache/splitsys/host_rev/`).
+  The run records therefore carry `git_hash "ac893cd"`, not `-dirty`, even though another agent had uncommitted sw/crates/host
+  edits at the time. Records are in `~/.cache/splitsys/ve/results/sim/`, not the repo. Provenance:
+  `head=ac893cd rtl=ac893cd tb=4d4b256 golden=382bda8 vec=8b48b12 cycle=c8b8125 spec_rs=8abf9ec spec=04f481c run=20261024-215500-72554 ns=ve host=HEAD:ac893cd`
+- **Real-divisor system smoke** (no override: `top.UART_DIV_OVERRIDE=0`, RTL uses package BAUD_DIV 4, harness 64 clk/bit):
+  `scripts/wsl 'SPLITSYS_CACHE_TAG=ve make -C tb/system UART_DIV=0 SUITES=selftest,full,strip N_FULL=2 N_STRIP=2 WORKERS=4 SEED=1'`
+  -> **6/7**. These pass: full 2/2 and strip 2/2, including the 64x256x256 max shape (100,579 B in, 17,077 B out over the
+  real-divisor UART, counters equal the model); selftest_opcode; and selftest_btn0. Each case starts with PING.
+  **selftest_busy fails its own precondition**: `test window too long: 151079 sim cycles since RUN_GEMM >= job length 78594`.
+  Its 8 probe frames during the busy window need about 151k cycles of UART time at 640 clk/byte, which is longer than the
+  longest legal job. This is a test limitation, not an RTL bug: the BUSY/POLL checks never ran, and the case passes at
+  UART_DIV=1 in the 625/625 run. Provenance (eligible YES, not a SIGNOFF=1 run because of this known case):
+  `head=ac893cd rtl=ac893cd tb=4d4b256 golden=382bda8 vec=8b48b12 cycle=c8b8125 spec_rs=8abf9ec spec=04f481c run=20261024-214826-62441 ns=ve`
