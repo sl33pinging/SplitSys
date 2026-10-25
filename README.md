@@ -22,6 +22,10 @@ HONESTY KEY (red-team: audit every number in this file against this key).
               (LEFT_IS_D1, AN0_IS_RIGHT display defaults and comments). The RGB PULLDOWN is an XDC change.
   [V]  VERIF  tb/SIGNOFF.md (11/11 suites, 64/64 tests, eligible run at b53783d),
               tb/system/SIGNOFF_SYSTEM.md (617/617, eligible, head f402cc7), docs/DECISIONS.md D-016/D-017.
+              Live-bitstream RTL (KG2, last rtl/ commit dc1dea0; git diff dc1dea0 38a3950a -- rtl spec is empty),
+              signed off in commit 9ec73e1: tb/SIGNOFF.md "Sign-off for KG2 candidate RTL dc1dea0" (11/11 suites,
+              64/64 tests, eligible YES, run 20261024-134407-25872 at head 7b3af2c; also 11/11 64/64 at head dc1dea0)
+              and tb/system/SIGNOFF_SYSTEM.md (625/625 = the previous 617 + display 8/8, eligible YES, head bee1cec).
   [HW] HW     results/hw/*.json (top level, source "hw"): 473 per-run records on the board (COM3), host git 3976ec0,
               model_git_hash 72da65248adf on all 473, from two bitstreams with the same datapath RTL (see [B]):
               KG1, build_id 52a66216 (fpga/known_good/KG1, bit_md5 6a85a822b28e7d9f2097a8a902d865bf): 272 records
@@ -187,6 +191,7 @@ All counts below are from `tb/SIGNOFF.md` and `tb/system/SIGNOFF_SYSTEM.md` [V] 
   - the 262 directed jobs
   - 52 mode-switch jobs
   - 3 self-test checks
+- **Sign-off of the live bitstream's RTL:** KG2's RTL (last `rtl/` commit dc1dea0, which changes only two display-orientation defaults and their comments) was signed off again before the build (commit 9ec73e1). The unit and core suites passed 11 of 11 and 64 of 64 tests, and `tb/system` passed 625 of 625 jobs: the 617 above plus 8 new pin-level display cases. Both runs were marked sign-off eligible [V].
 - **Co-simulation (SIM):** the real `splitsys-host` binary drives the simulated top over a TCP-to-UART bridge. At build f402cc7 the host ran a bench sweep (all 4 GEMMs × M = 1…64 × both modes, 56 runs) plus the 10-run cosim check. At build 5900507 (same RTL) it ran the 4-run scripted demo. Results: 70 committed run records, 217,088 outputs compared, 17,014,784 MACs verified, 0 mismatches, 0 counter differences from the model [SIM].
 - **On hardware [HW].** H-3 ran on the `packet_mem` link-test bitstream (build 0x52A66216). KG1 (the full design, build 0x52A66216) ran H-4 through H-7. KG2 (build 0x38A3950A, same datapath RTL) re-ran H-4 and H-5, and was then written to flash (H-8):
   - UART link (H-3): `memtest` wrote and read back 10,000 random frames (5,123,818 bytes) across WBUF, ABUF, OBUF and the requant parameters, with 0 errors and 0 retries (`results/hw/logs/H-3_memtest_seed1.log`).
@@ -251,7 +256,7 @@ scripts/wsl 'make -C tb cosim-check'                                 # real host
 scripts/wsl 'make -C tb cosim'   # then: splitsys-host --transport tcp:127.0.0.1:<port> bench smoke
 scripts/wsl 'cd sw && cargo run -p splitsys-cycle -- all'            # regenerate results/model
 scripts/wsl 'python results/plots/make_plots.py --check'             # regenerate plots (deterministic)
-bash fpga/tcl/s4_rebuild.sh --no-commit                              # all 6 bitstreams at one hash + results/cost.json
+bash fpga/tcl/s4_rebuild.sh --no-commit                              # all 4 bitstreams at one hash + results/cost.json
 ```
 
 On hardware (Windows; the board enumerated as COM3 in my session), these commands produced the HW evidence:
@@ -285,3 +290,5 @@ The ordered bring-up script, with expected output and failure branches, is `docs
 ## Built at Cal Hacks 13.0
 
 San Francisco, October 2026. Solo entry. All project code was written during the event.
+
+Built with: Rust · SystemVerilog · Verilator · cocotb · Python · matplotlib · Vivado 2025.2.1 · AMD Spartan-7 XC7S50 (RealDigital Urbana) · vanilla JavaScript / SVG · Claude Code (AI coding agents)

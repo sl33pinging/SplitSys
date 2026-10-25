@@ -41,7 +41,7 @@ Voice: solo entry, first person singular. The "we" in four section headings is D
 
 **Project name:** SplitSys
 
-**Tagline (≤ 200 chars):** An 8×8 int8 systolic array on a Spartan-7 FPGA that rewires into 4×16 for LLM decode: 2.07× the decode utilization, measured on-chip, and a cycle model that predicted every counter.
+**Tagline (≤ 200 chars):** An 8×8 int8 systolic array on a Spartan-7 FPGA that rewires into 4×16 for LLM decode: up to 2.07× the decode utilization, measured on-chip, and a cycle model that predicted every counter.
 
 **Table number:** ⟦HUMAN: table number (cannot change after Sun 09:00)⟧
 **Team:** solo entry (one person); eligible for Best Solo Hack.
@@ -92,7 +92,7 @@ SplitSys is a GEMM accelerator on a RealDigital Urbana board (AMD Spartan-7 XC7S
 ## Accomplishments that we're proud of
 
 - **Verification in simulation:**
-  - 11 of 11 cocotb suites and 64 of 64 tests in an eligible sign-off run, including 262 directed jobs on the integrated core [V]. Deliberately injected RTL bugs were caught in the skew, counters, packet, array and core suites [V].
+  - 11 of 11 cocotb suites and 64 of 64 tests in an eligible sign-off run, including 262 directed jobs on the integrated core [V]. The skew, counters, packet, array and core suites record deliberate mutants, or a sensitivity check against the old RTL, and each one was caught [V].
   - A pin-level system simulation passed 617 of 617 jobs in an eligible sign-off run [V].
   - 70 co-simulation runs of the real host against the simulated chip (17.0 million MACs checked): 0 output mismatches, and every counter equal to the cycle model [SIM].
   - Matching the model in simulation is expected, since both use the same latencies. The real test was hardware, and the model passed it: 0 error on all 12 counters, across 473 board runs [HW].
@@ -119,7 +119,7 @@ SplitSys is a GEMM accelerator on a RealDigital Urbana board (AMD Spartan-7 XC7S
 
 ## Built with
 
-Rust · SystemVerilog · Verilator · cocotb · Python · matplotlib · Vivado 2025.2.1 · AMD Spartan-7 XC7S50 (RealDigital Urbana) · vanilla JavaScript / SVG
+Rust · SystemVerilog · Verilator · cocotb · Python · matplotlib · Vivado 2025.2.1 · AMD Spartan-7 XC7S50 (RealDigital Urbana) · vanilla JavaScript / SVG · Claude Code (AI coding agents)
 
 **Links:** ⟦HUMAN: repo URL⟧ · ⟦HUMAN: demo video URL⟧
 **Hero image:** ⟦HUMAN: hero photo⟧
