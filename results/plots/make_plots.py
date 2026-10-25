@@ -223,7 +223,7 @@ def title_and_source(fig, th, title, subtitle, source_line):
     fig.text(0.012, 0.975, title, ha="left", va="top", fontsize=14, fontweight="bold",
              color=th["text"])
     fig.text(0.012, 0.915, subtitle, ha="left", va="top", fontsize=10, color=th["muted"])
-    fig.text(0.012, 0.015, source_line, ha="left", va="bottom", fontsize=8.5,
+    fig.text(0.012, 0.015, source_line, ha="left", va="bottom", fontsize=8.0,
              color=th["muted"], family="monospace")
 
 
@@ -250,7 +250,7 @@ def source_line(model, measured_sets):
             for r in recs.values():
                 b = str(r["build_id"])
                 first_run[b] = min(first_run.get(b, r["run_id"]), r["run_id"])
-            builds = [f"{b} ({per_build[b]})" if b in per_build else b
+            builds = [f"{b}: {per_build[b]}" if b in per_build else b
                       for b in sorted(per_build or first_run,
                                       key=lambda b: (first_run.get(b, "~"), b))]
             nrec = st.get("records", len(recs))
@@ -261,8 +261,9 @@ def source_line(model, measured_sets):
             what = "co-sim, not HW" if label == "SIM" else "board counters"
             shown = (f"{n} benchmark point{'s' if n != 1 else ''} drawn" if n else
                      "not drawn (HW measured every point)")
-            lines.append(f"{label} ({what}): {nrec} int8 record{'s' if nrec != 1 else ''}, "
-                         f"build{'s' if len(builds) > 1 else ''} {', '.join(builds)}{' (dirty tree)' if dirty else ''}, "
+            # Compact form (records per build as "build: n") so three builds fit the figure width.
+            lines.append(f"{label} ({what}): {nrec} int8 record{'s' if nrec != 1 else ''} by build "
+                         f"{', '.join(builds)}{' (dirty tree)' if dirty else ''}; "
                          f"{ndiff} with a counter != model; {shown}")
         elif label == "HW":
             lines.append("HW: none yet")
