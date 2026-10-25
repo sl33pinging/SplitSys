@@ -342,6 +342,22 @@ Two post-route builds of the same top, with `ENABLE_STRIP = 1` and `ENABLE_STRIP
   - **KG3, the bitstream on the board now,** differs from KG2 only in the UART baud divider constant. Its own post-route report (`fpga/reports/kg3_top/summary.json`) shows 7,377 LUTs, 7,928 FFs, 96 DSPs and 26 BRAM, which is 12 LUTs and 8 FFs fewer than KG2.
   - That is a separate implementation run with a different divider constant, and I don't attribute the difference to anything. I did not rebuild a FULL-only twin at KG3, so the delta table stays at 38a3950a.
 
+## Repository layout
+
+| Folder | What's in it |
+| --- | --- |
+| `rtl/` | Synthesizable SystemVerilog: PE, skew, splittable array, buffers, sequencer, requant, counters, UART + packet layer, self-test, board I/O, `top`. `rtl/gen/` is generated from the spec. |
+| `spec/` | `spec.toml`, the single source of truth for every constant (generates the SV package and the Rust constants). |
+| `sw/` | Rust workspace: `spec` (codegen), `golden` (bit-exact reference), `cycle` (cycle model), `vec` (test vectors + self-test ROM), `lm` (stories260K on the accelerator), `host` (`splitsys-host` CLI + dashboard server). |
+| `tb/` | cocotb + Verilator testbenches (unit, core, system through the UART pins, TCP co-simulation) and the sign-off records `tb/SIGNOFF.md`, `tb/system/SIGNOFF_SYSTEM.md`. |
+| `fpga/` | XDC constraints, Vivado build/program/flash Tcl, timing and utilization reports, bring-up tops, and `fpga/known_good/` (the hardware-tested bitstreams KG1–KG3 with their logs). |
+| `demo/` | The offline dashboard (HTML/JS/SVG, compiled into the host binary) and the start scripts. |
+| `results/` | Every measured run as JSON: `hw/` (board), `sim/` (co-simulation), `model/` (cycle model), `cost.json`, `plots/` (+ video cards). `results/hw/logs/` holds the hardware session logs. |
+| `models/` | Fetch script (pinned SHA-256) for the public stories260K model; the weights are downloaded, not committed. |
+| `docs/` | SPEC, PLAN, DECISIONS, hardware checklist, environment notes, status log, Devpost text, demo and video plans. |
+| `scripts/` | Environment setup and checks, WSL/Vivado wrappers, Windows host build. |
+| `CLAUDE.md`, `.claude/` | The AI-agent operating manual and role definitions used to build this (Claude Code). |
+
 ## Reproduce
 
 Run from the repo root. On Windows, use Git Bash and run Linux tools through `scripts/wsl`.
