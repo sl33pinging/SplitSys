@@ -1,0 +1,80 @@
+{
+  "run_id": "2026-10-25T03:50:12Z-gemm_auto_s1_78-m34-strip-auto",
+  "source": "hw",
+  "build_id": "38a3950a",
+  "git_hash": "c4c2a79",
+  "clock_mhz": 100,
+  "gemm": {
+    "name": "gemm_auto_s1_78",
+    "M": 34,
+    "K": 80,
+    "N": 214,
+    "mode": "STRIP",
+    "requant": true
+  },
+  "counters": {
+    "cycles_total": 16004,
+    "cycles_setup": 2016,
+    "cycles_stream": 10332,
+    "cycles_flush": 2142,
+    "cycles_drain": 1512,
+    "cycles_stall": 0,
+    "mac_useful": 582080,
+    "mac_useful_q": [
+      152320,
+      146880,
+      141440,
+      141440
+    ],
+    "tiles": 126
+  },
+  "model": {
+    "cycles_total": 16004,
+    "cycles_setup": 2016,
+    "cycles_stream": 10332,
+    "cycles_flush": 2142,
+    "cycles_drain": 1512,
+    "cycles_stall": 0,
+    "mac_useful": 582080,
+    "mac_useful_q": [
+      152320,
+      146880,
+      141440,
+      141440
+    ],
+    "tiles": 126,
+    "model_git_hash": "72da65248adf"
+  },
+  "derived": {
+    "util": 0.5682954261434642,
+    "util_model": 0.5682954261434642,
+    "operand_bytes_per_cycle": 20.0,
+    "model_err_total": 0.0,
+    "operand_bytes_per_cycle_avg": 12.596850787303174,
+    "macs_per_cycle": 36.37090727318171,
+    "arithmetic_intensity": 2.8873015873015873
+  },
+  "check": {
+    "golden_match": true,
+    "outputs_compared": 7276,
+    "mismatches": 0,
+    "invariants_ok": true
+  },
+  "provenance": {
+    "transport": "serial:COM3@115200",
+    "seed": 1,
+    "wall_ms_end_to_end": 3851.6032,
+    "latencies_provisional": false
+  },
+  "mode_select": {
+    "requested": "AUTO",
+    "chosen": "STRIP",
+    "automatic": true,
+    "policy": "splitsys_cycle::choose_mode with the frozen default Latencies: min model cycles_total, ties -> FULL",
+    "model_cycles_full": 17687,
+    "model_cycles_strip": 16004,
+    "model_tiles_full": 135,
+    "model_tiles_strip": 126,
+    "operands_from": "gemm_full_s1_78 (job 78 of `splitsys-vec gemm --seed 1 --n 100 --mode full --max-m 64 --max-k 256 --max-n 256`)"
+  }
+}

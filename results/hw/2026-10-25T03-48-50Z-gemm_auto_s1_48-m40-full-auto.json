@@ -1,0 +1,80 @@
+{
+  "run_id": "2026-10-25T03:48:50Z-gemm_auto_s1_48-m40-full-auto",
+  "source": "hw",
+  "build_id": "38a3950a",
+  "git_hash": "c4c2a79",
+  "clock_mhz": 100,
+  "gemm": {
+    "name": "gemm_auto_s1_48",
+    "M": 40,
+    "K": 130,
+    "N": 85,
+    "mode": "FULL",
+    "requant": true
+  },
+  "counters": {
+    "cycles_total": 9957,
+    "cycles_setup": 880,
+    "cycles_stream": 7260,
+    "cycles_flush": 935,
+    "cycles_drain": 880,
+    "cycles_stall": 0,
+    "mac_useful": 442000,
+    "mac_useful_q": [
+      114400,
+      106600,
+      114400,
+      106600
+    ],
+    "tiles": 55
+  },
+  "model": {
+    "cycles_total": 9957,
+    "cycles_setup": 880,
+    "cycles_stream": 7260,
+    "cycles_flush": 935,
+    "cycles_drain": 880,
+    "cycles_stall": 0,
+    "mac_useful": 442000,
+    "mac_useful_q": [
+      114400,
+      106600,
+      114400,
+      106600
+    ],
+    "tiles": 55,
+    "model_git_hash": "72da65248adf"
+  },
+  "derived": {
+    "util": 0.6936075123029025,
+    "util_model": 0.6936075123029025,
+    "operand_bytes_per_cycle": 16.0,
+    "model_err_total": 0.0,
+    "operand_bytes_per_cycle_avg": 11.489404439088078,
+    "macs_per_cycle": 44.39088078738576,
+    "arithmetic_intensity": 3.8636363636363638
+  },
+  "check": {
+    "golden_match": true,
+    "outputs_compared": 3400,
+    "mismatches": 0,
+    "invariants_ok": true
+  },
+  "provenance": {
+    "transport": "serial:COM3@115200",
+    "seed": 1,
+    "wall_ms_end_to_end": 2572.3926,
+    "latencies_provisional": false
+  },
+  "mode_select": {
+    "requested": "AUTO",
+    "chosen": "FULL",
+    "automatic": true,
+    "policy": "splitsys_cycle::choose_mode with the frozen default Latencies: min model cycles_total, ties -> FULL",
+    "model_cycles_full": 9957,
+    "model_cycles_strip": 10622,
+    "model_tiles_full": 55,
+    "model_tiles_strip": 60,
+    "operands_from": "gemm_full_s1_48 (job 48 of `splitsys-vec gemm --seed 1 --n 100 --mode full --max-m 64 --max-k 256 --max-n 256`)"
+  }
+}

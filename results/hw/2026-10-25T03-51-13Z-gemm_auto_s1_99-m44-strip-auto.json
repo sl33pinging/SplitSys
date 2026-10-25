@@ -1,0 +1,80 @@
+{
+  "run_id": "2026-10-25T03:51:13Z-gemm_auto_s1_99-m44-strip-auto",
+  "source": "hw",
+  "build_id": "38a3950a",
+  "git_hash": "c4c2a79",
+  "clock_mhz": 100,
+  "gemm": {
+    "name": "gemm_auto_s1_99",
+    "M": 44,
+    "K": 133,
+    "N": 234,
+    "mode": "STRIP",
+    "requant": true
+  },
+  "counters": {
+    "cycles_total": 29702,
+    "cycles_setup": 2640,
+    "cycles_stream": 22275,
+    "cycles_flush": 2805,
+    "cycles_drain": 1980,
+    "cycles_stall": 0,
+    "mac_useful": 1369368,
+    "mac_useful_q": [
+      351120,
+      351120,
+      339416,
+      327712
+    ],
+    "tiles": 165
+  },
+  "model": {
+    "cycles_total": 29702,
+    "cycles_setup": 2640,
+    "cycles_stream": 22275,
+    "cycles_flush": 2805,
+    "cycles_drain": 1980,
+    "cycles_stall": 0,
+    "mac_useful": 1369368,
+    "mac_useful_q": [
+      351120,
+      351120,
+      339416,
+      327712
+    ],
+    "tiles": 165,
+    "model_git_hash": "72da65248adf"
+  },
+  "derived": {
+    "util": 0.7203681570264628,
+    "util_model": 0.7203681570264628,
+    "operand_bytes_per_cycle": 20.0,
+    "model_err_total": 0.0,
+    "operand_bytes_per_cycle_avg": 14.776782708235135,
+    "macs_per_cycle": 46.10356204969362,
+    "arithmetic_intensity": 3.12
+  },
+  "check": {
+    "golden_match": true,
+    "outputs_compared": 10296,
+    "mismatches": 0,
+    "invariants_ok": true
+  },
+  "provenance": {
+    "transport": "serial:COM3@115200",
+    "seed": 1,
+    "wall_ms_end_to_end": 5979.478999999999,
+    "latencies_provisional": false
+  },
+  "mode_select": {
+    "requested": "AUTO",
+    "chosen": "STRIP",
+    "automatic": true,
+    "policy": "splitsys_cycle::choose_mode with the frozen default Latencies: min model cycles_total, ties -> FULL",
+    "model_cycles_full": 33122,
+    "model_cycles_strip": 29702,
+    "model_tiles_full": 180,
+    "model_tiles_strip": 165,
+    "operands_from": "gemm_full_s1_99 (job 99 of `splitsys-vec gemm --seed 1 --n 100 --mode full --max-m 64 --max-k 256 --max-n 256`)"
+  }
+}

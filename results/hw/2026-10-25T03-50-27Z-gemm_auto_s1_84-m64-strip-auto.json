@@ -1,0 +1,80 @@
+{
+  "run_id": "2026-10-25T03:50:27Z-gemm_auto_s1_84-m64-strip-auto",
+  "source": "hw",
+  "build_id": "38a3950a",
+  "git_hash": "c4c2a79",
+  "clock_mhz": 100,
+  "gemm": {
+    "name": "gemm_auto_s1_84",
+    "M": 64,
+    "K": 22,
+    "N": 159,
+    "mode": "STRIP",
+    "requant": true
+  },
+  "counters": {
+    "cycles_total": 11042,
+    "cycles_setup": 2560,
+    "cycles_stream": 3840,
+    "cycles_flush": 2720,
+    "cycles_drain": 1920,
+    "cycles_stall": 0,
+    "mac_useful": 223872,
+    "mac_useful_q": [
+      56320,
+      56320,
+      56320,
+      54912
+    ],
+    "tiles": 160
+  },
+  "model": {
+    "cycles_total": 11042,
+    "cycles_setup": 2560,
+    "cycles_stream": 3840,
+    "cycles_flush": 2720,
+    "cycles_drain": 1920,
+    "cycles_stall": 0,
+    "mac_useful": 223872,
+    "mac_useful_q": [
+      56320,
+      56320,
+      56320,
+      54912
+    ],
+    "tiles": 160,
+    "model_git_hash": "72da65248adf"
+  },
+  "derived": {
+    "util": 0.31679043651512406,
+    "util_model": 0.31679043651512406,
+    "operand_bytes_per_cycle": 20.0,
+    "model_err_total": 0.0,
+    "operand_bytes_per_cycle_avg": 6.375656583952183,
+    "macs_per_cycle": 20.27458793696794,
+    "arithmetic_intensity": 3.18
+  },
+  "check": {
+    "golden_match": true,
+    "outputs_compared": 10176,
+    "mismatches": 0,
+    "invariants_ok": true
+  },
+  "provenance": {
+    "transport": "serial:COM3@115200",
+    "seed": 1,
+    "wall_ms_end_to_end": 2556.0598,
+    "latencies_provisional": false
+  },
+  "mode_select": {
+    "requested": "AUTO",
+    "chosen": "STRIP",
+    "automatic": true,
+    "policy": "splitsys_cycle::choose_mode with the frozen default Latencies: min model cycles_total, ties -> FULL",
+    "model_cycles_full": 11682,
+    "model_cycles_strip": 11042,
+    "model_tiles_full": 160,
+    "model_tiles_strip": 160,
+    "operands_from": "gemm_full_s1_84 (job 84 of `splitsys-vec gemm --seed 1 --n 100 --mode full --max-m 64 --max-k 256 --max-n 256`)"
+  }
+}

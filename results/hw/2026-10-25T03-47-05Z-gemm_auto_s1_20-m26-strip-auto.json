@@ -1,0 +1,80 @@
+{
+  "run_id": "2026-10-25T03:47:05Z-gemm_auto_s1_20-m26-strip-auto",
+  "source": "hw",
+  "build_id": "38a3950a",
+  "git_hash": "c4c2a79",
+  "clock_mhz": 100,
+  "gemm": {
+    "name": "gemm_auto_s1_20",
+    "M": 26,
+    "K": 165,
+    "N": 169,
+    "mode": "STRIP",
+    "requant": true
+  },
+  "counters": {
+    "cycles_total": 16326,
+    "cycles_setup": 1232,
+    "cycles_stream": 12859,
+    "cycles_flush": 1309,
+    "cycles_drain": 924,
+    "cycles_stall": 0,
+    "mac_useful": 725010,
+    "mac_useful_q": [
+      188760,
+      188760,
+      175890,
+      171600
+    ],
+    "tiles": 77
+  },
+  "model": {
+    "cycles_total": 16326,
+    "cycles_setup": 1232,
+    "cycles_stream": 12859,
+    "cycles_flush": 1309,
+    "cycles_drain": 924,
+    "cycles_stall": 0,
+    "mac_useful": 725010,
+    "mac_useful_q": [
+      188760,
+      188760,
+      175890,
+      171600
+    ],
+    "tiles": 77,
+    "model_git_hash": "72da65248adf"
+  },
+  "derived": {
+    "util": 0.6938797776552738,
+    "util_model": 0.6938797776552738,
+    "operand_bytes_per_cycle": 20.0,
+    "model_err_total": 0.0,
+    "operand_bytes_per_cycle_avg": 15.564130834252113,
+    "macs_per_cycle": 44.40830576993752,
+    "arithmetic_intensity": 2.8532467532467534
+  },
+  "check": {
+    "golden_match": true,
+    "outputs_compared": 4394,
+    "mismatches": 0,
+    "invariants_ok": true
+  },
+  "provenance": {
+    "transport": "serial:COM3@115200",
+    "seed": 1,
+    "wall_ms_end_to_end": 4460.4329,
+    "latencies_provisional": false
+  },
+  "mode_select": {
+    "requested": "AUTO",
+    "chosen": "STRIP",
+    "automatic": true,
+    "policy": "splitsys_cycle::choose_mode with the frozen default Latencies: min model cycles_total, ties -> FULL",
+    "model_cycles_full": 19010,
+    "model_cycles_strip": 16326,
+    "model_tiles_full": 88,
+    "model_tiles_strip": 77,
+    "operands_from": "gemm_full_s1_20 (job 20 of `splitsys-vec gemm --seed 1 --n 100 --mode full --max-m 64 --max-k 256 --max-n 256`)"
+  }
+}

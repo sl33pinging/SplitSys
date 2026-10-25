@@ -1,0 +1,80 @@
+{
+  "run_id": "2026-10-25T03:50:54Z-gemm_auto_s1_92-m60-strip-auto",
+  "source": "hw",
+  "build_id": "38a3950a",
+  "git_hash": "c4c2a79",
+  "clock_mhz": 100,
+  "gemm": {
+    "name": "gemm_auto_s1_92",
+    "M": 60,
+    "K": 173,
+    "N": 108,
+    "mode": "STRIP",
+    "requant": true
+  },
+  "counters": {
+    "cycles_total": 23102,
+    "cycles_setup": 1680,
+    "cycles_stream": 18375,
+    "cycles_flush": 1785,
+    "cycles_drain": 1260,
+    "cycles_stall": 0,
+    "mac_useful": 1121040,
+    "mac_useful_q": [
+      290640,
+      290640,
+      290640,
+      249120
+    ],
+    "tiles": 105
+  },
+  "model": {
+    "cycles_total": 23102,
+    "cycles_setup": 1680,
+    "cycles_stream": 18375,
+    "cycles_flush": 1785,
+    "cycles_drain": 1260,
+    "cycles_stall": 0,
+    "mac_useful": 1121040,
+    "mac_useful_q": [
+      290640,
+      290640,
+      290640,
+      249120
+    ],
+    "tiles": 105,
+    "model_git_hash": "72da65248adf"
+  },
+  "derived": {
+    "util": 0.7582135745822872,
+    "util_model": 0.7582135745822872,
+    "operand_bytes_per_cycle": 20.0,
+    "model_err_total": 0.0,
+    "operand_bytes_per_cycle_avg": 15.725911176521514,
+    "macs_per_cycle": 48.52566877326638,
+    "arithmetic_intensity": 3.085714285714286
+  },
+  "check": {
+    "golden_match": true,
+    "outputs_compared": 6480,
+    "mismatches": 0,
+    "invariants_ok": true
+  },
+  "provenance": {
+    "transport": "serial:COM3@115200",
+    "seed": 1,
+    "wall_ms_end_to_end": 4364.877200000001,
+    "latencies_provisional": false
+  },
+  "mode_select": {
+    "requested": "AUTO",
+    "chosen": "STRIP",
+    "automatic": true,
+    "policy": "splitsys_cycle::choose_mode with the frozen default Latencies: min model cycles_total, ties -> FULL",
+    "model_cycles_full": 25090,
+    "model_cycles_strip": 23102,
+    "model_tiles_full": 112,
+    "model_tiles_strip": 105,
+    "operands_from": "gemm_full_s1_92 (job 92 of `splitsys-vec gemm --seed 1 --n 100 --mode full --max-m 64 --max-k 256 --max-n 256`)"
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "run_id": "2026-10-25T03:47:40Z-gemm_auto_s1_27-m12-strip-auto",
+  "source": "hw",
+  "build_id": "38a3950a",
+  "git_hash": "c4c2a79",
+  "clock_mhz": 100,
+  "gemm": {
+    "name": "gemm_auto_s1_27",
+    "M": 12,
+    "K": 225,
+    "N": 219,
+    "mode": "STRIP",
+    "requant": false
+  },
+  "counters": {
+    "cycles_total": 11930,
+    "cycles_setup": 672,
+    "cycles_stream": 9534,
+    "cycles_flush": 714,
+    "cycles_drain": 1008,
+    "cycles_stall": 0,
+    "mac_useful": 591300,
+    "mac_useful_q": [
+      151200,
+      151200,
+      148500,
+      140400
+    ],
+    "tiles": 42
+  },
+  "model": {
+    "cycles_total": 11930,
+    "cycles_setup": 672,
+    "cycles_stream": 9534,
+    "cycles_flush": 714,
+    "cycles_drain": 1008,
+    "cycles_stall": 0,
+    "mac_useful": 591300,
+    "mac_useful_q": [
+      151200,
+      151200,
+      148500,
+      140400
+    ],
+    "tiles": 42,
+    "model_git_hash": "72da65248adf"
+  },
+  "derived": {
+    "util": 0.7744394383906119,
+    "util_model": 0.7744394383906119,
+    "operand_bytes_per_cycle": 20.0,
+    "model_err_total": 0.0,
+    "operand_bytes_per_cycle_avg": 15.84241408214585,
+    "macs_per_cycle": 49.56412405699916,
+    "arithmetic_intensity": 3.1285714285714286
+  },
+  "check": {
+    "golden_match": true,
+    "outputs_compared": 2628,
+    "mismatches": 0,
+    "invariants_ok": true
+  },
+  "provenance": {
+    "transport": "serial:COM3@115200",
+    "seed": 1,
+    "wall_ms_end_to_end": 7900.6058,
+    "latencies_provisional": false
+  },
+  "mode_select": {
+    "requested": "AUTO",
+    "chosen": "STRIP",
+    "automatic": true,
+    "policy": "splitsys_cycle::choose_mode with the frozen default Latencies: min model cycles_total, ties -> FULL",
+    "model_cycles_full": 15906,
+    "model_cycles_strip": 11930,
+    "model_tiles_full": 56,
+    "model_tiles_strip": 42,
+    "operands_from": "gemm_full_s1_27 (job 27 of `splitsys-vec gemm --seed 1 --n 100 --mode full --max-m 64 --max-k 256 --max-n 256`)"
+  }
+}

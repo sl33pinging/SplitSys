@@ -1,0 +1,211 @@
+Sat Oct 24 20:45:58 PDT 2026
+splitsys-host 0.1.0 (git c4c2a79)
+random batch: 100 jobs × 1 mode each, chosen by the cycle model (auto), seed 1, max M/K/N 64/256/256, via serial:COM3@115200 (source hw)
+  operands and bases from: splitsys-vec gemm --seed 1 --n 100 --mode full --max-m 64 --max-k 256 --max-n 256
+     1 gemm_auto_s1_0     M=1   K=1   N=1   STRIP i8  util   0.03% cycles      50 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-46-00Z-gemm_auto_s1_0-m1-strip-auto.json
+         auto -> STRIP: measured HW 50 cycles (model 50, 1 tiles) | FULL not run: model 54 cycles (1 tiles)
+     2 gemm_auto_s1_1     M=64  K=256 N=256 STRIP i8  util  84.49% cycles   77570 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-46-11Z-gemm_auto_s1_1-m64-strip-auto.json
+         auto -> STRIP: measured HW 77570 cycles (model 77570, 256 tiles) | FULL not run: model 78594 cycles (256 tiles)
+     3 gemm_auto_s1_2     M=64  K=1   N=256 STRIP i8  util   2.08% cycles   12290 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-46-14Z-gemm_auto_s1_2-m64-strip-auto.json
+         auto -> STRIP: measured HW 12290 cycles (model 12290, 256 tiles) | FULL not run: model 13314 cycles (256 tiles)
+     4 gemm_auto_s1_3     M=1   K=256 N=1   STRIP i8  util   1.31% cycles     305 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-46-15Z-gemm_auto_s1_3-m1-strip-auto.json
+         auto -> STRIP: measured HW 305 cycles (model 305, 1 tiles) | FULL not run: model 309 cycles (1 tiles)
+     5 gemm_auto_s1_4     M=8   K=17  N=8   FULL  i32 util  21.79% cycles      78 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-46-15Z-gemm_auto_s1_4-m8-full-auto.json
+         auto -> FULL: measured HW 78 cycles (model 78, 1 tiles) | STRIP not run: model 154 cycles (2 tiles)
+     6 gemm_auto_s1_5     M=9   K=3   N=9   STRIP i8  util   2.50% cycles     152 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-46-15Z-gemm_auto_s1_5-m9-strip-auto.json
+         auto -> STRIP: measured HW 152 cycles (model 152, 3 tiles) | FULL not run: model 218 cycles (4 tiles)
+     7 gemm_auto_s1_6     M=7   K=2   N=7   FULL  i8  util   2.78% cycles      55 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-46-16Z-gemm_auto_s1_6-m7-full-auto.json
+         auto -> FULL: measured HW 55 cycles (model 55, 1 tiles) | STRIP not run: model 100 cycles (2 tiles)
+     8 gemm_auto_s1_7     M=9   K=33  N=17  STRIP i8  util  16.37% cycles     482 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-46-16Z-gemm_auto_s1_7-m9-strip-auto.json
+         auto -> STRIP: measured HW 482 cycles (model 482, 6 tiles) | FULL not run: model 506 cycles (6 tiles)
+     9 gemm_auto_s1_8     M=39  K=126 N=171 STRIP i8  util  68.99% cycles   19032 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-46-20Z-gemm_auto_s1_8-m39-strip-auto.json
+         auto -> STRIP: measured HW 19032 cycles (model 19032, 110 tiles) | FULL not run: model 19472 cycles (110 tiles)
+    10 gemm_auto_s1_9     M=14  K=83  N=200 FULL  i8  util  54.18% cycles    6702 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-46-22Z-gemm_auto_s1_9-m14-full-auto.json
+         auto -> FULL: measured HW 6702 cycles (model 6702, 50 tiles) | STRIP not run: model 6762 cycles (52 tiles)
+    11 gemm_auto_s1_10    M=32  K=69  N=151 FULL  i8  util  57.11% cycles    9122 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-46-25Z-gemm_auto_s1_10-m32-full-auto.json
+         auto -> FULL: measured HW 9122 cycles (model 9122, 76 tiles) | STRIP not run: model 9282 cycles (80 tiles)
+    12 gemm_auto_s1_11    M=6   K=48  N=58  FULL  i32 util  30.42% cycles     858 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-46-26Z-gemm_auto_s1_11-m6-full-auto.json
+         auto -> FULL: measured HW 858 cycles (model 858, 8 tiles) | STRIP not run: model 858 cycles (8 tiles)
+    13 gemm_auto_s1_12    M=13  K=28  N=167 STRIP i8  util  28.76% cycles    3302 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-46-27Z-gemm_auto_s1_12-m13-strip-auto.json
+         auto -> STRIP: measured HW 3302 cycles (model 3302, 44 tiles) | FULL not run: model 3320 cycles (42 tiles)
+    14 gemm_auto_s1_13    M=59  K=139 N=190 STRIP i8  util  72.72% cycles   33482 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-46-33Z-gemm_auto_s1_13-m59-strip-auto.json
+         auto -> STRIP: measured HW 33482 cycles (model 33482, 180 tiles) | FULL not run: model 36482 cycles (192 tiles)
+    15 gemm_auto_s1_14    M=16  K=24  N=79  FULL  i32 util  28.52% cycles    1662 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-46-34Z-gemm_auto_s1_14-m16-full-auto.json
+         auto -> FULL: measured HW 1662 cycles (model 1662, 20 tiles) | STRIP not run: model 1662 cycles (20 tiles)
+    16 gemm_auto_s1_15    M=50  K=244 N=30  STRIP i8  util  75.56% cycles    7568 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-46-37Z-gemm_auto_s1_15-m50-strip-auto.json
+         auto -> STRIP: measured HW 7568 cycles (model 7568, 26 tiles) | FULL not run: model 8262 cycles (28 tiles)
+    17 gemm_auto_s1_16    M=41  K=65  N=132 STRIP i8  util  49.56% cycles   11090 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-46-39Z-gemm_auto_s1_16-m41-strip-auto.json
+         auto -> STRIP: measured HW 11090 cycles (model 11090, 99 tiles) | FULL not run: model 11834 cycles (102 tiles)
+    18 gemm_auto_s1_17    M=56  K=235 N=242 FULL  i8  util  80.18% cycles   62064 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-46-49Z-gemm_auto_s1_17-m56-full-auto.json
+         auto -> FULL: measured HW 62064 cycles (model 62064, 217 tiles) | STRIP not run: model 63170 cycles (224 tiles)
+    19 gemm_auto_s1_18    M=52  K=163 N=166 STRIP i8  util  73.20% cycles   30032 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-46-55Z-gemm_auto_s1_18-m52-strip-auto.json
+         auto -> STRIP: measured HW 30032 cycles (model 30032, 143 tiles) | FULL not run: model 31460 cycles (147 tiles)
+    20 gemm_auto_s1_19    M=35  K=216 N=167 STRIP i8  util  75.76% cycles   26039 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-47-00Z-gemm_auto_s1_19-m35-strip-auto.json
+         auto -> STRIP: measured HW 26039 cycles (model 26039, 99 tiles) | FULL not run: model 28037 cycles (105 tiles)
+    21 gemm_auto_s1_20    M=26  K=165 N=169 STRIP i8  util  69.39% cycles   16326 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-47-05Z-gemm_auto_s1_20-m26-strip-auto.json
+         auto -> STRIP: measured HW 16326 cycles (model 16326, 77 tiles) | FULL not run: model 19010 cycles (88 tiles)
+    22 gemm_auto_s1_21    M=6   K=84  N=34  FULL  i8  util  39.55% cycles     677 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-47-06Z-gemm_auto_s1_21-m6-full-auto.json
+         auto -> FULL: measured HW 677 cycles (model 677, 5 tiles) | STRIP not run: model 788 cycles (6 tiles)
+    23 gemm_auto_s1_22    M=1   K=212 N=221 STRIP i8  util  20.18% cycles    3628 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-47-11Z-gemm_auto_s1_22-m1-strip-auto.json
+         auto -> STRIP: measured HW 3628 cycles (model 3628, 14 tiles) | FULL not run: model 7366 cycles (28 tiles)
+    24 gemm_auto_s1_23    M=53  K=112 N=125 STRIP i8  util  65.10% cycles   17810 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-47-14Z-gemm_auto_s1_23-m53-strip-auto.json
+         auto -> STRIP: measured HW 17810 cycles (model 17810, 112 tiles) | FULL not run: model 18258 cycles (112 tiles)
+    25 gemm_auto_s1_24    M=64  K=154 N=63  FULL  i32 util  71.16% cycles   13634 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-47-19Z-gemm_auto_s1_24-m64-full-auto.json
+         auto -> FULL: measured HW 13634 cycles (model 13634, 64 tiles) | STRIP not run: model 13634 cycles (64 tiles)
+    26 gemm_auto_s1_25    M=37  K=171 N=179 FULL  i8  util  69.31% cycles   25532 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-47-25Z-gemm_auto_s1_25-m37-full-auto.json
+         auto -> FULL: measured HW 25532 cycles (model 25532, 115 tiles) | STRIP not run: model 26162 cycles (120 tiles)
+    27 gemm_auto_s1_26    M=34  K=211 N=249 STRIP i8  util  75.12% cycles   37154 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-47-33Z-gemm_auto_s1_26-m34-strip-auto.json
+         auto -> STRIP: measured HW 37154 cycles (model 37154, 144 tiles) | FULL not run: model 41922 cycles (160 tiles)
+    28 gemm_auto_s1_27    M=12  K=225 N=219 STRIP i32 util  77.44% cycles   11930 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-47-40Z-gemm_auto_s1_27-m12-strip-auto.json
+         auto -> STRIP: measured HW 11930 cycles (model 11930, 42 tiles) | FULL not run: model 15906 cycles (56 tiles)
+    29 gemm_auto_s1_28    M=1   K=67  N=144 STRIP i8  util  14.66% cycles    1028 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-47-42Z-gemm_auto_s1_28-m1-strip-auto.json
+         auto -> STRIP: measured HW 1028 cycles (model 1028, 9 tiles) | FULL not run: model 2126 cycles (18 tiles)
+    30 gemm_auto_s1_29    M=16  K=245 N=253 STRIP i8  util  82.91% cycles   18690 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-47-49Z-gemm_auto_s1_29-m16-strip-auto.json
+         auto -> STRIP: measured HW 18690 cycles (model 18690, 64 tiles) | FULL not run: model 18946 cycles (64 tiles)
+    31 gemm_auto_s1_30    M=56  K=200 N=162 FULL  i8  util  76.83% cycles   36899 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-47-55Z-gemm_auto_s1_30-m56-full-auto.json
+         auto -> FULL: measured HW 36899 cycles (model 36899, 147 tiles) | STRIP not run: model 38040 cycles (154 tiles)
+    32 gemm_auto_s1_31    M=18  K=11  N=196 STRIP i8  util  16.08% cycles    3772 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-47-57Z-gemm_auto_s1_31-m18-strip-auto.json
+         auto -> STRIP: measured HW 3772 cycles (model 3772, 65 tiles) | FULL not run: model 4652 cycles (75 tiles)
+    33 gemm_auto_s1_32    M=60  K=202 N=196 STRIP i8  util  76.44% cycles   48557 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-48-05Z-gemm_auto_s1_32-m60-strip-auto.json
+         auto -> STRIP: measured HW 48557 cycles (model 48557, 195 tiles) | FULL not run: model 50602 cycles (200 tiles)
+    34 gemm_auto_s1_33    M=2   K=200 N=3   FULL  i32 util   7.18% cycles     261 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-48-05Z-gemm_auto_s1_33-m2-full-auto.json
+         auto -> FULL: measured HW 261 cycles (model 261, 1 tiles) | STRIP not run: model 261 cycles (1 tiles)
+    35 gemm_auto_s1_34    M=22  K=109 N=52  FULL  i8  util  57.95% cycles    3362 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-48-07Z-gemm_auto_s1_34-m22-full-auto.json
+         auto -> FULL: measured HW 3362 cycles (model 3362, 21 tiles) | STRIP not run: model 3746 cycles (24 tiles)
+    36 gemm_auto_s1_35    M=54  K=191 N=196 FULL  i8  util  74.58% cycles   42352 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-48-14Z-gemm_auto_s1_35-m54-full-auto.json
+         auto -> FULL: measured HW 42352 cycles (model 42352, 175 tiles) | STRIP not run: model 43318 cycles (182 tiles)
+    37 gemm_auto_s1_36    M=35  K=46  N=57  STRIP i8  util  42.80% cycles    3350 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-48-15Z-gemm_auto_s1_36-m35-strip-auto.json
+         auto -> STRIP: measured HW 3350 cycles (model 3350, 36 tiles) | FULL not run: model 3882 cycles (40 tiles)
+    38 gemm_auto_s1_37    M=44  K=141 N=35  FULL  i8  util  58.88% cycles    5762 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-48-17Z-gemm_auto_s1_37-m44-full-auto.json
+         auto -> FULL: measured HW 5762 cycles (model 5762, 30 tiles) | STRIP not run: model 6206 cycles (33 tiles)
+    39 gemm_auto_s1_38    M=5   K=153 N=239 STRIP i8  util  47.60% cycles    6002 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-48-21Z-gemm_auto_s1_38-m5-strip-auto.json
+         auto -> STRIP: measured HW 6002 cycles (model 6002, 30 tiles) | FULL not run: model 6122 cycles (30 tiles)
+    40 gemm_auto_s1_39    M=53  K=250 N=68  FULL  i8  util  74.23% cycles   18965 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-48-25Z-gemm_auto_s1_39-m53-full-auto.json
+         auto -> FULL: measured HW 18965 cycles (model 18965, 63 tiles) | STRIP not run: model 20792 cycles (70 tiles)
+    41 gemm_auto_s1_40    M=7   K=155 N=15  STRIP i8  util  62.63% cycles     406 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-48-25Z-gemm_auto_s1_40-m7-strip-auto.json
+         auto -> STRIP: measured HW 406 cycles (model 406, 2 tiles) | FULL not run: model 414 cycles (2 tiles)
+    42 gemm_auto_s1_41    M=52  K=161 N=227 STRIP i8  util  73.21% cycles   40562 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-48-33Z-gemm_auto_s1_41-m52-strip-auto.json
+         auto -> STRIP: measured HW 40562 cycles (model 40562, 195 tiles) | FULL not run: model 43038 cycles (203 tiles)
+    43 gemm_auto_s1_42    M=47  K=209 N=31  STRIP i8  util  77.42% cycles    6146 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-48-35Z-gemm_auto_s1_42-m47-strip-auto.json
+         auto -> STRIP: measured HW 6146 cycles (model 6146, 24 tiles) | FULL not run: model 6242 cycles (24 tiles)
+    44 gemm_auto_s1_43    M=20  K=243 N=152 STRIP i8  util  79.59% cycles   14502 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-48-40Z-gemm_auto_s1_43-m20-strip-auto.json
+         auto -> STRIP: measured HW 14502 cycles (model 14502, 50 tiles) | FULL not run: model 16760 cycles (57 tiles)
+    45 gemm_auto_s1_44    M=29  K=243 N=50  FULL  i8  util  66.86% cycles    8234 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-48-43Z-gemm_auto_s1_44-m29-full-auto.json
+         auto -> FULL: measured HW 8234 cycles (model 8234, 28 tiles) | STRIP not run: model 9282 cycles (32 tiles)
+    46 gemm_auto_s1_45    M=63  K=26  N=27  STRIP i8  util  29.56% cycles    2338 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-48-43Z-gemm_auto_s1_45-m63-strip-auto.json
+         auto -> STRIP: measured HW 2338 cycles (model 2338, 32 tiles) | FULL not run: model 2466 cycles (32 tiles)
+    47 gemm_auto_s1_46    M=21  K=113 N=95  STRIP i8  util  61.13% cycles    5762 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-48-45Z-gemm_auto_s1_46-m21-strip-auto.json
+         auto -> STRIP: measured HW 5762 cycles (model 5762, 36 tiles) | FULL not run: model 5906 cycles (36 tiles)
+    48 gemm_auto_s1_47    M=53  K=142 N=50  FULL  i8  util  62.16% cycles    9459 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-48-48Z-gemm_auto_s1_47-m53-full-auto.json
+         auto -> FULL: measured HW 9459 cycles (model 9459, 49 tiles) | STRIP not run: model 10586 cycles (56 tiles)
+    49 gemm_auto_s1_48    M=40  K=130 N=85  FULL  i8  util  69.36% cycles    9957 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-48-50Z-gemm_auto_s1_48-m40-full-auto.json
+         auto -> FULL: measured HW 9957 cycles (model 9957, 55 tiles) | STRIP not run: model 10622 cycles (60 tiles)
+    50 gemm_auto_s1_49    M=54  K=144 N=169 STRIP i8  util  69.80% cycles   29416 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-48-55Z-gemm_auto_s1_49-m54-strip-auto.json
+         auto -> STRIP: measured HW 29416 cycles (model 29416, 154 tiles) | FULL not run: model 30032 cycles (154 tiles)
+    51 gemm_auto_s1_50    M=6   K=132 N=88  FULL  i32 util  51.78% cycles    2103 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-48-57Z-gemm_auto_s1_50-m6-full-auto.json
+         auto -> FULL: measured HW 2103 cycles (model 2103, 11 tiles) | STRIP not run: model 2294 cycles (12 tiles)
+    52 gemm_auto_s1_51    M=58  K=166 N=35  FULL  i8  util  60.65% cycles    8682 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-49-00Z-gemm_auto_s1_51-m58-full-auto.json
+         auto -> FULL: measured HW 8682 cycles (model 8682, 40 tiles) | STRIP not run: model 9587 cycles (45 tiles)
+    53 gemm_auto_s1_52    M=40  K=50  N=125 STRIP i8  util  50.33% cycles    7762 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-49-02Z-gemm_auto_s1_52-m40-strip-auto.json
+         auto -> STRIP: measured HW 7762 cycles (model 7762, 80 tiles) | FULL not run: model 8082 cycles (80 tiles)
+    54 gemm_auto_s1_53    M=22  K=217 N=122 STRIP i8  util  71.80% cycles   12674 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-49-05Z-gemm_auto_s1_53-m22-strip-auto.json
+         auto -> STRIP: measured HW 12674 cycles (model 12674, 48 tiles) | FULL not run: model 12866 cycles (48 tiles)
+    55 gemm_auto_s1_54    M=18  K=126 N=246 STRIP i8  util  62.98% cycles   13842 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-49-10Z-gemm_auto_s1_54-m18-strip-auto.json
+         auto -> STRIP: measured HW 13842 cycles (model 13842, 80 tiles) | FULL not run: model 16463 cycles (93 tiles)
+    56 gemm_auto_s1_55    M=33  K=199 N=23  FULL  i8  util  62.90% cycles    3752 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-49-12Z-gemm_auto_s1_55-m33-full-auto.json
+         auto -> FULL: measured HW 3752 cycles (model 3752, 15 tiles) | STRIP not run: model 4430 cycles (18 tiles)
+    57 gemm_auto_s1_56    M=22  K=250 N=17  FULL  i8  util  53.89% cycles    2711 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-49-13Z-gemm_auto_s1_56-m22-full-auto.json
+         auto -> FULL: measured HW 2711 cycles (model 2711, 9 tiles) | STRIP not run: model 3566 cycles (12 tiles)
+    58 gemm_auto_s1_57    M=40  K=214 N=136 FULL  i8  util  80.75% cycles   22527 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-49-18Z-gemm_auto_s1_57-m40-full-auto.json
+         auto -> FULL: measured HW 22527 cycles (model 22527, 85 tiles) | STRIP not run: model 23492 cycles (90 tiles)
+    59 gemm_auto_s1_58    M=23  K=141 N=73  STRIP i8  util  65.56% cycles    5642 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-49-20Z-gemm_auto_s1_58-m23-strip-auto.json
+         auto -> STRIP: measured HW 5642 cycles (model 5642, 30 tiles) | FULL not run: model 5762 cycles (30 tiles)
+    60 gemm_auto_s1_59    M=14  K=82  N=176 STRIP i8  util  55.60% cycles    5678 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-49-22Z-gemm_auto_s1_59-m14-strip-auto.json
+         auto -> STRIP: measured HW 5678 cycles (model 5678, 44 tiles) | FULL not run: model 5854 cycles (44 tiles)
+    61 gemm_auto_s1_60    M=16  K=176 N=125 STRIP i8  util  77.05% cycles    7138 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-49-25Z-gemm_auto_s1_60-m16-strip-auto.json
+         auto -> STRIP: measured HW 7138 cycles (model 7138, 32 tiles) | FULL not run: model 7266 cycles (32 tiles)
+    62 gemm_auto_s1_61    M=25  K=40  N=138 STRIP i8  util  39.33% cycles    5483 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-49-27Z-gemm_auto_s1_61-m25-strip-auto.json
+         auto -> STRIP: measured HW 5483 cycles (model 5483, 63 tiles) | FULL not run: model 6554 cycles (72 tiles)
+    63 gemm_auto_s1_62    M=61  K=4   N=236 STRIP i8  util   7.35% cycles   12242 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-49-30Z-gemm_auto_s1_62-m61-strip-auto.json
+         auto -> STRIP: measured HW 12242 cycles (model 12242, 240 tiles) | FULL not run: model 13202 cycles (240 tiles)
+    64 gemm_auto_s1_63    M=10  K=230 N=55  STRIP i8  util  59.43% cycles    3326 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-49-32Z-gemm_auto_s1_63-m10-strip-auto.json
+         auto -> STRIP: measured HW 3326 cycles (model 3326, 12 tiles) | FULL not run: model 3936 cycles (14 tiles)
+    65 gemm_auto_s1_64    M=24  K=144 N=170 STRIP i8  util  72.81% cycles   12608 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-49-36Z-gemm_auto_s1_64-m24-strip-auto.json
+         auto -> STRIP: measured HW 12608 cycles (model 12608, 66 tiles) | FULL not run: model 12872 cycles (66 tiles)
+    66 gemm_auto_s1_65    M=49  K=97  N=137 STRIP i8  util  60.38% cycles   16850 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-49-40Z-gemm_auto_s1_65-m49-strip-auto.json
+         auto -> STRIP: measured HW 16850 cycles (model 16850, 117 tiles) | FULL not run: model 18650 cycles (126 tiles)
+    67 gemm_auto_s1_66    M=12  K=62  N=115 STRIP i8  util  51.06% cycles    2618 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-49-41Z-gemm_auto_s1_66-m12-strip-auto.json
+         auto -> STRIP: measured HW 2618 cycles (model 2618, 24 tiles) | FULL not run: model 3392 cycles (30 tiles)
+    68 gemm_auto_s1_67    M=62  K=118 N=215 FULL  i8  util  67.32% cycles   36506 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-49-47Z-gemm_auto_s1_67-m62-full-auto.json
+         auto -> FULL: measured HW 36506 cycles (model 36506, 216 tiles) | STRIP not run: model 36962 cycles (224 tiles)
+    69 gemm_auto_s1_68    M=38  K=117 N=37  FULL  i8  util  61.17% cycles    4202 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-49-48Z-gemm_auto_s1_68-m38-full-auto.json
+         auto -> FULL: measured HW 4202 cycles (model 4202, 25 tiles) | STRIP not run: model 4922 cycles (30 tiles)
+    70 gemm_auto_s1_69    M=7   K=6   N=242 STRIP i8  util   9.35% cycles    1698 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-49-49Z-gemm_auto_s1_69-m7-strip-auto.json
+         auto -> STRIP: measured HW 1698 cycles (model 1698, 32 tiles) | FULL not run: model 1769 cycles (31 tiles)
+    71 gemm_auto_s1_70    M=13  K=44  N=96  STRIP i8  util  39.25% cycles    2186 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-49-50Z-gemm_auto_s1_70-m13-strip-auto.json
+         auto -> STRIP: measured HW 2186 cycles (model 2186, 24 tiles) | FULL not run: model 2282 cycles (24 tiles)
+    72 gemm_auto_s1_71    M=29  K=228 N=50  FULL  i8  util  66.11% cycles    7814 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-49-53Z-gemm_auto_s1_71-m29-full-auto.json
+         auto -> FULL: measured HW 7814 cycles (model 7814, 28 tiles) | STRIP not run: model 8802 cycles (32 tiles)
+    73 gemm_auto_s1_72    M=28  K=133 N=156 STRIP i8  util  72.03% cycles   12602 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-49-56Z-gemm_auto_s1_72-m28-strip-auto.json
+         auto -> STRIP: measured HW 12602 cycles (model 12602, 70 tiles) | FULL not run: model 14722 cycles (80 tiles)
+    74 gemm_auto_s1_73    M=22  K=143 N=129 FULL  i8  util  64.08% cycles    9896 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-49-59Z-gemm_auto_s1_73-m22-full-auto.json
+         auto -> FULL: measured HW 9896 cycles (model 9896, 51 tiles) | STRIP not run: model 10262 cycles (54 tiles)
+    75 gemm_auto_s1_74    M=36  K=195 N=18  FULL  i8  util  53.48% cycles    3692 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-50-01Z-gemm_auto_s1_74-m36-full-auto.json
+         auto -> FULL: measured HW 3692 cycles (model 3692, 15 tiles) | STRIP not run: model 4358 cycles (18 tiles)
+    76 gemm_auto_s1_75    M=38  K=150 N=102 FULL  i8  util  69.52% cycles   13067 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-50-04Z-gemm_auto_s1_75-m38-full-auto.json
+         auto -> FULL: measured HW 13067 cycles (model 13067, 65 tiles) | STRIP not run: model 13792 cycles (70 tiles)
+    77 gemm_auto_s1_76    M=45  K=26  N=177 STRIP i8  util  30.78% cycles   10514 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-50-07Z-gemm_auto_s1_76-m45-strip-auto.json
+         auto -> STRIP: measured HW 10514 cycles (model 10514, 144 tiles) | FULL not run: model 10628 cycles (138 tiles)
+    78 gemm_auto_s1_77    M=24  K=42  N=169 STRIP i8  util  45.30% cycles    5876 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-50-08Z-gemm_auto_s1_77-m24-strip-auto.json
+         auto -> STRIP: measured HW 5876 cycles (model 5876, 66 tiles) | FULL not run: model 6140 cycles (66 tiles)
+    79 gemm_auto_s1_78    M=34  K=80  N=214 STRIP i8  util  56.83% cycles   16004 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-50-12Z-gemm_auto_s1_78-m34-strip-auto.json
+         auto -> STRIP: measured HW 16004 cycles (model 16004, 126 tiles) | FULL not run: model 17687 cycles (135 tiles)
+    80 gemm_auto_s1_79    M=8   K=228 N=96  STRIP i8  util  82.86% cycles    3302 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-50-15Z-gemm_auto_s1_79-m8-strip-auto.json
+         auto -> STRIP: measured HW 3302 cycles (model 3302, 12 tiles) | FULL not run: model 3350 cycles (12 tiles)
+    81 gemm_auto_s1_80    M=1   K=223 N=229 STRIP i8  util  19.69% cycles    4052 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-50-20Z-gemm_auto_s1_80-m1-strip-auto.json
+         auto -> STRIP: measured HW 4052 cycles (model 4052, 15 tiles) | FULL not run: model 7948 cycles (29 tiles)
+    82 gemm_auto_s1_81    M=35  K=25  N=50  STRIP i8  util  26.35% cycles    2594 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-50-21Z-gemm_auto_s1_81-m35-strip-auto.json
+         auto -> STRIP: measured HW 2594 cycles (model 2594, 36 tiles) | FULL not run: model 2662 cycles (35 tiles)
+    83 gemm_auto_s1_82    M=48  K=18  N=33  FULL  i8  util  21.50% cycles    2072 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-50-22Z-gemm_auto_s1_82-m48-full-auto.json
+         auto -> FULL: measured HW 2072 cycles (model 2072, 30 tiles) | STRIP not run: model 2342 cycles (36 tiles)
+    84 gemm_auto_s1_83    M=45  K=17  N=230 STRIP i8  util  23.86% cycles   11522 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-50-25Z-gemm_auto_s1_83-m45-strip-auto.json
+         auto -> STRIP: measured HW 11522 cycles (model 11522, 180 tiles) | FULL not run: model 11834 cycles (174 tiles)
+    85 gemm_auto_s1_84    M=64  K=22  N=159 STRIP i8  util  31.68% cycles   11042 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-50-27Z-gemm_auto_s1_84-m64-strip-auto.json
+         auto -> STRIP: measured HW 11042 cycles (model 11042, 160 tiles) | FULL not run: model 11682 cycles (160 tiles)
+    86 gemm_auto_s1_85    M=32  K=66  N=168 FULL  i8  util  56.40% cycles    9830 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-50-30Z-gemm_auto_s1_85-m32-full-auto.json
+         auto -> FULL: measured HW 9830 cycles (model 9830, 84 tiles) | STRIP not run: model 9946 cycles (88 tiles)
+    87 gemm_auto_s1_86    M=60  K=144 N=40  FULL  i8  util  69.21% cycles    7802 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-50-32Z-gemm_auto_s1_86-m60-full-auto.json
+         auto -> FULL: measured HW 7802 cycles (model 7802, 40 tiles) | STRIP not run: model 8597 cycles (45 tiles)
+    88 gemm_auto_s1_87    M=43  K=113 N=53  FULL  i8  util  58.40% cycles    6890 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-50-34Z-gemm_auto_s1_87-m43-full-auto.json
+         auto -> FULL: measured HW 6890 cycles (model 6890, 42 tiles) | STRIP not run: model 7042 cycles (44 tiles)
+    89 gemm_auto_s1_88    M=4   K=162 N=51  STRIP i8  util  61.62% cycles     838 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-50-35Z-gemm_auto_s1_88-m4-strip-auto.json
+         auto -> STRIP: measured HW 838 cycles (model 838, 4 tiles) | FULL not run: model 1493 cycles (7 tiles)
+    90 gemm_auto_s1_89    M=58  K=213 N=204 STRIP i8  util  77.67% cycles   50702 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-50-43Z-gemm_auto_s1_89-m58-strip-auto.json
+         auto -> STRIP: measured HW 50702 cycles (model 50702, 195 tiles) | FULL not run: model 54914 cycles (208 tiles)
+    91 gemm_auto_s1_90    M=30  K=187 N=79  FULL  i32 util  70.36% cycles    9842 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-50-47Z-gemm_auto_s1_90-m30-full-auto.json
+         auto -> FULL: measured HW 9842 cycles (model 9842, 40 tiles) | STRIP not run: model 9842 cycles (40 tiles)
+    92 gemm_auto_s1_91    M=40  K=76  N=114 FULL  i8  util  56.84% cycles    9527 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-50-50Z-gemm_auto_s1_91-m40-full-auto.json
+         auto -> FULL: measured HW 9527 cycles (model 9527, 75 tiles) | STRIP not run: model 9842 cycles (80 tiles)
+    93 gemm_auto_s1_92    M=60  K=173 N=108 STRIP i8  util  75.82% cycles   23102 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-50-54Z-gemm_auto_s1_92-m60-strip-auto.json
+         auto -> STRIP: measured HW 23102 cycles (model 23102, 105 tiles) | FULL not run: model 25090 cycles (112 tiles)
+    94 gemm_auto_s1_93    M=51  K=161 N=46  STRIP i8  util  72.73% cycles    8114 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-50-56Z-gemm_auto_s1_93-m51-strip-auto.json
+         auto -> STRIP: measured HW 8114 cycles (model 8114, 39 tiles) | FULL not run: model 8906 cycles (42 tiles)
+    95 gemm_auto_s1_94    M=55  K=130 N=16  STRIP i8  util  72.08% cycles    2480 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-50-58Z-gemm_auto_s1_94-m55-strip-auto.json
+         auto -> STRIP: measured HW 2480 cycles (model 2480, 14 tiles) | FULL not run: model 2536 cycles (14 tiles)
+    96 gemm_auto_s1_95    M=44  K=153 N=13  STRIP i8  util  62.10% cycles    2202 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-50-59Z-gemm_auto_s1_95-m44-strip-auto.json
+         auto -> STRIP: measured HW 2202 cycles (model 2202, 11 tiles) | FULL not run: model 2450 cycles (12 tiles)
+    97 gemm_auto_s1_96    M=6   K=197 N=213 FULL  i8  util  58.73% cycles    6698 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-51-04Z-gemm_auto_s1_96-m6-full-auto.json
+         auto -> FULL: measured HW 6698 cycles (model 6698, 27 tiles) | STRIP not run: model 6834 cycles (28 tiles)
+    98 gemm_auto_s1_97    M=15  K=138 N=189 STRIP i8  util  68.82% cycles    8882 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-51-07Z-gemm_auto_s1_97-m15-strip-auto.json
+         auto -> STRIP: measured HW 8882 cycles (model 8882, 48 tiles) | FULL not run: model 9074 cycles (48 tiles)
+    99 gemm_auto_s1_98    M=13  K=27  N=22  FULL  i8  util  25.67% cycles     470 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-51-07Z-gemm_auto_s1_98-m13-full-auto.json
+         auto -> FULL: measured HW 470 cycles (model 470, 6 tiles) | STRIP not run: model 594 cycles (8 tiles)
+   100 gemm_auto_s1_99    M=44  K=133 N=234 STRIP i8  util  72.04% cycles   29702 OK C:\Users\danie\FPGA_Projects\Calhack2026\results\hw\2026-10-25T03-51-13Z-gemm_auto_s1_99-m44-strip-auto.json
+         auto -> STRIP: measured HW 29702 cycles (model 29702, 165 tiles) | FULL not run: model 33122 cycles (180 tiles)
+session C:\Users\danie\FPGA_Projects\Calhack2026\results\session.json: 577 GEMMs verified, 0 mismatches (derived from 577 run records in results\hw/ (top level))
+BATCH PASS: seed 1 runs 100 mismatches 0 counter_mismatches 0 invariant_failures 0 errors 0
+AUTO: 100 GEMMs, picked FULL 38 / STRIP 62 (model-scored: choose_mode, min cycles_total, ties -> FULL); model says STRIP slower on 33 (33 with more STRIP tiles) -> auto ran FULL there; 5 ties -> FULL
+AUTO cycles, measured (HW, chosen mode only): 1225768 total; measured == model on 100/100 runs
+AUTO cycles, MODEL totals (un-run modes are never measured): auto 1225768 | always-FULL 1292418 (1.054x auto) | always-STRIP 1244981 (1.016x auto)
+rc=0
+Sat Oct 24 20:51:14 PDT 2026
