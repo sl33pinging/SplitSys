@@ -172,6 +172,10 @@ States: `todo` · `running` · `done` (owner handoff, lead checked) · `PASS` (r
 | 16:42 | Phase H | **H-8b PASS** | Human fitted jumper J14 (flash boot). `flash.tcl fpga/known_good/CURRENT --program` → FLASH_OK: KG2.bin (md5 81547a25…, 1,315,316 B) erased/blank-checked/programmed/verified in 34 s, booted from flash, DONE=1. Log results/hw/logs/KG2/H-8_flash_program.log. |
 | ~16:50 | Phase H | **H-8c/d PASS** | Cold power cycle, no Vivado: board configured from flash in ~1 s (human), 7-seg all dashes, BTN0 → LED0 + LED1. |
 | 17:04 | Phase H | **H-8e / H-7 cold-start PASS** | `start_demo.ps1 -Transport serial:COM3 -WindowPosition 2304,0` from stopped state: ping 38a3950a, server + kiosk, 1.9 s wall; total cold start ≈ 3–5 s (target < 60 s). Human confirmed Scene 1 + BOARD LIVE on the monitor. **All Phase H steps H-1..H-8 done.** |
+| 17:13 | demo-storyteller | done | c939f3c: solo first-person voice; H-8 flash + cold-start milestone in README/devpost/DEMO booth checklist; architecture.png from live KG2 Scene 3. Flagged: Scene 3 roofline "measured int8 (379)" vs 439 int8 HW records → host. |
+| ~17:20 → 19:20 | host-dashboard | stalled | Stream watchdog stall mid-task (uncommitted edits in demo/app.js, sw/crates/host); ~2 h idle while the human was away. Resumed 19:20 to finish --version hash, mock-over-tcp label, roofline count. |
+
+| 19:32 | host-dashboard + lead | done | 21d7b04: `--version` = host git hash; mock-over-tcp → model/mock, never sim/verified; roofline counts all int8 HW records (439 of 473; old 379 = int8 among the 400-record display cap), Scene 2 says "latest 400 of 473". Lead rebuilt the Windows exe (21d7b04) and restarted the live dashboard on KG2 (roof_measured.n 439, runs_total 473). |
 
 ## Pre-Phase-H human checklist
 - [x] Install Windows Rust + build splitsys-host natively (done by human ~11:30; release build 52 s; lead verified mock ping + selftest PASS from the Windows exe).
