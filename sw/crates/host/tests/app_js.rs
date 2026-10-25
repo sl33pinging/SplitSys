@@ -1,0 +1,68 @@
+//! Dashboard logic in demo/app.js, run under node (the file exports its pure
+//! helpers when there is no DOM). Skipped with a message if node is not on PATH.
+
+use std::path::PathBuf;
+use std::process::Command;
+
+const SCRIPT: &str = r#"
+const A = require(process.argv[1]);
+const assert = require('assert');
+const rec = (name, mode, M, K, N, requant, source, build_id) =>
+  ({ gemm: { name, mode, M, K, N, requant }, source, build_id, derived: { util: 0.5 } });
+
+// 3. Mode pairing is by (M, K, N, requant), not by name.
+const full = rec('gemm_full_s1_99', 'FULL', 44, 133, 234, true, 'hw', '52a66216');
+const strip = rec('gemm_strip_s1_99', 'STRIP', 44, 133, 234, true, 'hw', '38a3950a');
+assert.strictEqual(A.otherModeRun([full, strip], strip), full);
+assert.strictEqual(A.otherModeRun([full, strip], full), strip);
+// Latest of several candidates wins.
+const full2 = rec('gemm_full_s1_99', 'FULL', 44, 133, 234, true, 'hw', '38a3950a');
+assert.strictEqual(A.otherModeRun([full, full2, strip], strip), full2);
+// Any differing dimension, requant flag, or source: no pair. Same mode: no pair.
+for (const x of [
+  rec('a', 'FULL', 45, 133, 234, true, 'hw', 'b'),
+  rec('a', 'FULL', 44, 134, 234, true, 'hw', 'b'),
+  rec('a', 'FULL', 44, 133, 235, true, 'hw', 'b'),
+  rec('a', 'FULL', 44, 133, 234, false, 'hw', 'b'),
+  rec('a', 'FULL', 44, 133, 234, true, 'sim', 'b'),
+  rec('a', 'STRIP', 44, 133, 234, true, 'hw', 'b'),
+]) assert.strictEqual(A.otherModeRun([x, strip], strip), null, JSON.stringify(x.gemm) + x.source);
+// Same name still pairs when the shape matches (ffn_up FULL vs STRIP).
+const fu = rec('ffn_up', 'FULL', 1, 64, 256, true, 'hw', 'x'), su = rec('ffn_up', 'STRIP', 1, 64, 256, true, 'hw', 'x');
+assert.strictEqual(A.otherModeRun([fu, su], su), fu);
+
+// 2. Two decimals on every ratio.
+assert.strictEqual(A.ratio(2.0709), '2.07×');
+assert.strictEqual(A.ratio(1), '1.00×');
+assert.strictEqual(A.ratio(2.1), '2.10×');
+
+// 1. Builds line computed from the records, first-appearance order.
+const ids = [].concat(Array(255).fill('52a66216'), Array(184).fill('38a3950a'));
+assert.strictEqual(A.buildsLine('HW', ids), 'HW: builds 52a66216 (255) + 38a3950a (184)');
+assert.strictEqual(A.buildsLine('REPLAY', ['38a3950a', '38a3950a']), 'REPLAY: build 38a3950a (2)');
+assert.strictEqual(A.buildsLine('HW', []), '');
+assert.strictEqual(A.buildsLineCounts('HW', [{ build_id: 'a', n: 3 }, { build_id: 'b', n: 1 }]), 'HW: builds a (3) + b (1)');
+
+// 4. Ticker label: REPLAY in replay view, else the record's own source.
+assert.strictEqual(A.recordLabel(full, 'replay'), 'REPLAY');
+assert.strictEqual(A.recordLabel(full, 'hw'), 'HW');
+assert.strictEqual(A.recordLabel(rec('a', 'FULL', 1, 1, 1, true, 'sim', 'b'), 'sim'), 'SIM');
+console.log('app.js helpers ok');
+"#;
+
+#[test]
+fn app_js_helpers() {
+    let app = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../demo/app.js");
+    assert!(app.exists(), "{}", app.display());
+    let out = match Command::new("node").arg("-e").arg(SCRIPT).arg(&app).output() {
+        Ok(o) => o,
+        Err(e) => {
+            eprintln!("SKIP app_js_helpers: node not runnable ({e})");
+            return;
+        }
+    };
+    let so = String::from_utf8_lossy(&out.stdout);
+    let se = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "node failed:\n{so}\n{se}");
+    assert!(so.contains("app.js helpers ok"), "{so}\n{se}");
+}

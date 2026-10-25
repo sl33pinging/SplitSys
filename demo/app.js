@@ -34,7 +34,43 @@ function lastRun() { const r = runs(); return r.length ? r[r.length - 1] : null;
 // bring-up path with a slower drain, not comparable with the int8 numbers.
 function headlineRun() { return latestOf((x) => x.gemm.requant); }
 function int32Tag(g) { return g.requant ? '' : ' · int32 bypass'; }
-function sameShape(a, b) { return a.gemm.name === b.gemm.name && a.gemm.M === b.gemm.M && a.gemm.K === b.gemm.K && a.gemm.N === b.gemm.N && a.gemm.requant === b.gemm.requant; }
+// Two records are the same GEMM for the ×-factor when (M, K, N, requant) match; the
+// name is not part of it (gemm_full_s1_99 and gemm_strip_s1_99 are one shape).
+function sameGemm(a, b) { return a.gemm.M === b.gemm.M && a.gemm.K === b.gemm.K && a.gemm.N === b.gemm.N && !!a.gemm.requant === !!b.gemm.requant; }
+// Latest record of the other mode for the same GEMM and source, or null.
+function otherModeRun(list, r) {
+  for (let i = list.length - 1; i >= 0; i--) {
+    const x = list[i];
+    if (x !== r && sameGemm(x, r) && x.gemm.mode !== r.gemm.mode && x.source === r.source) return x;
+  }
+  return null;
+}
+// Every × ratio on screen: two decimals (2.0709 -> "2.07×"), matching README/devpost.
+function ratio(f) { return f.toFixed(2) + '×'; }
+// "HW: builds 52a66216 (255) + 38a3950a (184)", computed from the build_id of each
+// record a panel aggregates (first-appearance order; records are sorted by run_id).
+function buildCounts(ids) {
+  const m = new Map();
+  for (const id of ids) m.set(id || '?', (m.get(id || '?') || 0) + 1);
+  return [...m.entries()];
+}
+function buildsLine(lab, ids) {
+  return buildsLineCounts(lab, buildCounts(ids).map(([build_id, n]) => ({ build_id, n })));
+}
+// Same line from counts [{build_id, n}] (the server's builds_all covers records not in S.runs).
+function buildsLineCounts(lab, bc) {
+  if (!bc.length) return '';
+  return `${lab}: ${buildsPart(bc)}`;
+}
+function buildsPart(bc) { return `${bc.length > 1 ? 'builds' : 'build'} ${bc.map((b) => `${b.build_id} (${b.n})`).join(' + ')}`; }
+// Label of one record as displayed: under REPLAY every record says REPLAY.
+function recordLabel(x, view) { return badgeFor(view === 'replay' ? 'replay' : x.source)[0]; }
+function shownBuilds(records) { return buildsLine(badgeFor(srcLabel())[0], records.map((r) => r.build_id)); }
+function footnote(line) { return line ? `<div class="note" style="margin-top:6px;font-size:18px;line-height:1.25">${esc(line)}</div>` : ''; }
+function svgFoot(svg, x, y, line, n) {
+  if (!n) return;
+  svg.appendChild(el('text', { x, y, 'font-size': 18, fill: C.muted, class: 'mono' }, `${line} · ${n} points shown`));
+}
 function latestOf(pred) { const r = runs(); for (let i = r.length - 1; i >= 0; i--) if (pred(r[i])) return r[i]; return null; }
 function srcLabel() { return S ? S.source : 'model'; }
 
@@ -46,7 +82,7 @@ function fit() {
   st.style.left = ((window.innerWidth - 1920 * s) / 2) + 'px';
   st.style.top = ((window.innerHeight - 1080 * s) / 2) + 'px';
 }
-window.addEventListener('resize', fit);
+if (typeof window !== 'undefined') window.addEventListener('resize', fit);
 
 // ---------- header, banners, watermark ----------
 function renderChrome() {
@@ -210,11 +246,12 @@ function renderRun() {
   setBadge('run-badge', srcLabel());
   if (!r) { $('run-title').textContent = 'No run yet'; body.innerHTML = '<div class="pending-box">Press Space to run the scripted demo (ffn_up at M=1 and M=64, FULL then STRIP).</div>'; return; }
   const g = r.gemm, d = r.derived;
-  const other = latestOf((x) => sameShape(x, r) && x.gemm.mode !== g.mode && x.source === r.source);
+  const other = otherModeRun(runs(), r);
   let xf = '';
   if (other && other.derived.util > 0) {
     const f = d.util / other.derived.util;
-    xf = `<div class="mid ${g.mode === 'STRIP' ? 'strip' : 'full'}" style="font-size:40px;margin-top:14px">${f.toFixed(2)}× <span class="muted" style="font-size:24px">vs ${other.gemm.mode} on the same GEMM</span></div>`;
+    const who = [other.gemm.name !== g.name ? esc(other.gemm.name) : '', other.build_id !== r.build_id ? 'build ' + esc(other.build_id) : ''].filter(Boolean).join(', ');
+    xf = `<div class="mid ${g.mode === 'STRIP' ? 'strip' : 'full'}" style="font-size:40px;margin-top:14px">${ratio(f)} <span class="muted" style="font-size:24px">vs ${other.gemm.mode} on the same M, K, N</span></div>${who ? `<div class="note">paired with ${who}</div>` : ''}`;
   } else {
     xf = `<div class="note" style="margin-top:14px">× vs the other mode appears once both modes ran this GEMM</div>`;
   }
@@ -229,7 +266,7 @@ function renderRun() {
     <div style="margin-top:22px;font-size:22px;color:${C.muted}">Cycle breakdown (measured bar, model outline)</div>
     <svg id="brk-svg" width="596" height="150" viewBox="0 0 596 150"></svg>
     <div class="kv" style="margin-top:4px">check: <span class="${ok ? 'pass' : 'fail'}">${ok ? '✓ bit-exact vs golden' : '✗ FAILED'}</span> · ${int(r.check.outputs_compared)} outputs · ${r.check.mismatches} mismatches · invariants ${r.check.invariants_ok ? 'ok' : 'FAIL'}</div>
-    <div class="note" style="margin-top:6px">operand bytes/cycle ${d.operand_bytes_per_cycle} (stream) · stall ${int(r.counters.cycles_stall)} cycles</div>${skipped}`;
+    <div class="note" style="margin-top:6px">operand bytes/cycle ${d.operand_bytes_per_cycle} (stream) · stall ${int(r.counters.cycles_stall)} cycles · ${esc(recordLabel(r, srcLabel()))} build ${esc(r.build_id)}</div>${skipped}`;
   renderBreakdown($('brk-svg'), r);
 }
 function renderBreakdown(svg, r) {
@@ -275,7 +312,8 @@ function renderVerified() {
     <div class="mid">${int(s.gemms_verified || 0)} <span style="font-size:26px" class="muted">GEMMs</span></div>
     <div class="mid" style="font-size:38px;margin-top:6px">${int(s.macs_verified || 0)} <span style="font-size:24px" class="muted">MACs bit-exact</span></div>
     <div class="mid ${mm === 0 ? 'pass' : 'fail'}" style="font-size:38px;margin-top:6px">${int(mm)} <span style="font-size:24px">mismatches</span></div>
-    <div class="kv muted" style="margin-top:10px">vs Rust golden model · ${s.failed_runs ? s.failed_runs + ' failed runs · ' : ''}since ${esc((s.started_utc || '').replace('T', ' ').replace('Z', ' UTC'))}</div>`;
+    <div class="kv muted" style="margin-top:10px">vs Rust golden model · ${s.failed_runs ? s.failed_runs + ' failed runs · ' : ''}since ${esc((s.started_utc || '').replace('T', ' ').replace('Z', ' UTC'))}</div>
+    ${footnote(buildsLineCounts(badgeFor(srcLabel())[0], S.builds_all || []))}`;
 }
 function renderCost() {
   const c = S.cost;
@@ -312,7 +350,7 @@ function renderTicker() {
     if (!x) { d.className = 'tick empty'; d.textContent = '—'; t.appendChild(d); continue; }
     const ok = x.check.golden_match && x.check.invariants_ok;
     d.className = 'tick';
-    d.innerHTML = `<span class="mono">${esc(x.gemm.name)} M=${x.gemm.M}</span> <span class="${x.gemm.mode === 'STRIP' ? 'strip' : 'full'}">${x.gemm.mode}</span><br><span class="mono">${pct(x.derived.util)}</span> <span class="${ok ? 'pass' : 'fail'}">${ok ? '✓' : '✗'}</span> <span class="muted">${badgeFor(x.source)[0]}${x.gemm.requant ? '' : ' · int32'}</span>`;
+    d.innerHTML = `<span class="mono">${esc(x.gemm.name)} M=${x.gemm.M}</span> <span class="${x.gemm.mode === 'STRIP' ? 'strip' : 'full'}">${x.gemm.mode}</span><br><span class="mono">${pct(x.derived.util)}</span> <span class="${ok ? 'pass' : 'fail'}">${ok ? '✓' : '✗'}</span> <span${srcLabel() === 'replay' ? ' style="color:#FFB020;font-weight:700"' : ' class="muted"'}>${recordLabel(x, srcLabel())}${x.gemm.requant ? '' : ' · int32'}</span>`;
     t.appendChild(d);
   }
 }
@@ -328,7 +366,7 @@ function measuredPoint(name, M, mode) {
 function renderSweep() {
   const svg = $('sweep-svg'); svg.innerHTML = '';
   const name = 'ffn_up';
-  const L = 90, T = 20, W = 960, H = 380;
+  const L = 90, T = 20, W = 960, H = 356;
   const ms = S.sweep_m || [1, 2, 4, 8, 16, 32, 64];
   const xi = (m) => L + (Math.log2(m) / Math.log2(64)) * W;
   const yv = (u) => T + H - u * H;
@@ -340,13 +378,15 @@ function renderSweep() {
     svg.appendChild(el('text', { x: L - 30, y: yv(u) + 7, 'text-anchor': 'end', 'font-size': 20, fill: C.muted, class: 'mono' }, (u * 100).toFixed(0) + '%'));
   }
   for (const m of ms) svg.appendChild(el('text', { x: xi(m), y: T + H + 32, 'text-anchor': 'middle', 'font-size': 20, fill: C.muted, class: 'mono' }, 'M=' + m));
-  svg.appendChild(el('text', { x: L + W / 2, y: T + H + 64, 'text-anchor': 'middle', 'font-size': 20, fill: C.muted }, `${name} (K=64, N=256), M on a log₂ axis · y = utilization`));
+  svg.appendChild(el('text', { x: L + W / 2, y: T + H + 60, 'text-anchor': 'middle', 'font-size': 20, fill: C.muted }, `${name} (K=64, N=256), M on a log₂ axis · y = utilization`));
   let anyMeasured = false;
+  const shown = [];
   const highlight = new Set(S.highlight || []);
   for (const mode of ['FULL', 'STRIP']) {
     const col = modeColor(mode);
     const pts = ms.map((m) => [m, measuredPoint(name, m, mode)]).filter((p) => p[1]);
     if (pts.length) anyMeasured = true;
+    for (const [, r] of pts) shown.push(r);
     // Connect only adjacent sweep points that were both measured (no interpolation across gaps).
     for (let i = 0; i + 1 < ms.length; i++) {
       const a = measuredPoint(name, ms[i], mode), b = measuredPoint(name, ms[i + 1], mode);
@@ -370,6 +410,7 @@ function renderSweep() {
   });
   svg.appendChild(lg);
   if (!anyMeasured) svg.appendChild(el('text', { x: L + W / 2, y: T + H / 2, 'text-anchor': 'middle', 'font-size': 24, fill: C.muted }, 'no measured points yet · model markers only · press Space'));
+  svgFoot(svg, L - 20, T + H + 94, shownBuilds(shown), shown.length);
   if (!S.sweep) svg.appendChild(el('text', { x: L + W / 2, y: T + H / 2 + 34, 'text-anchor': 'middle', 'font-size': 22, fill: C.fail }, 'results/model/sweep.json missing: model markers unavailable'));
   // finding title from the data shown (measured if present, else model)
   const u = (m, mode) => { const r = measuredPoint(name, m, mode); if (r) return r.derived.util; const p = modelPoints(name).find((p) => p.gemm.M === m && p.gemm.mode === mode); return p ? p.derived.util_model : null; };
@@ -377,7 +418,7 @@ function renderSweep() {
   let title = 'Utilization vs M';
   if (f1 && s1 && f64 && s64) {
     const conv = Math.abs(s64 - f64) / Math.max(f64, s64) < 0.1;
-    title = s1 > f1 ? `STRIP wins at small M (${(s1 / f1).toFixed(1)}× at M=1)${conv ? '; both converge at prefill' : ''}` : `FULL ≥ STRIP at M=1 (${pct(f1)} vs ${pct(s1)})`;
+    title = s1 > f1 ? `STRIP wins at small M (${ratio(s1 / f1)} at M=1)${conv ? '; both converge at prefill' : ''}` : `FULL ≥ STRIP at M=1 (${pct(f1)} vs ${pct(s1)})`;
   }
   $('sweep-title').textContent = title;
   setBadge('sweep-badge', anyMeasured ? srcLabel() : 'model', anyMeasured ? undefined : 'MODEL');
@@ -387,13 +428,14 @@ function renderBench() {
   const shapes = S.bench_shapes || [];
   const groups = [];
   for (const b of shapes) for (const m of [1, 64]) groups.push([b.name, m]);
-  const L = 70, T = 14, H = 220, gw = (1828 - L - 10) / Math.max(groups.length, 1), bw = Math.min(56, gw / 3.2);
+  const L = 70, T = 14, H = 196, gw = (1828 - L - 10) / Math.max(groups.length, 1), bw = Math.min(56, gw / 3.2);
   const yv = (u) => T + H - u * H;
   for (let u = 0; u <= 1.0001; u += 0.5) {
     svg.appendChild(el('line', { x1: L - 10, y1: yv(u), x2: 1828, y2: yv(u), stroke: C.line }));
     svg.appendChild(el('text', { x: L - 18, y: yv(u) + 7, 'text-anchor': 'end', 'font-size': 20, fill: C.muted, class: 'mono' }, (u * 100) + '%'));
   }
   let measured = 0, wins = 0, decodeGroups = 0;
+  const shown = [];
   groups.forEach(([name, m], gi) => {
     const cx = L + gi * gw + gw / 2;
     const vals = {};
@@ -402,7 +444,7 @@ function renderBench() {
       const r = measuredPoint(name, m, mode);
       const p = modelPoints(name).find((p) => p.gemm.M === m && p.gemm.mode === mode);
       if (r) {
-        measured++; vals[mode] = r.derived.util;
+        measured++; vals[mode] = r.derived.util; shown.push(r);
         svg.appendChild(el('rect', { x, y: yv(r.derived.util), width: bw, height: r.derived.util * H, fill: modeColor(mode), rx: 3 }));
         svg.appendChild(el('text', { x: x + bw / 2, y: yv(r.derived.util) - 8, 'text-anchor': 'middle', 'font-size': 18, class: 'mono' }, (r.derived.util * 100).toFixed(0)));
       } else {
@@ -414,6 +456,7 @@ function renderBench() {
     svg.appendChild(el('text', { x: cx, y: T + H + 30, 'text-anchor': 'middle', 'font-size': 20 }, name));
     svg.appendChild(el('text', { x: cx, y: T + H + 56, 'text-anchor': 'middle', 'font-size': 19, fill: C.muted, class: 'mono' }, 'M=' + m));
   });
+  svgFoot(svg, L - 10, T + H + 88, shownBuilds(shown), shown.length);
   $('bench-title').textContent = decodeGroups ? `STRIP beats FULL on ${wins} of ${decodeGroups} decode (M=1) benchmarks` : 'Benchmarks: not run yet (dashed = not run; white tick = model)';
   setBadge('bench-badge', measured ? srcLabel() : 'model', measured ? undefined : 'MODEL');
 }
@@ -441,12 +484,13 @@ function renderErrTable() {
   }).join('');
   // S.runs holds the latest S.max_runs records; say so when the source has more.
   const tot = S.runs_total || all.length, lab = badgeFor(srcLabel())[0];
-  const n = tot > all.length ? `latest ${all.length} of ${tot} ${lab} runs` : `${all.length} ${lab} runs`;
+  const n = tot > all.length ? `latest ${all.length}/${tot} ${lab} runs` : `${all.length} ${lab} runs`;
+  const bp = buildsPart(buildCounts(all.map((x) => x.build_id)).map(([build_id, k]) => ({ build_id, n: k })));
   $('err-title').textContent = worst === 0 ? 'Model exact on all 12 counters'
     : worst <= 0.05 ? `Model within ${(worst * 100).toFixed(2)}% on all 12 counters`
     : `Model off by up to ${(worst * 100).toFixed(1)}%: see footnote`;
   const mockNote = srcLabel() === 'model' ? '<div class="note" style="color:#FF5C5C">Mock board: its counters ARE the model, so errors are 0 by construction.</div>' : '';
-  body.innerHTML = `<div class="kv mono" style="font-size:19px;margin-bottom:4px">${n} · last: ${esc(r.gemm.name)} M=${r.gemm.M} ${r.gemm.mode}${int32Tag(r.gemm)}</div>
+  body.innerHTML = `<div class="kv mono" style="font-size:18px;line-height:1.4;margin-bottom:4px">${n}: ${esc(bp)}<br>last: ${esc(r.gemm.name)} M=${r.gemm.M} ${r.gemm.mode}${int32Tag(r.gemm)}</div>
     <table class="err compact"><tr><th>counter</th><th>measured</th><th>model</th><th>err</th><th>max |err|, all</th></tr>${rows}</table>
     <div class="note" style="margin-top:4px">Over 5% is red and needs an explanation, not a tweak (SPEC §7).${S.latencies_provisional ? ' Latencies provisional.' : ''}</div>${mockNote}`;
 }
@@ -538,6 +582,8 @@ function renderRoof() {
     svg.appendChild(k === 'ring' ? el('circle', { cx: x, cy: y - 6, r: 7, fill: 'none', stroke: '#fff', 'stroke-width': 2.5 }) : el('circle', { cx: x, cy: y - 6, r: 6, fill: '#fff' }));
     svg.appendChild(el('text', { x: x + 16, y, 'font-size': 19, fill: C.muted }, t));
   });
+  // Bottom-right of the plot is empty (no GEMM here is below 1 MAC/cycle at high intensity).
+  if (nm) svg.appendChild(el('text', { x: L + W - 10, y: T + H - 12, 'text-anchor': 'end', 'font-size': 18, fill: C.muted, class: 'mono' }, buildsLine(badgeFor(srcLabel())[0], RM.points.map((p) => p.build_id))));
   $('roof-title').textContent = 'Decode GEMMs sit far below the roof: few MACs per operand byte';
   setBadge('roof-badge', nm ? srcLabel() : 'model', nm ? undefined : 'MODEL');
 }
@@ -545,11 +591,12 @@ function renderTrade() {
   const c = S.cost;
   const lut = c && c.full_only && c.split ? `${c.split.lut - c.full_only.lut >= 0 ? '+' : '−'}${int(Math.abs(c.split.lut - c.full_only.lut))} LUTs` : null;
   const f1 = measuredPoint('ffn_up', 1, 'FULL'), s1 = measuredPoint('ffn_up', 1, 'STRIP');
-  const gain = f1 && s1 && f1.derived.util > 0 ? `${(s1.derived.util / f1.derived.util).toFixed(2)}×` : null;
+  const gain = f1 && s1 && f1.derived.util > 0 ? ratio(s1.derived.util / f1.derived.util) : null;
+  const gainSrc = gain ? buildsLine(badgeFor(srcLabel())[0], [f1.build_id, s1.build_id]) : '';
   $('trade-title').textContent = `STRIP buys utilization on skinny matmuls for +25% operand bandwidth${lut ? ' and ' + lut : ''}`;
   setBadge('trade-badge', gain ? srcLabel() : 'model', gain ? undefined : 'SPEC');
   $('trade-body').innerHTML = `
-    <div><b>Gain:</b> ${gain ? `<span class="mono strip">${gain}</span> utilization on ffn_up at M=1 (STRIP vs FULL, ${badgeFor(srcLabel())[0]})` : '<span class="muted">pending a FULL and a STRIP run of ffn_up at M=1</span>'}</div>
+    <div><b>Gain:</b> ${gain ? `<span class="mono strip">${gain}</span> utilization on ffn_up at M=1 (STRIP vs FULL, ${esc(gainSrc)})` : '<span class="muted">pending a FULL and a STRIP run of ffn_up at M=1</span>'}</div>
     <div><b>Bandwidth:</b> <span class="mono">20</span> vs <span class="mono">16</span> operand bytes per stream cycle (4 A + 16 W vs 8 A + 8 W).</div>
     <div><b>Area:</b> ${lut ? `<span class="mono">${lut}</span>, <span class="mono">+${c.split.dsp - c.full_only.dsp}</span> DSPs (Vivado, BUILD), incl. the 16-wide requant; both builds meet timing at ${c.clock_mhz || 100} MHz` : '<span class="muted">pending build (results/cost.json)</span>'}</div>
     <div><b>When it pays:</b> M ≤ 4 (decode). At M ≥ 8 both shapes fill the array.</div>`;
@@ -588,6 +635,10 @@ function connectEvents() {
   es.onerror = () => { if (S) { S.board = Object.assign({}, S.board, { status: 'disconnected', error: 'dashboard server unreachable' }); renderChrome(); } };
   es.onopen = () => refresh();
 }
+if (typeof document === 'undefined') {
+  // Loaded by node (sw/crates/host/tests/app_js.rs): export the pure helpers only.
+  module.exports = { sameGemm, otherModeRun, ratio, buildCounts, buildsLine, buildsLineCounts, recordLabel };
+} else {
 document.addEventListener('keydown', (e) => {
   if (e.key === '1' || e.key === '2' || e.key === '3') post('/api/scene', { scene: +e.key });
   else if (e.key === ' ') { e.preventDefault(); post('/api/demo'); }
@@ -618,4 +669,5 @@ if (shot) {
   refresh();
   connectEvents();
   setInterval(refresh, 5000);
+}
 }

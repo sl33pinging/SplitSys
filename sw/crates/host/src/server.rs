@@ -75,6 +75,8 @@ struct App {
     roof: Vec<Value>,
     /// Records of `source` on disk; `runs` keeps the latest `MAX_RUNS`.
     runs_total: usize,
+    /// (build_id, records) over every record of `source`, first-appearance order.
+    builds: Vec<(String, usize)>,
     running: Option<Value>,
     queue_len: usize,
     scene: u8,
@@ -108,6 +110,27 @@ fn roof_point(r: &RunRecord) -> Option<Value> {
     })
 }
 
+/// Per-build record counts in first-appearance order (records are sorted by run_id),
+/// for the "HW: builds A (n) + B (m)" attribution on aggregating panels.
+fn build_counts<'a>(runs: impl IntoIterator<Item = &'a RunRecord>) -> Vec<(String, usize)> {
+    let mut v: Vec<(String, usize)> = Vec::new();
+    for r in runs {
+        add_build(&mut v, &r.build_id);
+    }
+    v
+}
+
+fn add_build(v: &mut Vec<(String, usize)>, id: &str) {
+    match v.iter_mut().find(|(b, _)| b == id) {
+        Some((_, n)) => *n += 1,
+        None => v.push((id.to_string(), 1)),
+    }
+}
+
+fn builds_json(v: &[(String, usize)]) -> Value {
+    Value::Array(v.iter().map(|(b, n)| json!({"build_id": b, "n": n})).collect())
+}
+
 fn roof_points<'a>(runs: impl IntoIterator<Item = &'a RunRecord>) -> Vec<Value> {
     runs.into_iter().filter_map(roof_point).collect()
 }
@@ -121,24 +144,27 @@ struct Live {
     roof: Vec<Value>,
     /// Number of records on disk (`runs` holds at most `MAX_RUNS` of them).
     total: usize,
+    builds: Vec<(String, usize)>,
 }
 
 fn load_live(results: &Path, source: &str) -> Live {
     let all = load_runs(&runs_dir(results, source));
     let roof = roof_points(&all);
+    let builds = build_counts(&all);
     let total = all.len();
     let mut runs: VecDeque<RunRecord> = all.into();
     while runs.len() > MAX_RUNS {
         runs.pop_front();
     }
-    Live { session: Session::rebuild(results, source), runs, roof, total }
+    Live { session: Session::rebuild(results, source), runs, roof, total, builds }
 }
 
 impl App {
     fn new(source: &str, transport: &TransportSpec, results: &Path, replay: Option<Replay>, attract: bool) -> Self {
-        let Live { session, runs, roof, total } = load_live(results, source);
+        let Live { session, runs, roof, total, builds } = load_live(results, source);
         Self {
             roof,
+            builds,
             runs_total: total,
             source: source.into(),
             transport: format!("{transport:?}"),
@@ -172,12 +198,13 @@ impl App {
     fn adopt_board(&mut self, results: &Path, transport_src: transport::Source, build_id_hex: &str) {
         let src = runner::effective_source(transport_src, Some(build_id_hex));
         if self.source != src {
-            let Live { session, runs, roof, total } = load_live(results, src);
+            let Live { session, runs, roof, total, builds } = load_live(results, src);
             self.source = src.into();
             self.session = session;
             self.runs = runs;
             self.roof = roof;
             self.runs_total = total;
+            self.builds = builds;
         }
         self.build_id = Some(build_id_hex.into());
     }
@@ -209,7 +236,7 @@ impl Shared {
         let a = self.app.lock().expect("app");
         let model_dir = self.results.join("model");
         let cost = read_json(&self.results.join("cost.json"));
-        let (runs, session, source, board_status, roof, roof_from) = match (&a.replay, a.replay_active) {
+        let (runs, session, source, board_status, roof, roof_from, builds) = match (&a.replay, a.replay_active) {
             (Some(r), true) => (
                 serde_json::to_value(&r.runs).unwrap_or(Value::Null),
                 r.session.clone().unwrap_or(Value::Null),
@@ -217,6 +244,7 @@ impl Shared {
                 "replay",
                 roof_points(&r.runs),
                 "replay".to_string(),
+                builds_json(&build_counts(&r.runs)),
             ),
             _ => (
                 serde_json::to_value(&a.runs).unwrap_or(Value::Null),
@@ -225,6 +253,7 @@ impl Shared {
                 a.board_status,
                 a.roof.clone(),
                 format!("results/{}", runs_dir(Path::new(""), &a.source).display()),
+                builds_json(&a.builds),
             ),
         };
         json!({
@@ -265,6 +294,7 @@ impl Shared {
             "cost_path": "results/cost.json",
             "sweep": read_json(&model_dir.join("sweep.json")),
             "roofline": read_json(&model_dir.join("roofline.json")),
+            "builds_all": builds,
             "runs_total": if a.replay_active { a.replay.as_ref().map_or(0, |r| r.runs.len()) } else { a.runs_total },
             "max_runs": MAX_RUNS,
             "roof_measured": {"n": roof.len(), "points": roof, "from": roof_from, "rule": ROOF_RULE},
@@ -331,6 +361,7 @@ fn worker(opts_t: TransportSpec, baud: u32, scale: Option<u32>, root: PathBuf, s
                 a.session = live.session;
                 a.roof = live.roof;
                 a.runs_total = live.total;
+                a.builds = live.builds;
             }
         }
         // Gather commands.
@@ -441,6 +472,7 @@ fn worker(opts_t: TransportSpec, baud: u32, scale: Option<u32>, root: PathBuf, s
                         }
                         a.roof.extend(roof_point(&rec));
                         a.runs_total += 1;
+                        add_build(&mut a.builds, &rec.build_id);
                         a.runs.push_back(rec.clone());
                         while a.runs.len() > MAX_RUNS {
                             a.runs.pop_front();
@@ -802,6 +834,8 @@ mod tests {
             r.source = "sim".into();
             r.mock = false;
             r.run_id = format!("2026-10-24T10:00:00Z-r{i:04}");
+            // Two builds, the older first (records sort by run_id).
+            r.build_id = if i < 10 { "52a66216".into() } else { "38a3950a".into() };
             if i >= n_int8 {
                 r.gemm.requant = false; // int32 bypass: not on the int8 roofline
             }
@@ -826,6 +860,19 @@ mod tests {
         assert_eq!(s["roof_measured"]["from"], "results/sim");
         assert_eq!(s["runs_total"], n_int8 + 3);
         assert_eq!(s["runs"].as_array().unwrap().len(), MAX_RUNS);
+        // Per-build attribution is over every record (the capped `runs` list no
+        // longer contains the 10 older-build records).
+        assert_eq!(
+            s["builds_all"],
+            json!([{"build_id": "52a66216", "n": 10}, {"build_id": "38a3950a", "n": n_int8 + 3 - 10}])
+        );
+        let roof_builds = build_counts(s["roof_measured"]["points"].as_array().unwrap().iter().map(|p| {
+            let mut r = base.clone();
+            r.build_id = p["build_id"].as_str().unwrap().into();
+            r
+        }).collect::<Vec<_>>().iter());
+        assert_eq!(roof_builds, vec![("52a66216".to_string(), 10), ("38a3950a".to_string(), n_int8 - 10)]);
+        assert!(s["runs"].as_array().unwrap().iter().all(|r| r["build_id"] == "38a3950a"));
     }
 
     #[test]
