@@ -235,7 +235,7 @@ The price is feed bandwidth: 20 operand bytes per cycle instead of 16. The BRAM 
 
 *[Scene 3.]* Area, post-route: +2,243 LUTs and +16 DSPs, with timing met at 100 MHz in both builds. About 670 of those LUTs are the split itself. Most of the rest is the 16-lane requantizer the wider tile needs.
 
-Verification: a Rust golden model checks every run bit-exactly. Eleven test suites are signed off. Five record mutants, or a sensitivity check against the old RTL, and each was caught. A pin-level system simulation passed 617 of 617 jobs, and the real host ran against the simulated chip. On this board: 473 GEMMs, zero mismatches.
+Verification: a Rust golden model checks every run bit-exactly. Eleven test suites are signed off. Five suites record injected mutants, or a sensitivity check against the old RTL, and every one was caught. A pin-level system simulation passed 617 of 617 jobs, and the real host ran against the simulated chip. On this board: 473 GEMMs, zero mismatches.
 
 So, what does reconfigurability cost, and when does it pay? Here it pays at decode and barely matters at prefill.
 <!-- /pitch -->
@@ -282,6 +282,7 @@ Each answer takes under 30 seconds. [HW] numbers are from the 473 board records 
 | Your LUT counts changed between builds. Which is right? | Both: they are two separate synthesis and place-and-route runs. With identical datapath RTL, the split build is 7,389 LUTs in both, and the FULL-only build went from 5,142 to 5,146 [B]. I quote the 38a3950a build because it's the bitstream on the board. |
 | Does the board need the laptop to load it? | No. The live bitstream is in the board's QSPI flash (Micron MT25QL128): erased, programmed and verified in 34 s. With jumper J14 fitted, the board configures itself at power-on in about 1 s; I timed that by eye. The laptop runs only the host and the dashboard. JTAG is the fallback. |
 | Is the data real model weights? | No. It's synthetic int8 from a fixed seed, with real LLM shapes. Bit-exactness doesn't depend on the values. Utilization doesn't either, because the counters count in-bounds MACs, not nonzero values. |
+| Your screen says more than 473 GEMMs? | The live counter includes every run on the board since the write-up, e.g. the demo you just watched; the 473 are the committed, audited records in `results/hw` [HW]. |
 
 ### 8.3 War stories (real, from the logs; pick one)
 
