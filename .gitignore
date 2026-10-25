@@ -45,4 +45,5 @@ results/mock/
 !results/hw/logs/**
 # derived running totals, rewritten by the live server (rebuild: splitsys-host session --rebuild --source hw)
 results/session.json
-results/*/session.json
+results/hw/session.json
+results/mock/session.json
