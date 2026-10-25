@@ -78,6 +78,49 @@ pub struct Provenance {
     pub latencies_provisional: Option<bool>,
 }
 
+/// How the mode of a `--mode auto` run was chosen (G5 stretch). Present only on
+/// auto runs. Both predictions are MODEL numbers (frozen `splitsys_cycle`
+/// latencies); only the chosen mode was run, so only its cycles are measured
+/// (`counters.cycles_total`). The un-run mode's cycles are never measured.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ModeSelect {
+    /// Always "AUTO".
+    pub requested: String,
+    /// The mode that was run: "FULL" | "STRIP" (equals `gemm.mode`).
+    pub chosen: String,
+    /// True: chosen by the host, not by the user.
+    pub automatic: bool,
+    /// The rule, e.g. `splitsys_cycle::choose_mode: min model cycles_total, ties -> FULL`.
+    pub policy: String,
+    /// Model-predicted cycles_total / tiles in each mode (MODEL, not measured).
+    pub model_cycles_full: u64,
+    pub model_cycles_strip: u64,
+    pub model_tiles_full: u64,
+    pub model_tiles_strip: u64,
+    /// For random-batch auto runs: which generated job supplied the operands and bases.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operands_from: Option<String>,
+}
+
+impl ModeSelect {
+    /// Model cycles of the mode that was NOT run (MODEL only).
+    pub fn model_cycles_other(&self) -> u64 {
+        if self.chosen == "STRIP" {
+            self.model_cycles_full
+        } else {
+            self.model_cycles_strip
+        }
+    }
+    /// Model cycles of the chosen mode.
+    pub fn model_cycles_chosen(&self) -> u64 {
+        if self.chosen == "STRIP" {
+            self.model_cycles_strip
+        } else {
+            self.model_cycles_full
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct RunRecord {
     pub run_id: String,
@@ -97,6 +140,9 @@ pub struct RunRecord {
     pub mock: bool,
     #[serde(default, skip_serializing_if = "is_default_prov")]
     pub provenance: Provenance,
+    /// Present on `--mode auto` runs only: the choice and both model predictions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode_select: Option<ModeSelect>,
 }
 
 fn is_default_prov(p: &Provenance) -> bool {
@@ -191,6 +237,26 @@ pub fn validate_run_json(v: &Value) -> Result<(), String> {
     for k in ["outputs_compared", "mismatches"] {
         if !is_u(need(c, "check.", k)?) {
             return Err(format!("check.{k} must be an unsigned integer"));
+        }
+    }
+    // Optional (auto runs): the choice must be auditable and match what ran.
+    if let Some(ms) = v.get("mode_select").filter(|x| !x.is_null()) {
+        let chosen = need(ms, "mode_select.", "chosen")?.as_str().unwrap_or("");
+        if chosen != mode {
+            return Err(format!("mode_select.chosen '{chosen}' != gemm.mode '{mode}'"));
+        }
+        if !need(ms, "mode_select.", "automatic")?.is_boolean() {
+            return Err("mode_select.automatic must be a bool".into());
+        }
+        for k in ["model_cycles_full", "model_cycles_strip", "model_tiles_full", "model_tiles_strip"] {
+            if !is_u(need(ms, "mode_select.", k)?) {
+                return Err(format!("mode_select.{k} must be an unsigned integer"));
+            }
+        }
+        let (f, s) = (ms["model_cycles_full"].as_u64().unwrap_or(0), ms["model_cycles_strip"].as_u64().unwrap_or(0));
+        let want = if s < f { "STRIP" } else { "FULL" };
+        if chosen != want {
+            return Err(format!("mode_select.chosen {chosen} but model cycles FULL {f} STRIP {s} pick {want}"));
         }
     }
     Ok(())
@@ -469,6 +535,40 @@ mod tests {
         let mut v = ex;
         v["gemm"]["mode"] = "INDEP".into();
         assert!(validate_run_json(&v).is_err());
+    }
+
+    #[test]
+    fn mode_select_roundtrips_and_is_validated() {
+        let mut r: RunRecord = serde_json::from_value(demo_example()).unwrap();
+        assert!(r.mode_select.is_none(), "plain records carry no mode_select");
+        assert!(serde_json::to_value(&r).unwrap().get("mode_select").is_none());
+        r.gemm.mode = "FULL".into();
+        r.mode_select = Some(ModeSelect {
+            requested: "AUTO".into(),
+            chosen: "FULL".into(),
+            automatic: true,
+            policy: "test".into(),
+            model_cycles_full: 100,
+            model_cycles_strip: 132,
+            model_tiles_full: 3,
+            model_tiles_strip: 5,
+            operands_from: Some("job 7".into()),
+        });
+        let v = serde_json::to_value(&r).unwrap();
+        validate_run_json(&v).unwrap();
+        let back: RunRecord = serde_json::from_value(v.clone()).unwrap();
+        assert_eq!(back, r);
+        assert_eq!(back.mode_select.as_ref().unwrap().model_cycles_other(), 132);
+        // chosen must equal what ran, and must be the model's pick (ties -> FULL).
+        let mut bad = v.clone();
+        bad["mode_select"]["chosen"] = "STRIP".into();
+        assert!(validate_run_json(&bad).is_err());
+        let mut bad = v.clone();
+        bad["mode_select"]["model_cycles_strip"] = 90.into();
+        assert!(validate_run_json(&bad).unwrap_err().contains("pick STRIP"));
+        let mut tie = v;
+        tie["mode_select"]["model_cycles_strip"] = 100.into();
+        validate_run_json(&tie).unwrap();
     }
 
     fn rec(id: &str, source: &str, mismatches: u64, mock: bool) -> RunRecord {

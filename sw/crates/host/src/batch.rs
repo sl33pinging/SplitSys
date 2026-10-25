@@ -109,6 +109,7 @@ pub fn generate(seed: u64, n: usize, mode: u8, max: (usize, usize, usize)) -> Re
                 mode: mode_s.into(),
                 requant,
                 seed,
+                mode_select: None,
             },
             name,
             index: i,
@@ -117,6 +118,104 @@ pub fn generate(seed: u64, n: usize, mode: u8, max: (usize, usize, usize)) -> Re
         });
     }
     Ok(out)
+}
+
+/// `run --random N --mode auto`: the FULL-mode generator's jobs (operands, rq
+/// params, bases), each re-targeted to the mode `splitsys_cycle::choose_mode`
+/// picks for its shape. Jobs whose pick is FULL are the generator's job byte for
+/// byte; STRIP picks are rebuilt with golden from the same operands and bases.
+pub fn generate_auto(seed: u64, n: usize, max: (usize, usize, usize)) -> Result<Vec<BatchJob>, String> {
+    let src_cmd = vec_command(seed, n, "full", max);
+    let mut out = generate(seed, n, spec::MODE_FULL, max)?;
+    for bj in &mut out {
+        let mut sel = crate::runner::select_mode(bj.spec.m, bj.spec.k, bj.spec.n, bj.spec.requant)?;
+        sel.operands_from = Some(format!("{} (job {} of `{src_cmd}`)", bj.name, bj.index));
+        if sel.chosen == "STRIP" {
+            let d = &bj.job.desc;
+            let bases = golden::Bases { a: d.a_base, w: d.w_base, out: d.out_base, rq: d.rq_base };
+            let rq = (!bj.job.rq.is_empty()).then(|| bj.job.rq.clone());
+            let job = golden::Job::new(spec::MODE_STRIP, bj.job.a.clone(), bj.job.w.clone(), rq, bases)
+                .map_err(|e| format!("auto job {}: STRIP rebuild: {e}", bj.index))?;
+            bj.desc_hex = job.desc.to_bytes().iter().map(|b| format!("{b:02x}")).collect();
+            bj.job = job;
+        }
+        bj.name = format!("gemm_auto_s{seed}_{}", bj.index);
+        bj.spec.name = bj.name.clone();
+        bj.spec.mode = sel.chosen.clone();
+        bj.spec.mode_select = Some(sel);
+    }
+    Ok(out)
+}
+
+pub const AUTO_POLICY_SHORT: &str = "model-scored: choose_mode, min cycles_total, ties -> FULL";
+
+/// Model-scored totals for a set of auto runs (`--mode auto`). Only the chosen
+/// mode was run: `measured_cycles` sums its measured `cycles_total`; the
+/// always-FULL / always-STRIP totals are MODEL predictions, never measurements.
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct AutoTally {
+    pub runs: u64,
+    pub picked_full: u64,
+    pub picked_strip: u64,
+    /// Auto runs where the model says STRIP needs more cycles than FULL (auto ran FULL).
+    pub strip_slower: u64,
+    /// Of those, how many have more STRIP tiles than FULL tiles.
+    pub strip_slower_more_tiles: u64,
+    /// Auto runs where the model predicts equal cycles (auto ran FULL: ties -> FULL).
+    pub ties: u64,
+    /// Sum of measured cycles_total of the runs actually made (chosen mode).
+    pub measured_cycles: u64,
+    /// Runs whose measured cycles_total equals the model's prediction for the chosen mode.
+    pub measured_eq_model: u64,
+    pub model_cycles_auto: u64,
+    pub model_cycles_full: u64,
+    pub model_cycles_strip: u64,
+}
+
+impl AutoTally {
+    pub fn add(&mut self, r: &RunRecord) {
+        let Some(sel) = &r.mode_select else { return };
+        self.runs += 1;
+        if sel.chosen == "STRIP" {
+            self.picked_strip += 1;
+        } else {
+            self.picked_full += 1;
+        }
+        if sel.model_cycles_strip > sel.model_cycles_full {
+            self.strip_slower += 1;
+            self.strip_slower_more_tiles += u64::from(sel.model_tiles_strip > sel.model_tiles_full);
+        }
+        self.ties += u64::from(sel.model_cycles_strip == sel.model_cycles_full);
+        self.measured_cycles += r.counters.cycles_total;
+        self.measured_eq_model += u64::from(r.counters.cycles_total == sel.model_cycles_chosen());
+        self.model_cycles_auto += sel.model_cycles_chosen();
+        self.model_cycles_full += sel.model_cycles_full;
+        self.model_cycles_strip += sel.model_cycles_strip;
+    }
+
+    /// The printed summary. `src` labels the measured line (HW / SIM / MODEL).
+    pub fn lines(&self, src: &str) -> Vec<String> {
+        let lab = src.to_ascii_uppercase();
+        let x = |t: u64| if self.model_cycles_auto == 0 { 0.0 } else { t as f64 / self.model_cycles_auto as f64 };
+        vec![
+            format!(
+                "AUTO: {} GEMMs, picked FULL {} / STRIP {} ({AUTO_POLICY_SHORT}); model says STRIP slower on {} ({} with more STRIP tiles) -> auto ran FULL there; {} ties -> FULL",
+                self.runs, self.picked_full, self.picked_strip, self.strip_slower, self.strip_slower_more_tiles, self.ties
+            ),
+            format!(
+                "AUTO cycles, measured ({lab}, chosen mode only): {} total; measured == model on {}/{} runs",
+                self.measured_cycles, self.measured_eq_model, self.runs
+            ),
+            format!(
+                "AUTO cycles, MODEL totals (un-run modes are never measured): auto {} | always-FULL {} ({:.3}x auto) | always-STRIP {} ({:.3}x auto)",
+                self.model_cycles_auto,
+                self.model_cycles_full,
+                x(self.model_cycles_full),
+                self.model_cycles_strip,
+                x(self.model_cycles_strip)
+            ),
+        ]
+    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -167,13 +266,48 @@ pub fn run_batch(
         .iter()
         .map(|&m| generate(seed, n, m, max).map(|v| (m, v)))
         .collect::<Result<_, _>>()?;
+    run_lists(board, ctx, seed, n, max, &lists, &mut each)
+}
+
+/// `run --random N --mode auto`: one run per job, in the mode the model picks.
+pub fn run_batch_auto(
+    board: &mut Board,
+    ctx: &mut Context,
+    seed: u64,
+    n: usize,
+    max: (usize, usize, usize),
+    mut each: impl FnMut(&BatchJob, &Result<(RunRecord, Option<PathBuf>), RunError>),
+) -> Result<(BatchSummary, AutoTally), String> {
+    // The reproduction command names the FULL generator (the operands' source).
+    let lists = vec![(spec::MODE_FULL, generate_auto(seed, n, max)?)];
+    let mut tally = AutoTally::default();
+    let s = run_lists(board, ctx, seed, n, max, &lists, &mut |bj, r| {
+        if let Ok((rec, _)) = r {
+            tally.add(rec);
+        }
+        each(bj, r)
+    })?;
+    Ok((s, tally))
+}
+
+type Each<'a> = dyn FnMut(&BatchJob, &Result<(RunRecord, Option<PathBuf>), RunError>) + 'a;
+
+fn run_lists(
+    board: &mut Board,
+    ctx: &mut Context,
+    seed: u64,
+    n: usize,
+    max: (usize, usize, usize),
+    lists: &[(u8, Vec<BatchJob>)],
+    each: &mut Each<'_>,
+) -> Result<BatchSummary, String> {
     let mut s = BatchSummary {
         seed,
         ..Default::default()
     };
     let mut cache = LoadCache::default();
     for i in 0..n {
-        for (mode, list) in &lists {
+        for (mode, list) in lists {
             let Some(bj) = list.get(i) else { continue };
             let res = run_job(board, ctx, &mut cache, &bj.spec, &bj.job, false);
             s.runs += 1;
@@ -215,8 +349,11 @@ pub fn run_batch(
             };
             if let (Some(why), None) = (fail, &s.first_failure) {
                 let ms = if *mode == spec::MODE_STRIP { "strip" } else { "full" };
+                let auto = bj.spec.mode_select.as_ref().map_or(String::new(), |_| {
+                    format!(" [AUTO chose {}; operands and bases from that FULL job, descriptor re-targeted]", bj.spec.mode)
+                });
                 s.first_failure = Some(format!(
-                    "{} (job {} of `{}`): M={} K={} N={} {} requant={} desc_hex {} seed {}: {why}",
+                    "{} (job {} of `{}`){auto}: M={} K={} N={} {} requant={} desc_hex {} seed {}: {why}",
                     bj.name,
                     bj.index,
                     vec_command(seed, n, ms, max),
@@ -275,6 +412,51 @@ mod tests {
         assert_eq!(s.runs, 24);
         assert_eq!(seen, 24);
         assert!(s.line().starts_with("BATCH PASS: seed 3 runs 24"));
+    }
+
+    #[test]
+    fn mock_auto_batch_runs_each_job_once_in_the_model_pick() {
+        let mut b = Board::new(Box::new(MockTransport::new(MockConfig::default())));
+        let mut c = ctx();
+        let full = generate(1, 16, spec::MODE_FULL, (64, 256, 256)).unwrap();
+        let auto = generate_auto(1, 16, (64, 256, 256)).unwrap();
+        for (f, a) in full.iter().zip(&auto) {
+            let sel = a.spec.mode_select.as_ref().unwrap();
+            assert_eq!(
+                (a.spec.m, a.spec.k, a.spec.n, a.spec.requant),
+                (f.spec.m, f.spec.k, f.spec.n, f.spec.requant)
+            );
+            assert_eq!(a.job.a_image, f.job.a_image);
+            assert_eq!(a.job.w_image, f.job.w_image);
+            assert_eq!(a.job.obuf_image, f.job.obuf_image, "output layout is mode-independent");
+            assert!(sel.operands_from.as_ref().unwrap().contains(&f.name));
+            if sel.chosen == "FULL" {
+                assert_eq!(a.desc_hex, f.desc_hex, "FULL picks are the generator's job byte for byte");
+            } else {
+                assert_eq!(a.job.desc.mode, spec::MODE_STRIP);
+                assert_eq!((a.job.desc.a_base, a.job.desc.out_base), (f.job.desc.a_base, f.job.desc.out_base));
+            }
+        }
+        let mut seen = 0;
+        let (s, t) = run_batch_auto(&mut b, &mut c, 1, 16, (64, 256, 256), |bj, r| {
+            let (rec, _) = r.as_ref().unwrap();
+            assert_eq!(rec.mode_select.as_ref(), bj.spec.mode_select.as_ref());
+            assert_eq!(rec.gemm.mode, bj.spec.mode);
+            seen += 1;
+        })
+        .unwrap();
+        assert!(s.ok(), "{s:?}");
+        assert_eq!((s.runs, seen, t.runs), (16, 16, 16), "one run per job, not one per mode");
+        assert_eq!(t.picked_full + t.picked_strip, 16);
+        assert!(t.picked_full > 0 && t.picked_strip > 0, "{t:?}");
+        assert_eq!(t.measured_eq_model, 16);
+        assert_eq!(t.measured_cycles, t.model_cycles_auto);
+        assert!(t.model_cycles_auto <= t.model_cycles_full && t.model_cycles_auto <= t.model_cycles_strip);
+        assert_eq!(t.strip_slower, t.strip_slower_more_tiles);
+        let l = t.lines("model");
+        assert!(l[0].starts_with("AUTO: 16 GEMMs, picked FULL"), "{}", l[0]);
+        assert!(l[1].contains("measured (MODEL, chosen mode only)"), "{}", l[1]);
+        assert!(l[2].contains("MODEL totals"), "{}", l[2]);
     }
 
     #[test]

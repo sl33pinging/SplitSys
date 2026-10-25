@@ -4,8 +4,8 @@
 
 use crate::client::{Board, HostError};
 use crate::record::{
-    iso_utc, now_unix, run_file_name, runs_dir, write_json, Check, Derived, GemmInfo, ModelInfo,
-    Provenance, RunRecord,
+    iso_utc, now_unix, run_file_name, runs_dir, write_json, Check, Derived, GemmInfo, ModeSelect,
+    ModelInfo, Provenance, RunRecord,
 };
 use splitsys_cycle as cycle;
 use splitsys_golden as golden;
@@ -23,12 +23,15 @@ pub struct GemmSpec {
     pub k: usize,
     #[serde(rename = "N")]
     pub n: usize,
-    /// FULL or STRIP
+    /// FULL, STRIP, or AUTO (resolved by [`GemmSpec::resolve`] before running).
     pub mode: String,
     #[serde(default = "yes")]
     pub requant: bool,
     #[serde(default = "default_seed")]
     pub seed: u64,
+    /// Set by [`GemmSpec::resolve`] for AUTO specs; never read from input JSON.
+    #[serde(default, skip_deserializing, skip_serializing_if = "Option::is_none")]
+    pub mode_select: Option<ModeSelect>,
 }
 
 fn yes() -> bool {
@@ -42,8 +45,51 @@ pub fn mode_code(mode: &str) -> Result<u8, String> {
     match mode.to_ascii_uppercase().as_str() {
         "FULL" => Ok(spec::MODE_FULL),
         "STRIP" => Ok(spec::MODE_STRIP),
+        "AUTO" => Err("mode AUTO must be resolved to FULL or STRIP first (GemmSpec::resolve)".into()),
         m => Err(format!("mode '{m}' must be FULL or STRIP")),
     }
+}
+
+pub fn is_auto(mode: &str) -> bool {
+    mode.eq_ignore_ascii_case("auto")
+}
+
+/// The automatic-mode rule, stated in every auto record.
+pub const AUTO_POLICY: &str =
+    "splitsys_cycle::choose_mode with the frozen default Latencies: min model cycles_total, ties -> FULL";
+
+/// Choose the mode for a shape with the cycle model (G5 stretch: `--mode auto`).
+/// Uses `splitsys_cycle::choose_mode` with the same `Latencies::default()` that
+/// every run's model prediction uses, and records both modes' predictions so the
+/// choice is auditable. Both numbers are MODEL; neither is a measurement.
+pub fn select_mode(m: usize, k: usize, n: usize, requant: bool) -> Result<ModeSelect, String> {
+    let lat = cycle::Latencies::default();
+    let flags = golden::Descriptor::flags_for(requant);
+    let (m, k, n) = (m as u64, k as u64, n as u64);
+    let pred = |mode| {
+        cycle::predict(&cycle::Descriptor::new(mode, flags, m, k, n), &lat).map_err(|e| format!("{e:?}"))
+    };
+    let (f, s) = (pred(cycle::Mode::Full)?, pred(cycle::Mode::Strip)?);
+    let chosen = cycle::choose_mode(m, k, n, flags, &lat);
+    // choose_mode must agree with the predictions recorded next to it.
+    let want = if s.cycles_total < f.cycles_total { cycle::Mode::Strip } else { cycle::Mode::Full };
+    if chosen != want {
+        return Err(format!(
+            "choose_mode picked {chosen:?} but predict() gives FULL {} STRIP {}",
+            f.cycles_total, s.cycles_total
+        ));
+    }
+    Ok(ModeSelect {
+        requested: "AUTO".into(),
+        chosen: if chosen == cycle::Mode::Strip { "STRIP" } else { "FULL" }.into(),
+        automatic: true,
+        policy: AUTO_POLICY.into(),
+        model_cycles_full: f.cycles_total,
+        model_cycles_strip: s.cycles_total,
+        model_tiles_full: f.tiles,
+        model_tiles_strip: s.tiles,
+        operands_from: None,
+    })
 }
 
 /// `(K, N)` of a SPEC §1.1 benchmark.
@@ -60,7 +106,9 @@ impl GemmSpec {
             let names: Vec<&str> = spec::BENCH_SHAPES.iter().map(|b| b.name).collect();
             format!("unknown benchmark '{name}' (known: {})", names.join(", "))
         })?;
-        mode_code(mode)?;
+        if !is_auto(mode) {
+            mode_code(mode)?;
+        }
         Ok(Self {
             name: name.into(),
             m,
@@ -69,7 +117,22 @@ impl GemmSpec {
             mode: mode.to_ascii_uppercase(),
             requant: true,
             seed,
+            mode_select: None,
         })
+    }
+
+    /// A spec ready to run: AUTO becomes the model's pick (with `mode_select`
+    /// recording why); FULL/STRIP specs are returned unchanged.
+    pub fn resolve(&self) -> Result<Self, String> {
+        if !is_auto(&self.mode) {
+            mode_code(&self.mode)?;
+            return Ok(self.clone());
+        }
+        let sel = select_mode(self.m, self.k, self.n, self.requant)?;
+        let mut g = self.clone();
+        g.mode = sel.chosen.clone();
+        g.mode_select = Some(sel);
+        Ok(g)
     }
 }
 
@@ -222,6 +285,7 @@ pub fn run_gemm(
     cache: &mut LoadCache,
     g: &GemmSpec,
 ) -> Result<(RunRecord, Option<PathBuf>), RunError> {
+    let g = &g.resolve().map_err(RunError::Job)?;
     let job = build_job(g).map_err(RunError::Job)?;
     run_job(board, ctx, cache, g, &job, true)
 }
@@ -323,24 +387,23 @@ fn run_job_inner(
     let ct = counters.cycles_total as f64;
     let now = now_unix();
     let src = effective_source(board.source(), ctx.build_id.as_deref());
-    let mut run_id = format!(
-        "{}-{}-m{}-{}",
-        iso_utc(now),
-        g.name,
-        g.m,
-        g.mode.to_ascii_lowercase()
+    // Auto runs say so in the id too (`...-strip-auto`).
+    let mode_tag = format!(
+        "{}{}",
+        g.mode.to_ascii_lowercase(),
+        if g.mode_select.is_some() { "-auto" } else { "" }
     );
+    if let Some(sel) = &g.mode_select {
+        if sel.chosen != g.mode.to_ascii_uppercase() {
+            return Err(RunError::Job(format!("mode_select.chosen {} != spec mode {}", sel.chosen, g.mode)));
+        }
+    }
+    let mut run_id = format!("{}-{}-m{}-{mode_tag}", iso_utc(now), g.name, g.m);
     let dir = runs_dir(&ctx.results, src);
     if ctx.write_files {
         let mut i = 2;
         while dir.join(run_file_name(&run_id)).exists() {
-            run_id = format!(
-                "{}-{}-m{}-{}-{i}",
-                iso_utc(now),
-                g.name,
-                g.m,
-                g.mode.to_ascii_lowercase()
-            );
+            run_id = format!("{}-{}-m{}-{mode_tag}-{i}", iso_utc(now), g.name, g.m);
             i += 1;
         }
     }
@@ -392,6 +455,7 @@ fn run_job_inner(
             wall_ms_end_to_end: Some(t0.elapsed().as_secs_f64() * 1000.0),
             latencies_provisional: Some(cycle::spec::LATENCIES_PROVISIONAL),
         },
+        mode_select: g.mode_select.clone(),
     };
     let path = if ctx.write_files {
         let p = dir.join(run_file_name(&run_id));
@@ -406,6 +470,19 @@ fn run_job_inner(
 /// The benchmark suites. `bench`: 4 GEMMs × M∈{1,64} × both modes.
 /// `sweep`: 4 GEMMs × M∈{1..64} × both modes. `smoke`: ffn_up M∈{1,64} × both.
 pub fn suite(name: &str, seed: u64) -> Result<Vec<GemmSpec>, String> {
+    suite_modes(name, seed, "both")
+}
+
+/// A suite with `mode`: both (FULL then STRIP per shape) | full | strip | auto
+/// (one AUTO spec per shape, resolved per GEMM by the cycle model when run).
+pub fn suite_modes(name: &str, seed: u64, mode: &str) -> Result<Vec<GemmSpec>, String> {
+    let modes: Vec<&str> = match mode.to_ascii_lowercase().as_str() {
+        "both" => vec!["FULL", "STRIP"],
+        "full" => vec!["FULL"],
+        "strip" => vec!["STRIP"],
+        "auto" => vec!["AUTO"],
+        m => return Err(format!("--mode {m}: expected both | full | strip | auto")),
+    };
     let ms: Vec<usize> = match name {
         "bench" | "smoke" => vec![spec::BENCH_M_DECODE, spec::BENCH_M_PREFILL],
         "sweep" | "all" => spec::BENCH_M_SWEEP.to_vec(),
@@ -419,7 +496,7 @@ pub fn suite(name: &str, seed: u64) -> Result<Vec<GemmSpec>, String> {
     let mut v = Vec::new();
     for n in names {
         for &m in &ms {
-            for mode in ["FULL", "STRIP"] {
+            for mode in &modes {
                 v.push(GemmSpec::named(n, m, mode, seed)?);
             }
         }
@@ -459,6 +536,113 @@ mod tests {
             assert_eq!(r.build_id, "4d4f434b");
             crate::record::validate_run_json(&serde_json::to_value(&r).unwrap()).unwrap();
         }
+    }
+
+    // ---- G5 stretch: automatic mode selection ----
+
+    #[test]
+    fn auto_picks_strip_for_decode_and_full_for_the_h5_worst_case() {
+        let (k, n) = benchmark_kn("ffn_up").unwrap();
+        let s = select_mode(1, k, n, true).unwrap();
+        assert_eq!(s.chosen, "STRIP");
+        assert!(s.model_cycles_strip < s.model_cycles_full);
+        // H-5 worst same-shape pair: STRIP needs more tiles, FULL is faster.
+        let f = select_mode(22, 250, 17, true).unwrap();
+        assert_eq!(f.chosen, "FULL");
+        assert!(f.model_tiles_strip > f.model_tiles_full, "{f:?}");
+        assert!(f.model_cycles_strip > f.model_cycles_full, "{f:?}");
+        assert!(f.automatic && f.requested == "AUTO" && f.policy == AUTO_POLICY);
+        // The recorded numbers are the same predictions model_for() attaches to a run.
+        for mode in ["FULL", "STRIP"] {
+            let g = GemmSpec { m: 22, k: 250, n: 17, ..GemmSpec::named("ffn_up", 1, mode, 1).unwrap() };
+            let (_, c) = model_for(&g).unwrap();
+            let want = if mode == "FULL" { f.model_cycles_full } else { f.model_cycles_strip };
+            assert_eq!(c.cycles_total, want);
+        }
+    }
+
+    #[test]
+    fn auto_is_the_argmin_of_the_model_and_strip_loses_only_with_more_tiles() {
+        // A grid over the legal shape space (both output formats where legal).
+        let mut strip_slower = 0;
+        let mut ties = 0;
+        for &m in &[1usize, 2, 3, 4, 5, 7, 8, 9, 13, 16, 17, 22, 31, 33, 48, 63, 64] {
+            for &k in &[1usize, 2, 17, 64, 127, 250, 256] {
+                for &n in &[1usize, 3, 7, 8, 9, 15, 16, 17, 31, 33, 64, 100, 129, 255, 256] {
+                    for requant in [true, false] {
+                        let Ok(s) = select_mode(m, k, n, requant) else { continue };
+                        let want = if s.model_cycles_strip < s.model_cycles_full { "STRIP" } else { "FULL" };
+                        assert_eq!(s.chosen, want, "M={m} K={k} N={n} {s:?}");
+                        if s.model_cycles_strip == s.model_cycles_full {
+                            ties += 1;
+                            assert_eq!(s.chosen, "FULL", "ties -> FULL");
+                        }
+                        if s.model_cycles_strip > s.model_cycles_full {
+                            strip_slower += 1;
+                            // The H-5 case class: STRIP is slower only when it needs more tiles.
+                            assert!(s.model_tiles_strip > s.model_tiles_full, "M={m} K={k} N={n} {s:?}");
+                            assert_eq!(s.chosen, "FULL");
+                        }
+                    }
+                }
+            }
+        }
+        assert!(strip_slower > 0 && ties > 0, "grid covers both classes ({strip_slower}, {ties})");
+    }
+
+    #[test]
+    fn resolve_only_touches_auto_and_input_cannot_forge_a_choice() {
+        let g = GemmSpec::named("qkv", 64, "full", 1).unwrap();
+        assert_eq!(g.resolve().unwrap(), g);
+        let a = GemmSpec::named("qkv", 1, "auto", 1).unwrap();
+        assert_eq!(a.mode, "AUTO");
+        assert!(mode_code("auto").is_err(), "AUTO never reaches the board unresolved");
+        let r = a.resolve().unwrap();
+        assert_eq!(r.mode, r.mode_select.as_ref().unwrap().chosen);
+        let forged: GemmSpec = serde_json::from_str(
+            r#"{"name":"x","M":22,"K":250,"N":17,"mode":"auto","mode_select":{"chosen":"STRIP"}}"#,
+        )
+        .unwrap();
+        assert!(forged.mode_select.is_none());
+        assert_eq!(forged.resolve().unwrap().mode, "FULL");
+        assert!(GemmSpec::named("qkv", 1, "indep", 1).is_err());
+        assert_eq!(suite_modes("bench", 1, "auto").unwrap().len(), 8);
+        assert_eq!(suite_modes("bench", 1, "both").unwrap(), suite("bench", 1).unwrap());
+        assert!(suite_modes("bench", 1, "nope").is_err());
+    }
+
+    #[test]
+    fn mock_auto_runs_end_to_end_with_all_checks_and_an_auditable_record() {
+        let mut b = Board::new(Box::new(MockTransport::new(MockConfig::default())));
+        let mut c = ctx();
+        let mut cache = LoadCache::default();
+        let custom = GemmSpec {
+            name: "h5_full_wins".into(),
+            m: 22,
+            k: 250,
+            n: 17,
+            ..GemmSpec::named("ffn_up", 1, "auto", 1).unwrap()
+        };
+        let cases = [(GemmSpec::named("ffn_up", 1, "auto", 1).unwrap(), "STRIP"), (custom, "FULL")];
+        for (g, want) in cases {
+            let (r, _) = run_gemm(&mut b, &mut c, &mut cache, &g).unwrap();
+            assert!(r.verified() && r.check.counter_diffs.is_empty(), "{:?}", r.check);
+            assert_eq!(r.gemm.mode, want);
+            assert!(r.run_id.ends_with(&format!("-{}-auto", want.to_ascii_lowercase())), "{}", r.run_id);
+            let sel = r.mode_select.clone().unwrap();
+            assert_eq!(sel.chosen, want);
+            assert_eq!(sel.model_cycles_chosen(), r.model.counters.cycles_total);
+            assert_eq!(r.counters.cycles_total, sel.model_cycles_chosen(), "mock: measured == model");
+            let v = serde_json::to_value(&r).unwrap();
+            crate::record::validate_run_json(&v).unwrap();
+            assert_eq!(v["mode_select"]["automatic"], true);
+            let back: RunRecord = serde_json::from_value(v).unwrap();
+            assert_eq!(back, r);
+        }
+        // Non-auto runs carry no mode_select.
+        let g = GemmSpec::named("ffn_up", 1, "FULL", 1).unwrap();
+        let (r, _) = run_gemm(&mut b, &mut c, &mut cache, &g).unwrap();
+        assert!(r.mode_select.is_none() && !r.run_id.ends_with("-auto"));
     }
 
     #[test]

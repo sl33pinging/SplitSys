@@ -47,6 +47,12 @@ assert.strictEqual(A.buildsLineCounts('HW', [{ build_id: 'a', n: 3 }, { build_id
 assert.strictEqual(A.recordLabel(full, 'replay'), 'REPLAY');
 assert.strictEqual(A.recordLabel(full, 'hw'), 'HW');
 assert.strictEqual(A.recordLabel(rec('a', 'FULL', 1, 1, 1, true, 'sim', 'b'), 'sim'), 'SIM');
+// 5. Auto panel: rows where the model says STRIP loses, worst ratio first; ties excluded.
+const ar = (M, f, s) => ({ M, K: 1, N: 1, requant: true, model_cycles_full: f, model_cycles_strip: s });
+const lost = A.autoRowsWhereStripLost([ar(1, 100, 90), ar(2, 100, 110), ar(3, 100, 132), ar(4, 100, 100)]);
+assert.deepStrictEqual(lost.map((r) => r.M), [3, 2]);
+assert.strictEqual(A.shapeStr({ M: 22, K: 250, N: 17, requant: true }), '22×250×17');
+assert.strictEqual(A.shapeStr({ M: 8, K: 17, N: 8, requant: false }), '8×17×8 i32');
 console.log('app.js helpers ok');
 "#;
 

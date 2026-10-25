@@ -64,7 +64,8 @@ enum Cmd {
         #[arg(long)]
         out: Option<PathBuf>,
     },
-    /// Run one GEMM: a gemm.json file, or --name <benchmark> --m <M> --mode full|strip|both.
+    /// Run one GEMM: a gemm.json file, or --name <benchmark> --m <M> --mode full|strip|both|auto.
+    /// auto: the cycle model (splitsys_cycle::choose_mode) picks the mode per GEMM.
     Run {
         /// JSON file: {"name","M","K","N","mode","requant"?,"seed"?}
         gemm: Option<PathBuf>,
@@ -72,6 +73,7 @@ enum Cmd {
         name: Option<String>,
         #[arg(long)]
         m: Option<usize>,
+        /// full | strip | both | auto (model-scored pick per GEMM, ties -> FULL)
         #[arg(long, default_value = "full")]
         mode: String,
         #[arg(long, default_value_t = 1)]
@@ -82,7 +84,8 @@ enum Cmd {
         /// Skip writing the OBUF poison pattern before the run (less UART traffic).
         #[arg(long)]
         no_poison: bool,
-        /// Random batch (H-5): N jobs per mode from the `splitsys-vec gemm` generator.
+        /// Random batch (H-5): N jobs per mode from the `splitsys-vec gemm` generator
+        /// (with --mode auto: N jobs, each run once in the mode the model picks).
         #[arg(long)]
         random: Option<usize>,
         #[arg(long, default_value_t = splitsys_spec::M_MAX)]
@@ -92,10 +95,13 @@ enum Cmd {
         #[arg(long, default_value_t = splitsys_spec::N_MAX)]
         max_n: usize,
     },
-    /// Run a suite in both modes: bench (4 GEMMs × M∈{1,64}) | sweep (× M∈{1..64}) | smoke.
+    /// Run a suite: bench (4 GEMMs × M∈{1,64}) | sweep (× M∈{1..64}) | smoke.
     Bench {
         #[arg(default_value = "bench")]
         suite: String,
+        /// both (FULL and STRIP per shape) | full | strip | auto (model-scored pick per shape)
+        #[arg(long, default_value = "both")]
+        mode: String,
         #[arg(long, default_value_t = 1)]
         seed: u64,
         #[arg(long)]
@@ -248,6 +254,9 @@ fn real_main(cli: &Cli) -> Result<ExitCode, String> {
                 let name = name.as_deref().ok_or("run: give a gemm.json or --name <benchmark>")?;
                 let m = m.ok_or("run: --m is required with --name")?;
                 let modes: Vec<&str> = if mode.eq_ignore_ascii_case("both") { vec!["FULL", "STRIP"] } else { vec![mode.as_str()] };
+                if !modes.iter().all(|md| runner::is_auto(md) || runner::mode_code(md).is_ok()) {
+                    return Err(format!("--mode {mode}: expected full | strip | both | auto"));
+                }
                 for md in modes {
                     let mut g = GemmSpec::named(name, m, md, *seed)?;
                     g.requant = !int32;
@@ -257,8 +266,8 @@ fn real_main(cli: &Cli) -> Result<ExitCode, String> {
             let ok = run_specs(cli, &results, &root, &specs, !no_poison, None)?;
             Ok(if ok { ExitCode::SUCCESS } else { ExitCode::FAILURE })
         }
-        Cmd::Bench { suite, seed, no_poison } => {
-            let specs = runner::suite(suite, *seed)?;
+        Cmd::Bench { suite, mode, seed, no_poison } => {
+            let specs = runner::suite_modes(suite, *seed, mode)?;
             let ok = run_specs(cli, &results, &root, &specs, !no_poison, Some(suite))?;
             Ok(if ok { ExitCode::SUCCESS } else { ExitCode::FAILURE })
         }
@@ -434,6 +443,7 @@ fn run_specs(
     let mut cache = LoadCache::default();
     let mut all_ok = true;
     let mut rows = Vec::new();
+    let mut tally = splitsys_host::batch::AutoTally::default();
     let t0 = Instant::now();
     if src == "model" {
         println!("NOTE: mock board — every number below is MODEL data (source \"model\", mock: true), not hardware; mock runs are never counted as verified.");
@@ -464,16 +474,29 @@ fn run_specs(
                 if !ok {
                     println!("   check: {:?}", r.check);
                 }
+                for d in &r.check.counter_diffs {
+                    println!("   counter {d}");
+                }
+                if let Some(sel) = &r.mode_select {
+                    println!("{}", auto_line(&r, sel, src));
+                    tally.add(&r);
+                }
                 rows.push(serde_json::json!({
                     "run_id": r.run_id, "name": r.gemm.name, "M": r.gemm.m, "mode": r.gemm.mode,
                     "util": r.derived.util, "util_model": r.derived.util_model,
                     "model_err_total": r.derived.model_err_total, "verified": ok,
+                    "mode_select": r.mode_select,
                 }));
             }
             Err(e) => {
                 all_ok = false;
                 println!("{:<10} {:>3} {:>4} {:>4} {:<5} ERROR: {e}", g.name, g.m, g.k, g.n, g.mode);
             }
+        }
+    }
+    if tally.runs > 0 {
+        for l in tally.lines(src) {
+            println!("{l}");
         }
     }
     // Totals are derived from the run records on disk (never accumulated).
@@ -485,6 +508,7 @@ fn run_specs(
             "kind": "bench_summary", "suite": suite, "source": src, "transport": b.describe(),
             "utc": iso_utc(now), "runs": rows, "all_verified": all_ok,
             "link": b.stats, "wall_s_end_to_end": t0.elapsed().as_secs_f64(),
+            "auto": (tally.runs > 0).then_some(&tally),
         });
         write_json(&p, &summary).map_err(|e| e.to_string())?;
         println!("summary: {}", p.display());
@@ -515,8 +539,10 @@ fn random_batch(
     max: (usize, usize, usize),
     poison: bool,
 ) -> Result<ExitCode, String> {
+    let auto = runner::is_auto(mode);
     let modes: Vec<u8> = match mode.to_ascii_lowercase().as_str() {
         "both" => vec![splitsys_spec::MODE_FULL, splitsys_spec::MODE_STRIP],
+        "auto" => vec![splitsys_spec::MODE_FULL], // operands from the FULL generator
         m => vec![runner::mode_code(m)?],
     };
     let mut b = open_board(cli)?;
@@ -527,8 +553,8 @@ fn random_batch(
     ctx.poison = poison;
     ctx.build_id = Some(id);
     println!(
-        "random batch: {n} jobs × {} mode(s), seed {seed}, max M/K/N {}/{}/{}, via {} (source {src})",
-        modes.len(),
+        "random batch: {n} jobs × {}, seed {seed}, max M/K/N {}/{}/{}, via {} (source {src})",
+        if auto { "1 mode each, chosen by the cycle model (auto)".to_string() } else { format!("{} mode(s)", modes.len()) },
         max.0,
         max.1,
         max.2,
@@ -536,10 +562,14 @@ fn random_batch(
     );
     for &m in &modes {
         let ms = if m == splitsys_spec::MODE_STRIP { "strip" } else { "full" };
-        println!("  same jobs for sim: {}", splitsys_host::batch::vec_command(seed, n, ms, max));
+        println!(
+            "  {}: {}",
+            if auto { "operands and bases from" } else { "same jobs for sim" },
+            splitsys_host::batch::vec_command(seed, n, ms, max)
+        );
     }
     let mut k = 0usize;
-    let s = splitsys_host::batch::run_batch(&mut b, &mut ctx, seed, n, &modes, max, |bj, res| {
+    let each = |bj: &splitsys_host::batch::BatchJob, res: &Result<(splitsys_host::record::RunRecord, Option<PathBuf>), runner::RunError>| {
         k += 1;
         match res {
             Ok((r, path)) => {
@@ -561,10 +591,19 @@ fn random_batch(
                 for d in &r.check.counter_diffs {
                     println!("         counter {d}");
                 }
+                if let Some(sel) = &r.mode_select {
+                    println!("{}", auto_line(r, sel, src));
+                }
             }
             Err(e) => println!("  {:>4} {:<18} ERROR: {e}", k, bj.name),
         }
-    })?;
+    };
+    let (s, tally) = if auto {
+        let (s, t) = splitsys_host::batch::run_batch_auto(&mut b, &mut ctx, seed, n, max, each)?;
+        (s, Some(t))
+    } else {
+        (splitsys_host::batch::run_batch(&mut b, &mut ctx, seed, n, &modes, max, each)?, None)
+    };
     // Totals are derived from the run records on disk (never accumulated).
     let session = Session::rebuild_and_write(results, src).map_err(|e| e.to_string())?;
     println!(
@@ -575,8 +614,32 @@ fn random_batch(
         session.derived_from.as_deref().unwrap_or("records")
     );
     println!("{}", s.line());
+    if let Some(t) = &tally {
+        for l in t.lines(src) {
+            println!("{l}");
+        }
+    }
     if let Some(f) = &s.first_failure {
         println!("first failure: {f}");
     }
     Ok(if s.ok() { ExitCode::SUCCESS } else { ExitCode::FAILURE })
+}
+
+/// One auto run, honestly labelled: the chosen mode's cycles are measured; the
+/// other mode's are the model's prediction only (it was not run).
+fn auto_line(r: &splitsys_host::record::RunRecord, sel: &splitsys_host::record::ModeSelect, src: &str) -> String {
+    let other = if sel.chosen == "STRIP" { "FULL" } else { "STRIP" };
+    let (tc, to) = if sel.chosen == "STRIP" {
+        (sel.model_tiles_strip, sel.model_tiles_full)
+    } else {
+        (sel.model_tiles_full, sel.model_tiles_strip)
+    };
+    format!(
+        "         auto -> {}: measured {} {} cycles (model {}, {tc} tiles) | {other} not run: model {} cycles ({to} tiles)",
+        sel.chosen,
+        src.to_ascii_uppercase(),
+        r.counters.cycles_total,
+        sel.model_cycles_chosen(),
+        sel.model_cycles_other(),
+    )
 }

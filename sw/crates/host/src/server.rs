@@ -49,6 +49,8 @@ pub struct ServeOpts {
 #[derive(Debug)]
 enum Cmd {
     Run(GemmSpec),
+    /// Several specs shown one after another (like the demo, without the scene change).
+    RunMany(Vec<GemmSpec>),
     Demo,
     Selftest,
 }
@@ -77,6 +79,8 @@ struct App {
     runs_total: usize,
     /// (build_id, records) over every record of `source`, first-appearance order.
     builds: Vec<(String, usize)>,
+    /// Auto-mode runs and same-shape measured pairs over every record of `source`.
+    auto: AutoView,
     running: Option<Value>,
     queue_len: usize,
     scene: u8,
@@ -135,6 +139,123 @@ fn roof_points<'a>(runs: impl IntoIterator<Item = &'a RunRecord>) -> Vec<Value> 
     runs.into_iter().filter_map(roof_point).collect()
 }
 
+/// Shape key for pairing runs of the same GEMM shape across modes.
+type ShapeKey = (u64, u64, u64, bool);
+/// A clean measured run: (cycles_total, run_id, build_id).
+type MeasuredRun = (u64, String, String);
+
+/// Auto-mode view (G5 stretch), over every record of the source (not capped):
+/// the auto runs themselves, and the latest measured cycles per (shape, mode)
+/// from every record that passed all checks with all 12 counters equal to the
+/// model, so "STRIP lost" can be shown measured where both modes were run.
+#[derive(Default)]
+struct AutoView {
+    /// Auto records (compact), in record order.
+    rows: Vec<Value>,
+    tally: crate::batch::AutoTally,
+    /// shape -> [FULL, STRIP] latest (measured cycles_total, run_id, build_id).
+    measured: std::collections::BTreeMap<ShapeKey, [Option<MeasuredRun>; 2]>,
+}
+
+/// Show at most this many auto rows in the snapshot (the tally covers all).
+const AUTO_ROWS: usize = 200;
+
+impl AutoView {
+    fn from_records<'a>(runs: impl IntoIterator<Item = &'a RunRecord>) -> Self {
+        let mut v = Self::default();
+        for r in runs {
+            v.add(r);
+        }
+        v
+    }
+
+    fn add(&mut self, r: &RunRecord) {
+        let key = (r.gemm.m, r.gemm.k, r.gemm.n, r.gemm.requant);
+        let clean = r.verified() && r.check.counter_diffs.is_empty();
+        if clean {
+            let i = usize::from(r.gemm.mode == "STRIP");
+            self.measured.entry(key).or_default()[i] =
+                Some((r.counters.cycles_total, r.run_id.clone(), r.build_id.clone()));
+        }
+        let Some(sel) = &r.mode_select else { return };
+        self.tally.add(r);
+        self.rows.push(json!({
+            "run_id": r.run_id, "build_id": r.build_id, "source": r.source,
+            "name": r.gemm.name, "M": r.gemm.m, "K": r.gemm.k, "N": r.gemm.n, "requant": r.gemm.requant,
+            "chosen": sel.chosen, "measured_cycles": r.counters.cycles_total,
+            "model_cycles_full": sel.model_cycles_full, "model_cycles_strip": sel.model_cycles_strip,
+            "model_tiles_full": sel.model_tiles_full, "model_tiles_strip": sel.model_tiles_strip,
+            "verified": r.verified(), "counters_exact": r.check.counter_diffs.is_empty(),
+        }));
+    }
+
+    /// Same-shape pairs measured in both modes: how often STRIP was slower, and
+    /// whether the model's pick (`choose_mode`, ties -> FULL) was the measured
+    /// faster mode (a measured tie counts FULL as faster, the same rule).
+    fn pairs(&self) -> Value {
+        let (mut n, mut strip_slower, mut agree, mut worst) = (0u64, 0u64, 0u64, 1.0f64);
+        let mut worst_shape = Value::Null;
+        let mut slower: Vec<(f64, Value)> = Vec::new();
+        let mut builds: Vec<(String, usize)> = Vec::new();
+        for (&(m, k, nn, rq), [f, s]) in &self.measured {
+            let (Some(f), Some(s)) = (f, s) else { continue };
+            n += 1;
+            add_build(&mut builds, &f.2);
+            add_build(&mut builds, &s.2);
+            let measured_pick = if s.0 < f.0 { "STRIP" } else { "FULL" };
+            let pick = runner::select_mode(m as usize, k as usize, nn as usize, rq).ok();
+            if s.0 > f.0 {
+                strip_slower += 1;
+                let x = s.0 as f64 / f.0.max(1) as f64;
+                slower.push((x, json!({"M": m, "K": k, "N": nn, "requant": rq, "full": f.0, "strip": s.0,
+                    "full_run_id": f.1, "strip_run_id": s.1, "model_pick": pick.as_ref().map(|p| p.chosen.clone())})));
+                if x > worst {
+                    worst = x;
+                    worst_shape = json!({"M": m, "K": k, "N": nn, "requant": rq, "full": f.0, "strip": s.0});
+                }
+            }
+            if pick.is_some_and(|p| p.chosen == measured_pick) {
+                agree += 1;
+            }
+        }
+        // Largest STRIP/FULL ratios first (the panel shows a few).
+        slower.sort_by(|a, b| b.0.total_cmp(&a.0));
+        let slower: Vec<Value> = slower.into_iter().take(6).map(|(_, v)| v).collect();
+        json!({"n": n, "strip_slower": strip_slower, "model_pick_is_measured_faster": agree,
+               "worst_strip_over_full": worst, "worst": worst_shape, "slowest": slower,
+               "builds": builds_json(&builds)})
+    }
+
+    fn json(&self, from: &str) -> Value {
+        let skip = self.rows.len().saturating_sub(AUTO_ROWS);
+        let rows: Vec<Value> = self.rows[skip..]
+            .iter()
+            .map(|row| {
+                let mut row = row.clone();
+                let key = (
+                    row["M"].as_u64().unwrap_or(0),
+                    row["K"].as_u64().unwrap_or(0),
+                    row["N"].as_u64().unwrap_or(0),
+                    row["requant"].as_bool().unwrap_or(false),
+                );
+                // The un-run mode, measured, if some other record ran this shape in it.
+                let other = usize::from(row["chosen"] != "STRIP");
+                row["other_measured"] = self
+                    .measured
+                    .get(&key)
+                    .and_then(|p| p[other].as_ref())
+                    .map_or(Value::Null, |(c, id, b)| json!({"cycles": c, "run_id": id, "build_id": b}));
+                row
+            })
+            .collect();
+        json!({
+            "rows": rows, "rows_total": self.rows.len(), "tally": self.tally, "pairs": self.pairs(),
+            "from": from, "policy": runner::AUTO_POLICY,
+            "rule": "measured = counters.cycles_total of the mode that ran; the other mode is MODEL unless a separate verified run of the same shape measured it",
+        })
+    }
+}
+
 /// What the dashboard shows for a source, all derived from results/<source>/*.json:
 /// totals over every record, the most recent `MAX_RUNS` records (ticker, scenes
 /// 1-2), and the roofline points over every record.
@@ -145,26 +266,29 @@ struct Live {
     /// Number of records on disk (`runs` holds at most `MAX_RUNS` of them).
     total: usize,
     builds: Vec<(String, usize)>,
+    auto: AutoView,
 }
 
 fn load_live(results: &Path, source: &str) -> Live {
     let all = load_runs(&runs_dir(results, source));
     let roof = roof_points(&all);
     let builds = build_counts(&all);
+    let auto = AutoView::from_records(&all);
     let total = all.len();
     let mut runs: VecDeque<RunRecord> = all.into();
     while runs.len() > MAX_RUNS {
         runs.pop_front();
     }
-    Live { session: Session::rebuild(results, source), runs, roof, total, builds }
+    Live { session: Session::rebuild(results, source), runs, roof, total, builds, auto }
 }
 
 impl App {
     fn new(source: &str, transport: &TransportSpec, results: &Path, replay: Option<Replay>, attract: bool) -> Self {
-        let Live { session, runs, roof, total, builds } = load_live(results, source);
+        let Live { session, runs, roof, total, builds, auto } = load_live(results, source);
         Self {
             roof,
             builds,
+            auto,
             runs_total: total,
             source: source.into(),
             transport: format!("{transport:?}"),
@@ -198,8 +322,9 @@ impl App {
     fn adopt_board(&mut self, results: &Path, transport_src: transport::Source, build_id_hex: &str) {
         let src = runner::effective_source(transport_src, Some(build_id_hex));
         if self.source != src {
-            let Live { session, runs, roof, total, builds } = load_live(results, src);
+            let Live { session, runs, roof, total, builds, auto } = load_live(results, src);
             self.source = src.into();
+            self.auto = auto;
             self.session = session;
             self.runs = runs;
             self.roof = roof;
@@ -236,7 +361,7 @@ impl Shared {
         let a = self.app.lock().expect("app");
         let model_dir = self.results.join("model");
         let cost = read_json(&self.results.join("cost.json"));
-        let (runs, session, source, board_status, roof, roof_from, builds) = match (&a.replay, a.replay_active) {
+        let (runs, session, source, board_status, roof, roof_from, builds, auto) = match (&a.replay, a.replay_active) {
             (Some(r), true) => (
                 serde_json::to_value(&r.runs).unwrap_or(Value::Null),
                 r.session.clone().unwrap_or(Value::Null),
@@ -245,6 +370,7 @@ impl Shared {
                 roof_points(&r.runs),
                 "replay".to_string(),
                 builds_json(&build_counts(&r.runs)),
+                AutoView::from_records(&r.runs).json("replay"),
             ),
             _ => (
                 serde_json::to_value(&a.runs).unwrap_or(Value::Null),
@@ -254,9 +380,10 @@ impl Shared {
                 a.roof.clone(),
                 format!("results/{}", runs_dir(Path::new(""), &a.source).display()),
                 builds_json(&a.builds),
+                a.auto.json(&format!("results/{}", runs_dir(Path::new(""), &a.source).display())),
             ),
         };
-        json!({
+        let mut v = json!({
             "now_utc": iso_utc(now_unix()),
             "started_utc": a.started_utc,
             "source": source,
@@ -298,7 +425,14 @@ impl Shared {
             "runs_total": if a.replay_active { a.replay.as_ref().map_or(0, |r| r.runs.len()) } else { a.runs_total },
             "max_runs": MAX_RUNS,
             "roof_measured": {"n": roof.len(), "points": roof, "from": roof_from, "rule": ROOF_RULE},
-        })
+        });
+        // (Outside json!: the macro's recursion limit.)
+        v["auto"] = auto;
+        v["auto_presets"] = AUTO_PRESETS
+            .iter()
+            .map(|p| json!({"case": p.case, "name": p.name, "M": p.m, "K": p.k, "N": p.n, "why": p.why}))
+            .collect();
+        v
     }
 }
 
@@ -321,6 +455,41 @@ fn running_info(g: &GemmSpec) -> Value {
         "timeline_source": "model",
         "started_utc": iso_utc(now_unix()),
     })
+}
+
+enum CmdKind {
+    Demo,
+    Other,
+}
+
+/// `POST /api/run {"preset": "auto"}`: named auto-mode presets (G5 stretch). The
+/// host picks each one's mode with the cycle model; the record shows the choice.
+pub struct AutoPreset {
+    pub case: &'static str,
+    pub name: &'static str,
+    pub m: usize,
+    pub k: usize,
+    pub n: usize,
+    pub why: &'static str,
+}
+
+pub const AUTO_PRESETS: &[AutoPreset] = &[
+    AutoPreset { case: "strip_wins", name: "ffn_up", m: 1, k: 64, n: 256, why: "decode: FULL leaves 7 of 8 PE rows idle" },
+    AutoPreset { case: "full_wins", name: "h5_worst", m: 22, k: 250, n: 17, why: "H-5 worst same-shape pair: STRIP needs 12 tiles, FULL 9" },
+];
+
+/// Specs for an auto preset: one case, or all of them in order.
+pub fn auto_preset_specs(case: Option<&str>) -> Result<Vec<GemmSpec>, String> {
+    let v: Vec<GemmSpec> = AUTO_PRESETS
+        .iter()
+        .filter(|p| case.is_none_or(|c| c == p.case))
+        .map(|p| GemmSpec { name: p.name.into(), m: p.m, k: p.k, n: p.n, mode: "AUTO".into(), requant: true, seed: 1, mode_select: None })
+        .collect();
+    if v.is_empty() {
+        let cases: Vec<&str> = AUTO_PRESETS.iter().map(|p| p.case).collect();
+        return Err(format!("unknown auto case (known: {})", cases.join(", ")));
+    }
+    Ok(v)
 }
 
 fn worker(opts_t: TransportSpec, baud: u32, scale: Option<u32>, root: PathBuf, sh: Shared, rx: Receiver<Cmd>) {
@@ -362,6 +531,7 @@ fn worker(opts_t: TransportSpec, baud: u32, scale: Option<u32>, root: PathBuf, s
                 a.roof = live.roof;
                 a.runs_total = live.total;
                 a.builds = live.builds;
+                a.auto = live.auto;
             }
         }
         // Gather commands.
@@ -423,8 +593,10 @@ fn worker(opts_t: TransportSpec, baud: u32, scale: Option<u32>, root: PathBuf, s
             }
             continue;
         };
+        let cmd_kind = if matches!(cmd, Cmd::Demo) { CmdKind::Demo } else { CmdKind::Other };
         let specs: Vec<GemmSpec> = match cmd {
             Cmd::Run(g) => vec![g],
+            Cmd::RunMany(v) => v,
             Cmd::Demo => {
                 {
                     let mut a = sh.app.lock().expect("app");
@@ -452,9 +624,18 @@ fn worker(opts_t: TransportSpec, baud: u32, scale: Option<u32>, root: PathBuf, s
                 continue;
             }
         };
-        let is_demo = specs.len() > 1;
+        let is_demo = matches!(cmd_kind, CmdKind::Demo);
+        let paced = specs.len() > 1;
         let n_specs = specs.len();
         for (i, g) in specs.into_iter().enumerate() {
+            // AUTO -> the model's pick, before announcing it (the record says why).
+            let g = match g.resolve() {
+                Ok(g) => g,
+                Err(e) => {
+                    broadcast(&sh.subs, "run_failed", &json!({"gemm": g, "error": e}));
+                    continue;
+                }
+            };
             let info = running_info(&g);
             sh.app.lock().expect("app").running = Some(info.clone());
             broadcast(&sh.subs, "run_started", &info);
@@ -471,6 +652,7 @@ fn worker(opts_t: TransportSpec, baud: u32, scale: Option<u32>, root: PathBuf, s
                             a.session = sess;
                         }
                         a.roof.extend(roof_point(&rec));
+                        a.auto.add(&rec);
                         a.runs_total += 1;
                         add_build(&mut a.builds, &rec.build_id);
                         a.runs.push_back(rec.clone());
@@ -497,7 +679,7 @@ fn worker(opts_t: TransportSpec, baud: u32, scale: Option<u32>, root: PathBuf, s
                     }
                 }
             }
-            if is_demo && i + 1 < n_specs {
+            if paced && i + 1 < n_specs {
                 // Let the viewer see each result (DEMO.md: 1.5 s between runs),
                 // at least as long as the model animation takes.
                 let min = Duration::from_millis(3000);
@@ -678,7 +860,18 @@ fn handle(sh: Shared, mut s: TcpStream) {
             }
         }
         ("POST", "/api/run") => {
-            // Named presets only: a SPEC §1.1 benchmark, an M from the sweep, a mode.
+            // Named presets only: a SPEC §1.1 benchmark, an M from the sweep, a mode
+            // (full | strip | auto), or {"preset": "auto", "case"?: strip_wins | full_wins}.
+            if body["preset"].as_str() == Some("auto") {
+                return match auto_preset_specs(body["case"].as_str()) {
+                    Ok(v) => {
+                        let n = v.len();
+                        let _ = sh.cmd.send(if n == 1 { Cmd::Run(v.into_iter().next().expect("one")) } else { Cmd::RunMany(v) });
+                        json_resp(&mut s, 200, &json!({"queued": n}))
+                    }
+                    Err(e) => json_resp(&mut s, 400, &json!({"error": e})),
+                };
+            }
             let name = body["preset"].as_str().or(body["name"].as_str()).unwrap_or("");
             let m = body["m"].as_u64().or(body["M"].as_u64()).unwrap_or(0) as usize;
             let mode = body["mode"].as_str().unwrap_or("");
@@ -873,6 +1066,59 @@ mod tests {
         }).collect::<Vec<_>>().iter());
         assert_eq!(roof_builds, vec![("52a66216".to_string(), 10), ("38a3950a".to_string(), n_int8 - 10)]);
         assert!(s["runs"].as_array().unwrap().iter().all(|r| r["build_id"] == "38a3950a"));
+    }
+
+    #[test]
+    fn auto_presets_resolve_to_the_documented_winners() {
+        let v = auto_preset_specs(None).unwrap();
+        assert_eq!(v.len(), AUTO_PRESETS.len());
+        for (p, g) in AUTO_PRESETS.iter().zip(&v) {
+            if let Some((k, n)) = runner::benchmark_kn(p.name) {
+                assert_eq!((k, n), (p.k, p.n), "preset {} K/N must be the benchmark's", p.name);
+            }
+            let r = g.resolve().unwrap();
+            let want = if p.case == "strip_wins" { "STRIP" } else { "FULL" };
+            assert_eq!(r.mode, want, "{}", p.case);
+        }
+        assert_eq!(auto_preset_specs(Some("full_wins")).unwrap()[0].m, 22);
+        assert!(auto_preset_specs(Some("nope")).is_err());
+    }
+
+    /// Auto rows: the chosen mode's cycles are measured; the other mode is shown
+    /// measured only when a separate clean run of the same shape exists.
+    #[test]
+    fn auto_view_labels_other_mode_and_scores_measured_pairs() {
+        let mut b = Board::new(Box::new(MockTransport::new(MockConfig::default())));
+        let mut ctx = Context::new(tmp("autoctx"), &repo_root());
+        ctx.write_files = false;
+        let mut cache = LoadCache::default();
+        let mut run = |g: GemmSpec| runner::run_gemm(&mut b, &mut ctx, &mut cache, &g).unwrap().0;
+        let shape = |mode: &str| GemmSpec { name: "h5_worst".into(), m: 22, k: 250, n: 17, ..GemmSpec::named("ffn_up", 1, mode, 1).unwrap() };
+        let full = run(shape("FULL"));
+        let strip = run(shape("STRIP"));
+        let auto_full = run(shape("AUTO"));
+        let auto_strip = run(GemmSpec::named("ffn_up", 1, "AUTO", 1).unwrap());
+        let mut bad = strip.clone();
+        bad.check.counter_diffs = vec!["cycles_total: 1 vs model 2".into()];
+        let v = AutoView::from_records([&full, &bad, &strip, &auto_full, &auto_strip]);
+        let j = v.json("results/test");
+        assert_eq!(j["rows_total"], 2);
+        assert_eq!(j["tally"]["picked_full"], 1);
+        assert_eq!(j["tally"]["picked_strip"], 1);
+        let r0 = &j["rows"][0];
+        assert_eq!(r0["chosen"], "FULL");
+        assert_eq!(r0["measured_cycles"], auto_full.counters.cycles_total);
+        assert_eq!(r0["other_measured"]["cycles"], strip.counters.cycles_total, "STRIP of this shape was measured");
+        assert_eq!(r0["other_measured"]["run_id"], strip.run_id.as_str());
+        assert!(j["rows"][1]["other_measured"].is_null(), "ffn_up M=1 FULL never ran: MODEL only");
+        // Pairs: one shape measured in both modes; STRIP slower; the model's pick matched.
+        assert_eq!(j["pairs"]["n"], 1);
+        assert_eq!(j["pairs"]["strip_slower"], 1);
+        assert_eq!(j["pairs"]["model_pick_is_measured_faster"], 1);
+        assert_eq!(j["pairs"]["worst"]["K"], 250);
+        // A record with counter diffs never feeds the measured side.
+        let v2 = AutoView::from_records([&full, &bad]);
+        assert_eq!(v2.pairs()["n"], 0);
     }
 
     #[test]

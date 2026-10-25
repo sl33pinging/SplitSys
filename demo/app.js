@@ -252,6 +252,11 @@ function renderRun() {
     const f = d.util / other.derived.util;
     const who = [other.gemm.name !== g.name ? esc(other.gemm.name) : '', other.build_id !== r.build_id ? 'build ' + esc(other.build_id) : ''].filter(Boolean).join(', ');
     xf = `<div class="mid ${g.mode === 'STRIP' ? 'strip' : 'full'}" style="font-size:40px;margin-top:14px">${ratio(f)} <span class="muted" style="font-size:24px">vs ${other.gemm.mode} on the same M, K, N</span></div>${who ? `<div class="note">paired with ${who}</div>` : ''}`;
+  } else if (r.mode_select) {
+    // Auto run: the other mode was not run; its cycles are the model's prediction only.
+    const ms = r.mode_select, om = g.mode === 'STRIP' ? 'FULL' : 'STRIP';
+    const oc = g.mode === 'STRIP' ? ms.model_cycles_full : ms.model_cycles_strip;
+    xf = `<div class="kv" style="margin-top:14px">auto-picked <span class="${g.mode === 'STRIP' ? 'strip' : 'full'}">${g.mode}</span> by the model · ${om} not run: model <span class="mono">${int(oc)}</span> cycles (<span class="mono">${ratio(oc / Math.max(1, r.counters.cycles_total))}</span>) <span class="badge model" style="position:static;font-size:16px">MODEL</span></div>`;
   } else {
     xf = `<div class="note" style="margin-top:14px">× vs the other mode appears once both modes ran this GEMM</div>`;
   }
@@ -259,7 +264,7 @@ function renderRun() {
   $('run-title').textContent = `${g.mode} runs ${g.name} at ${pct(d.util)} utilization`;
   const ok = r.check.golden_match && r.check.invariants_ok;
   body.innerHTML = `
-    <div class="kv mono" style="font-size:24px">${esc(g.name)} · M=${g.M} K=${g.K} N=${g.N} · <span class="${g.mode === 'STRIP' ? 'strip' : 'full'}">${g.mode}</span></div>
+    <div class="kv mono" style="font-size:24px">${esc(g.name)} · M=${g.M} K=${g.K} N=${g.N} · <span class="${g.mode === 'STRIP' ? 'strip' : 'full'}">${g.mode}</span>${r.mode_select ? ' <span class="muted">(auto)</span>' : ''}</div>
     <div class="row" style="margin-top:22px"><div class="big ${g.mode === 'STRIP' ? 'strip' : 'full'}">${pct(d.util)}</div><div class="muted" style="font-size:24px">utilization<br>(mac_useful / 64·cycles)</div></div>
     <div class="kv" style="margin-top:12px">model <span class="mono">${pct(d.util_model)}</span> · err <span class="mono">${signed(errU, 2)}</span> · cycles <span class="mono">${int(r.counters.cycles_total)}</span> (model ${int(r.model.cycles_total)})</div>
     ${xf}
@@ -428,10 +433,10 @@ function renderBench() {
   const shapes = S.bench_shapes || [];
   const groups = [];
   for (const b of shapes) for (const m of [1, 64]) groups.push([b.name, m]);
-  const L = 70, T = 14, H = 196, gw = (1828 - L - 10) / Math.max(groups.length, 1), bw = Math.min(56, gw / 3.2);
+  const BW = 956, L = 70, T = 14, H = 196, gw = (BW - L - 10) / Math.max(groups.length, 1), bw = Math.min(44, gw / 2.8);
   const yv = (u) => T + H - u * H;
   for (let u = 0; u <= 1.0001; u += 0.5) {
-    svg.appendChild(el('line', { x1: L - 10, y1: yv(u), x2: 1828, y2: yv(u), stroke: C.line }));
+    svg.appendChild(el('line', { x1: L - 10, y1: yv(u), x2: BW, y2: yv(u), stroke: C.line }));
     svg.appendChild(el('text', { x: L - 18, y: yv(u) + 7, 'text-anchor': 'end', 'font-size': 20, fill: C.muted, class: 'mono' }, (u * 100) + '%'));
   }
   let measured = 0, wins = 0, decodeGroups = 0;
@@ -459,6 +464,70 @@ function renderBench() {
   svgFoot(svg, L - 10, T + H + 88, shownBuilds(shown), shown.length);
   $('bench-title').textContent = decodeGroups ? `STRIP beats FULL on ${wins} of ${decodeGroups} decode (M=1) benchmarks` : 'Benchmarks: not run yet (dashed = not run; white tick = model)';
   setBadge('bench-badge', measured ? srcLabel() : 'model', measured ? undefined : 'MODEL');
+}
+// ---------- Scene 2: auto mode (G5 stretch) ----------
+// Only the chosen mode is run, so only its cycles are measured. The other mode's
+// cycles are the model's prediction unless a separate clean run of the same shape
+// measured them (other_measured); every number says which it is.
+function shapeStr(x) { return `${x.M}×${x.K}×${x.N}${x.requant === false ? ' i32' : ''}`; }
+function autoCell(cyc, measured, lab, chosen) {
+  const tag = measured ? lab : 'MODEL';
+  const cls = measured ? '' : ' class="muted"';
+  return `<td${cls}>${chosen ? '<b>' : ''}${int(cyc)}${chosen ? '</b>' : ''} <span class="note">${tag}</span></td>`;
+}
+function autoRowsWhereStripLost(rows) {
+  return rows.filter((r) => r.model_cycles_strip > r.model_cycles_full)
+    .sort((a, b) => b.model_cycles_strip / b.model_cycles_full - a.model_cycles_strip / a.model_cycles_full);
+}
+function renderAuto() {
+  const A = (S && S.auto) || { rows: [], tally: { runs: 0 }, pairs: { n: 0, slowest: [] } };
+  const t = A.tally || { runs: 0 }, p = A.pairs || { n: 0, slowest: [] };
+  const rows = A.rows || [];
+  const lab = badgeFor(srcLabel())[0];
+  const body = $('auto-body');
+  let title = 'Auto mode picks the faster shape per GEMM (model-scored)';
+  if (p.n) title = `Auto mode picks the faster mode: ${p.model_pick_is_measured_faster}/${p.n} shapes`;
+  $('auto-title').textContent = title;
+  setBadge('auto-badge', rows.length || p.n ? srcLabel() : 'model', rows.length && lab !== 'MODEL' ? `${lab} + MODEL` : (p.n || rows.length ? lab : 'MODEL'));
+  const lines = [];
+  if (t.runs) {
+    const x = (v) => (t.model_cycles_auto ? ratio(v / t.model_cycles_auto) : '—');
+    lines.push(`${lab} auto runs: <span class="mono">${t.runs}</span> · ran FULL <span class="mono full">${t.picked_full}</span> / STRIP <span class="mono strip">${t.picked_strip}</span> · measured = model on <span class="mono">${t.measured_eq_model}/${t.runs}</span>`);
+    lines.push(`Σ cycles: auto <span class="mono">${int(t.measured_cycles)}</span> measured · always FULL <span class="mono">${x(t.model_cycles_full)}</span>, always STRIP <span class="mono">${x(t.model_cycles_strip)}</span> (MODEL)`);
+  } else {
+    lines.push(`No ${lab} auto runs yet <span class="note">(splitsys-host run --random 100 --mode auto --seed 1)</span>`);
+  }
+  if (p.n) {
+    lines.push(`${lab} shapes run in both modes: <span class="mono">${p.n}</span> · STRIP slower on <span class="mono">${p.strip_slower}</span>${p.strip_slower ? ` (worst <span class="mono">${ratio(p.worst_strip_over_full)}</span>)` : ''}`);
+  }
+  let table = '';
+  const lost = autoRowsWhereStripLost(rows);
+  if (lost.length) {
+    // Auto runs where the model said STRIP loses: auto ran FULL.
+    const tr = lost.slice(0, 3).map((r) => {
+      const om = r.other_measured;
+      return `<tr><td>${shapeStr(r)}</td>${autoCell(r.measured_cycles, true, lab, true)}${autoCell(om ? om.cycles : r.model_cycles_strip, !!om, lab, false)}<td>${r.model_tiles_full} / ${r.model_tiles_strip}</td><td class="full">FULL</td></tr>`;
+    }).join('');
+    table = `<div class="note" style="margin-top:4px">Where STRIP loses (${lost.length} auto runs), auto ran FULL:</div>
+      <table class="err compact"><tr><th>M×K×N</th><th>FULL cycles</th><th>STRIP cycles</th><th>tiles F/S</th><th>auto ran</th></tr>${tr}</table>`;
+  } else if ((p.slowest || []).length) {
+    // No auto runs of those shapes yet: the measured pairs where STRIP lost, and the model's pick.
+    const tr = p.slowest.slice(0, 3).map((r) => `<tr><td>${shapeStr(r)}</td>${autoCell(r.full, true, lab, true)}${autoCell(r.strip, true, lab, false)}<td>${ratio(r.strip / r.full)}</td><td class="${r.model_pick === 'FULL' ? 'full' : 'strip'}">${r.model_pick || '—'}</td></tr>`).join('');
+    table = `<div class="note" style="margin-top:4px">Where STRIP lost (both modes measured), the model picks:</div>
+      <table class="err compact"><tr><th>M×K×N</th><th>FULL cycles</th><th>STRIP cycles</th><th>STRIP/FULL</th><th>auto picks</th></tr>${tr}</table>`;
+  } else if (rows.length) {
+    const tr = rows.slice(-3).reverse().map((r) => {
+      const om = r.other_measured, f = r.chosen === 'FULL';
+      const fc = f ? r.measured_cycles : (om ? om.cycles : r.model_cycles_full), sc = f ? (om ? om.cycles : r.model_cycles_strip) : r.measured_cycles;
+      return `<tr><td>${shapeStr(r)}</td>${autoCell(fc, f || !!om, lab, f)}${autoCell(sc, !f || !!om, lab, !f)}<td>${r.model_tiles_full} / ${r.model_tiles_strip}</td><td class="${f ? 'full' : 'strip'}">${r.chosen}</td></tr>`;
+    }).join('');
+    table = `<div class="note" style="margin-top:4px">Latest auto runs:</div>
+      <table class="err compact"><tr><th>M×K×N</th><th>FULL cycles</th><th>STRIP cycles</th><th>tiles F/S</th><th>auto ran</th></tr>${tr}</table>`;
+  }
+  const mockNote = srcLabel() === 'model' ? '<div class="note" style="color:#FF5C5C">Mock board: measured cycles ARE the model here.</div>' : '';
+  const bl = [rows.length ? buildsLine(`${lab} auto`, rows.map((r) => r.build_id)) : '', p.n ? buildsLineCounts(`pairs`, p.builds || []) : ''].filter((x) => x).join(' · ');
+  body.innerHTML = `<div style="font-size:20px;line-height:1.4">${lines.map((l) => `<div>${l}</div>`).join('')}</div>${table}
+    <div class="note" style="margin-top:4px">Pick: min model cycles_total (frozen latencies), ties → FULL. MODEL = predicted, not run.${bl ? ' ' + esc(bl) : ''}</div>${mockNote}`;
 }
 function counterVal(c, k) {
   const q = /^mac_useful_q(\d)$/.exec(k);
@@ -608,7 +677,7 @@ function renderAll() {
   renderChrome();
   if (!anim) renderGrid(null);
   renderRun(); renderVerified(); renderCost(); renderTicker();
-  renderSweep(); renderBench(); renderErrTable();
+  renderSweep(); renderBench(); renderErrTable(); renderAuto();
   renderBlock(); renderRoof(); renderTrade();
 }
 async function refresh() {
@@ -637,7 +706,7 @@ function connectEvents() {
 }
 if (typeof document === 'undefined') {
   // Loaded by node (sw/crates/host/tests/app_js.rs): export the pure helpers only.
-  module.exports = { sameGemm, otherModeRun, ratio, buildCounts, buildsLine, buildsLineCounts, recordLabel };
+  module.exports = { sameGemm, otherModeRun, ratio, buildCounts, buildsLine, buildsLineCounts, recordLabel, autoRowsWhereStripLost, shapeStr };
 } else {
 document.addEventListener('keydown', (e) => {
   if (e.key === '1' || e.key === '2' || e.key === '3') post('/api/scene', { scene: +e.key });
