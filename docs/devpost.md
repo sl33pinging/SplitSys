@@ -26,11 +26,11 @@ Public source for "splittable systolic array" (Inspiration): https://matx.com/re
         -> 61 identical generated tokens; f32_greedy_reproduces_published_readme passes.
       Flash: results/hw/logs/KG2/H-8_flash_program.log, results/hw/logs/KG3/Q-8_flash_program.log ("ok in 34 s",
         FLASH_OK). Boot ~1 s: human (STATUS ~16:50, 22:08). Dashboard 2.1 s wall: STATUS 22:19 (laptop-side).
-Tagline (176 chars, framing approved by human via lead, docs/WINNERS_RESEARCH.md §3 option A): "twice as many multipliers
+Tagline (193 chars, framing approved by human via lead, docs/WINNERS_RESEARCH.md §3 option A): "twice as many multipliers
         busy" = utilization ratio at M=1, util = mac_useful/(64*cycles_total) = mean fraction of the 64 MACs doing useful
         work; 2.0247..2.0709 [HW]. Verified 20-40-41Z ffn_up m1: 16384/(64*3682) = 0.069527, 16384/(64*1778) = 0.143982.
         "1 of 8 rows" / 12.5% = SPEC mapping ceiling at M=1 [S]. "2.16 s per step" = KG3 LM record [HW, laptop wall].
-        "125 ... (126 across all three)" = pick-check above. "LLM" = Llama-architecture model; size disclosed as tiny.
+        "125 ... (126 across all three)" = pick-check above. "real (tiny) model's matmuls" = only the linear layers run on the FPGA (red-team 05:14 fix; no "LLM" in the tagline).
 [S] docs/SPEC.md constants. ⟦HUMAN: …⟧ = placeholder for the human; never guess.
 Before pasting: strip these HTML comments and the [M]/[B]/[V]/[S]/[HW] tags if Devpost renders them
 oddly. Keep the words "model" / "measured" in the prose, though.
@@ -40,7 +40,7 @@ Voice: solo entry, first person singular. The "we" in four section headings is D
 
 **Project name:** SplitSys
 
-**Tagline (≤ 200 chars):** I built a tiny AI chip on an FPGA that rewires itself to keep twice as many multipliers busy while a language model writes one word at a time, and it's running a real LLM live.
+**Tagline (≤ 200 chars):** I built a tiny AI accelerator on an FPGA that rewires itself to keep twice as many multipliers busy when a language model writes one token at a time. It runs a real (tiny) model's matmuls live.
 
 **Table number:** ⟦HUMAN: table number (cannot change after Sun 09:00)⟧
 **Team:** solo entry (one person); eligible for Best Solo Hack.
@@ -48,7 +48,7 @@ Voice: solo entry, first person singular. The "we" in four section headings is D
 SplitSys is an 8×8 int8 systolic-array accelerator I designed and built solo on a Spartan-7 FPGA. In LLM decode (one token at a time, M = 1), the 8×8 array can fill only 1 of its 8 rows, a 12.5% mapping ceiling (measured: 6.95% for `ffn_up`), so SplitSys rewires itself into a 4×16 "STRIP" shape and measures **2.02–2.07× higher utilization** [HW].
 A cycle model I wrote before the board session predicted **all 12 hardware counters exactly on 773 GEMMs** run on the board [HW], and the board runs the public stories260K model with **every linear layer on the FPGA**, live, at 2.16 s per step end to end (mostly the serial link, not the chip) [HW].
 
-**Limits, up front:** attention, softmax and normalisation run on the laptop. stories260K is a tiny model. The gain is utilization inside the array, measured in on-chip cycles, not a speed claim against a CPU or GPU. STRIP isn't always better, so a cycle model picks the mode per matrix; on 125 shapes measured both ways on the first build (126 across all three) it never picked the slower one [HW].
+**Limits, up front:** attention (including softmax), RMSNorm, RoPE, SwiGLU, embedding and sampling run on the laptop; only the 37 linear-layer matmuls per token run on the FPGA. stories260K is a tiny model. The gain is utilization inside the array, measured in on-chip cycles, not a speed claim against a CPU or GPU. STRIP isn't always better, so a cycle model picks the mode per matrix; on 125 shapes measured both ways on the first build (126 across all three) it never picked the slower one [HW].
 
 ---
 
