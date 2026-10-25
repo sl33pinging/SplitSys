@@ -14,3 +14,8 @@ logs:
   Q-4_memtest_seed1.log  (from /c/Users/danie/FPGA_Projects/Calhack2026/results/hw/logs/KG3/Q-4_memtest_seed1.log)
   Q-5_random_both_seed1.log  (from /c/Users/danie/FPGA_Projects/Calhack2026/results/hw/logs/KG3/Q-5_random_both_seed1.log)
   Q-6_lm_8tok.log  (from /c/Users/danie/FPGA_Projects/Calhack2026/results/hw/logs/KG3/Q-6_lm_8tok.log)
+lead_note: 2026-10-24 22:06 PDT. KG3 runs at 1,562,500 baud (D-020). Host-side wall times in the KG3 logs depend on the
+  Windows FTDI driver latency timer for COM3: Q-1 echo ran at the 16 ms default (25.4 s / 100 kB); the human set it to 1 ms
+  at ~21:55 PDT; Q-7 echo (1.57 s / 100 kB) and Q-2..Q-6 (incl. LM 2.16 s/step) ran at 1 ms. KG2's 30.8 s/step LM ran at
+  115,200 baud with the 16 ms default. Any before/after comparison must name both settings. On-chip cycles are unaffected.
+  Q-7 ran with the kg3_heartbeat_uart_echo bitstream still loaded (programmed 21:48 in Q-1; kg3_top programmed 21:56:28 in Q-2).
