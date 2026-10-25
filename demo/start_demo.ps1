@@ -7,8 +7,10 @@ param(
     [string]$Replay = "",
     [switch]$Attract,
     [switch]$NoBrowser,
-    # Top-left of the monitor the kiosk should open on (Windows virtual-desktop coordinates); default = Edge's choice.
-    [string]$WindowPosition = ""
+    # Top-left of the monitor the kiosk should open on (Windows virtual-desktop coordinates).
+    # "auto" (default) = the first non-primary display, so a replugged monitor that moved is still found;
+    # "" = let Edge choose.
+    [string]$WindowPosition = "auto"
 )
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
@@ -53,6 +55,12 @@ if (-not $NoBrowser) {
     $edge = "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe"
     $kioskProfile = Join-Path $env:TEMP "splitsys_kiosk"
     $edgeArgs = @("--kiosk", $url, "--edge-kiosk-type=fullscreen", "--no-first-run", "--user-data-dir=$kioskProfile")
+    if ($WindowPosition -eq "auto") {
+        Add-Type -AssemblyName System.Windows.Forms
+        $ext = [System.Windows.Forms.Screen]::AllScreens | Where-Object { -not $_.Primary } | Select-Object -First 1
+        if ($ext) { $WindowPosition = "$($ext.Bounds.X),$($ext.Bounds.Y)"; Write-Host "kiosk on $($ext.DeviceName) at $WindowPosition" }
+        else { $WindowPosition = ""; Write-Host "no external monitor found: kiosk on the laptop screen" -ForegroundColor Yellow }
+    }
     if ($WindowPosition) { $edgeArgs += "--window-position=$WindowPosition" }
     Start-Process -FilePath $edge -ArgumentList $edgeArgs
 }
