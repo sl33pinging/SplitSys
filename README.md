@@ -47,13 +47,23 @@ HONESTY KEY (red-team: audit every number in this file against this key).
                 equal 5, more 31 (max 1.3154x, gemm_full_s1_56 vs gemm_strip_s1_56, M=22 K=250 N=17: 2711 vs 3566 cycles, H-5 log lines 116-117);
                 all 31 have STRIP tiles > FULL tiles. (Identical on the KG2 re-run.)
               Counters are on-chip cycles at 100 MHz, NOT wall clock.
+              H-8 QSPI flash (KG2): results/hw/logs/KG2/H-8_flash_program.log: cfgmem part mt25ql128-spi-x1_x2_x4
+                (Micron, 128 Mbit), image KG2.bin 1315316 bytes md5 81547a2596be6283032d9b1e3448c4ba from top.bit md5
+                63dea71fd7e8c151f836143c8bac2b2a; "program_hw_cfgmem (program) ok in 34 s" (erase + blank check + program + verify);
+                "after boot_hw_device DONE pin = '1'"; FLASH_OK. Flash part IC10 MT25QL128ABA8ESF and boot jumper J14 from
+                schematic p11/p12 (docs/HW_CHECKLIST.md Board facts). Boot from flash in ~1 s: human-observed, docs/STATUS.md
+                ~16:50 row (no log file). Cold start: docs/STATUS.md 17:04 row: start_demo.ps1 -Transport serial:COM3
+                -WindowPosition 2304,0, "1.9 s wall" (ping + server + kiosk; laptop-side wall time, not accelerator speed),
+                "total cold start ≈ 3–5 s".
+              Architecture figure results/plots/architecture.png: crop of the Scene 3 SPEC panel from a live dashboard
+                screenshot (scripts/screenshot http://127.0.0.1:8080/?scene=3&shot=1, 2026-10-24 17:10 PDT, build 38a3950a).
               H-4 self-test --dump: KG1 results/hw/logs/H-4_selftest_dump.log; KG2 results/hw/logs/KG2/H-4_selftest_dump.log
                 (0 of 256 OBUF bytes differ on both; KG2 log also records 7-seg 'S   14.4' correct order, RGB0/RGB1 dark).
   [S]  SPEC   docs/SPEC.md v1.1 design constants (not results).
   ⟦HUMAN: …⟧ = not decided yet. Never replace with a guess.
 -->
 
-**Big systolic arrays leave most of their rows idle on one-token-at-a-time LLM decode. SplitSys is an 8×8 int8 array that rewires itself into a 4×16 array at runtime. Measured on the board's hardware counters, that doubles decode utilization: 2.02–2.07× across the four matmuls of a transformer block at M = 1 [HW]. A cycle model written before the board was touched predicted all 12 counters exactly, on every one of 473 hardware GEMMs [HW]. The price is 25% more operand bandwidth per cycle and an area cost we measured.**
+**Big systolic arrays leave most of their rows idle on one-token-at-a-time LLM decode. SplitSys is an 8×8 int8 array that rewires itself into a 4×16 array at runtime. Measured on the board's hardware counters, that doubles decode utilization: 2.02–2.07× across the four matmuls of a transformer block at M = 1 [HW]. A cycle model written before the board was touched predicted all 12 counters exactly, on every one of 473 hardware GEMMs [HW]. The price is 25% more operand bandwidth per cycle and an area cost I measured.**
 
 > ⟦HUMAN: GIF or photo of the board running, PE grid lit on the monitor⟧
 
@@ -72,7 +82,7 @@ HONESTY KEY (red-team: audit every number in this file against this key).
   - a self-test ROM
   - a framed UART protocol (CRC-8) to a Rust host, which verifies every output bit-exactly against a Rust golden model
 - **Dashboard:** a live dashboard on a second monitor shows the PE grid, utilization, and model-vs-measured numbers. It is offline and built from vanilla JS and SVG.
-- **Workload:** the four matmuls of one transformer block (d_model = 64): `qkv` 64×192, `attn_out` 64×64, `ffn_up` 64×256, `ffn_down` 256×64. We run each at M = 1 (decode) and M = 64 (prefill), plus an M sweep 1…64 [S].
+- **Workload:** the four matmuls of one transformer block (d_model = 64): `qkv` 64×192, `attn_out` 64×64, `ffn_up` 64×256, `ffn_down` 256×64. I run each at M = 1 (decode) and M = 64 (prefill), plus an M sweep 1…64 [S].
 
 ## Headline results
 
@@ -92,7 +102,7 @@ At M = 1 the measured STRIP/FULL ratio is 2.07× for `qkv`, `attn_out` and `ffn_
 **HW is the board.** The HW column is read over UART from the 12 on-chip performance counters of the Spartan-7. These are on-chip cycles at 100 MHz, not wall-clock time [HW]. Two bitstreams ran, with the same datapath RTL:
 
 - **KG1** (build 0x52A66216, `fpga/known_good/KG1`) produced the benchmark evidence: the H-5 random batch, the H-6 sweep behind this table, and the H-7 dashboard runs (272 records).
-- **KG2** (build 0x38A3950A, `fpga/known_good/KG2`) is the live demo bitstream. It changes only two 7-segment orientation defaults in `rtl/top.sv` and `rtl/board_io.sv`, plus a pulldown on unused pins in the constraints file. On KG2 we re-ran H-4 and H-5 (201 records). The H-5 re-run drew the same 200 shapes, and every counter came back identical to KG1's [HW].
+- **KG2** (build 0x38A3950A, `fpga/known_good/KG2`) is the live demo bitstream. It changes only two 7-segment orientation defaults in `rtl/top.sv` and `rtl/board_io.sv`, plus a pulldown on unused pins in the constraints file. On KG2 I re-ran H-4 and H-5 (201 records). The H-5 re-run drew the same 200 shapes, and every counter came back identical to KG1's [HW].
 
 **SIM is co-simulation of the RTL, not hardware.** The SIM column comes from Verilator running the real top-level RTL. The real host binary drives it byte by byte through the UART pins, over a TCP bridge. Its counters equal the model **exactly**, on every counter of every one of the 70 committed runs [SIM]. That agreement is expected: the sequencer is deterministic, there is no DRAM, and the model and the RTL implement the same confirmed latencies (D-017). So it shows the RTL does what the spec says. It does not show that the model predicts a physical chip. **The HW column is that test, and it came out exact:** on all 473 hardware runs, all 12 counters equal the model [HW].
 
@@ -150,7 +160,9 @@ Every plot is titled with its finding and labeled with its source. The utilizati
                                   └──────────────────┘   perf counters ◄── array + FSM taps
 ```
 
-- **Full diagram:** `docs/SPEC.md` §2 and dashboard Scene 3. ⟦TODO: export the Scene 3 SVG to `results/plots/architecture.svg` and link it here⟧.
+- **Full diagram:** [`results/plots/architecture.png`](results/plots/architecture.png), the architecture panel of dashboard Scene 3 (drawn from `docs/SPEC.md` §2 and §3.2), cropped from a screenshot of the live dashboard. The dashboard draws it with JS, so there is no standalone SVG.
+
+  ![SplitSys block diagram: row-4 mux rewires 8×8 into 4×16](results/plots/architecture.png)
 - **The split:**
   - A mux at row 4 selects W from the PE above (FULL) or from W lanes 8–15 (STRIP).
   - A source mux feeds rows 4–7 with the activations of rows 0–3.
@@ -176,11 +188,13 @@ All counts below are from `tb/SIGNOFF.md` and `tb/system/SIGNOFF_SYSTEM.md` [V] 
   - 52 mode-switch jobs
   - 3 self-test checks
 - **Co-simulation (SIM):** the real `splitsys-host` binary drives the simulated top over a TCP-to-UART bridge. At build f402cc7 the host ran a bench sweep (all 4 GEMMs × M = 1…64 × both modes, 56 runs) plus the 10-run cosim check. At build 5900507 (same RTL) it ran the 4-run scripted demo. Results: 70 committed run records, 217,088 outputs compared, 17,014,784 MACs verified, 0 mismatches, 0 counter differences from the model [SIM].
-- **On hardware [HW].** H-3 ran on the `packet_mem` link-test bitstream (build 0x52A66216). KG1 (the full design, build 0x52A66216) ran H-4 through H-7. KG2 (build 0x38A3950A, same datapath RTL) re-ran H-4 and H-5:
+- **On hardware [HW].** H-3 ran on the `packet_mem` link-test bitstream (build 0x52A66216). KG1 (the full design, build 0x52A66216) ran H-4 through H-7. KG2 (build 0x38A3950A, same datapath RTL) re-ran H-4 and H-5, and was then written to flash (H-8):
   - UART link (H-3): `memtest` wrote and read back 10,000 random frames (5,123,818 bytes) across WBUF, ABUF, OBUF and the requant parameters, with 0 errors and 0 retries (`results/hw/logs/H-3_memtest_seed1.log`).
   - Self-test (H-4): the on-chip ROM jobs passed in both modes, and the read-back OBUF matched golden, with 0 of 256 bytes different, on both builds (`results/hw/logs/H-4_selftest_dump.log`, `results/hw/logs/KG2/H-4_selftest_dump.log`).
   - Random GEMMs (H-5): 200 runs (100 per mode, up to 64×256×256, 17 with int32 output), with 0 output mismatches, 0 counter mismatches, and 0 invariant failures, on each build (`results/hw/logs/H-5_random_both_seed1.log`, `results/hw/logs/KG2/H-5_random_both_seed1.log`).
   - Benchmark sweep (H-6, KG1): 56 of 56 runs passed, with a model error of +0.000% at every point (`results/hw/logs/H-6_bench_sweep_seed1.log`).
+  - Boots from flash (H-8, KG2): Vivado wrote the KG2 image to the board's QSPI flash (Micron MT25QL128, 128 Mbit, part per the schematic) and verified it, with erase, blank check, program and verify taking 34 s. The FPGA then booted from flash with DONE high (`results/hw/logs/KG2/H-8_flash_program.log`). With jumper J14 fitted, a cold power-on configures the board from flash in about 1 s (observed by eye, no log). Neither Vivado nor JTAG is needed at the booth.
+  - Cold start to dashboard: from a stopped state, `demo\start_demo.ps1 -Transport serial:COM3` pinged build 38a3950a and brought up the server and kiosk in 1.9 s of laptop wall time. Power-on to dashboard took about 3–5 s in total (`docs/STATUS.md`, 17:04). This is laptop-side startup time, not accelerator speed.
   - Totals over all 473 run records: 473 GEMMs and 233,654,180 MACs verified, 1,891,096 outputs compared, 0 mismatches. Per build: KG1 272 GEMMs, 127,321,042 MACs; KG2 201 GEMMs, 106,333,138 MACs. `results/session.json` agrees.
 
 ## Cost of splitting
@@ -221,7 +235,7 @@ Two post-route builds of the same top, with `ENABLE_STRIP = 1` and `ENABLE_STRIP
 **Read it honestly:**
 - **Most of the delta is the 16-wide output path,** not the split itself. Requant lanes 8–15 are 1,503 of the 2,243 LUTs and all 16 DSPs. The FULL-only build trims them, because FULL drains only 8 lanes per row.
 - **The split proper** (array muxes plus sequencer control) costs +667 LUT and +334 FF.
-- **Don't read the Fmax estimate as a cost of splitting.** From WNS at the 100 MHz constraint, the estimates are 128.0 MHz (FULL-only) and 108.0 MHz (split). They are not a frequency sweep. The split build's worst path starts at a replicated reset flop (`rst_core_reg_rep__7`, ending at a requant lane-0 register reset): 0 logic levels, 95% routing. That is placement, not STRIP logic. Three builds of the same datapath RTL closed the split build at WNS +1.143 ns (8bbd7ba6), +0.523 ns (52a66216, KG1) and +0.744 ns (38a3950a, KG2): a 0.62 ns spread with no datapath change. We headline the LUT, FF and DSP counts, not Fmax.
+- **Don't read the Fmax estimate as a cost of splitting.** From WNS at the 100 MHz constraint, the estimates are 128.0 MHz (FULL-only) and 108.0 MHz (split). They are not a frequency sweep. The split build's worst path starts at a replicated reset flop (`rst_core_reg_rep__7`, ending at a requant lane-0 register reset): 0 logic levels, 95% routing. That is placement, not STRIP logic. Three builds of the same datapath RTL closed the split build at WNS +1.143 ns (8bbd7ba6), +0.523 ns (52a66216, KG1) and +0.744 ns (38a3950a, KG2): a 0.62 ns spread with no datapath change. I headline the LUT, FF and DSP counts, not Fmax.
 - **These numbers come from the S4 freeze rebuild at 38a3950a** (cost.json committed in 23acf6a). Its split build is the bitstream on the board now, archived as `fpga/known_good/KG2`: `summary.json` gives build_id 0x38A3950A and the same LUT, FF, DSP, BRAM and WNS values as cost.json. So the cost numbers describe the live demo bitstream. KG1, which produced the benchmark sweep, has the same datapath. Its cost build (52a66216) had the same split LUT count (7,389) and 4 fewer FULL-only LUTs (5,142).
 
 ## Reproduce
@@ -240,13 +254,14 @@ scripts/wsl 'python results/plots/make_plots.py --check'             # regenerat
 bash fpga/tcl/s4_rebuild.sh --no-commit                              # all 6 bitstreams at one hash + results/cost.json
 ```
 
-On hardware (Windows; the board enumerated as COM3 in our session), these commands produced the HW evidence:
+On hardware (Windows; the board enumerated as COM3 in my session), these commands produced the HW evidence:
 
 ```bash
 splitsys-host --transport serial:COM3 memtest --frames 10000 --seed 1        # H-3
 splitsys-host --transport serial:COM3 selftest --dump                        # H-4
 splitsys-host --transport serial:COM3 run --random 100 --mode both --seed 1  # H-5
 splitsys-host --transport serial:COM3 bench sweep --seed 1                   # H-6
+scripts/vivado -mode batch -source fpga/tcl/flash.tcl -tclargs fpga/known_good/CURRENT   # H-8: write + verify QSPI flash (J14 fitted)
 ```
 
 The ordered bring-up script, with expected output and failure branches, is `docs/HW_CHECKLIST.md`. `serve` runs the live dashboard.

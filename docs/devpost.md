@@ -28,10 +28,15 @@ Public source for "splittable systolic array" (Inspiration): https://matx.com/re
       7-seg 'S   14.4' correct order and RGB0/RGB1 dark). H-2 UART echo (10,000 and 100,000 bytes, 0 mismatched):
       docs/STATUS.md Phase H log only (no file). KG1: fpga/known_good/KG1/summary.json build_id 0x52A66216;
       KG2: fpga/known_good/KG2/summary.json build_id 0x38A3950A.
+      H-8 flash (Accomplishments): results/hw/logs/KG2/H-8_flash_program.log (mt25ql128-spi-x1_x2_x4, Micron 128 Mbit;
+      "program_hw_cfgmem (program) ok in 34 s" = erase + blank check + program + verify; DONE pin '1'; FLASH_OK).
+      Flash part IC10 MT25QL128ABA8ESF per schematic (docs/HW_CHECKLIST.md). Boot ~1 s: human, docs/STATUS.md ~16:50.
+      Dashboard 1.9 s wall: docs/STATUS.md 17:04 (start_demo.ps1 -Transport serial:COM3; laptop-side, not accelerator).
 [S] docs/SPEC.md v1.1 constants. ⟦HUMAN: …⟧ = placeholder for the human; never guess.
 Before pasting: strip these HTML comments and the [M]/[B]/[V]/[S] tags if Devpost renders them
 oddly. Keep the words "model" / "measured" in the prose, though.
 Deadline: Devpost with a valid table number by Sun 09:00 (PLAN.md).
+Voice: solo entry, first person singular. The "we" in four section headings is Devpost's fixed field labels; keep them.
 -->
 
 **Project name:** SplitSys
@@ -45,7 +50,7 @@ Deadline: Devpost with a valid table number by Sun 09:00 (PLAN.md).
 
 ## Inspiration
 
-LLM accelerators are built around big systolic arrays. During decode a model generates one token at a time, so the matrix multiplies are one row tall (M = 1). An 8-row array can then keep at most 1 of its 8 rows busy. Some LLM-specific chip makers have publicly described splittable systolic arrays as a response. We wanted to measure that tradeoff ourselves at small scale, with hardware counters rather than slides, and see whether a simple cycle model could predict every counter.
+LLM accelerators are built around big systolic arrays. During decode a model generates one token at a time, so the matrix multiplies are one row tall (M = 1). An 8-row array can then keep at most 1 of its 8 rows busy. Some LLM-specific chip makers have publicly described splittable systolic arrays as a response. I wanted to measure that tradeoff myself at small scale, with hardware counters rather than slides, and see whether a simple cycle model could predict every counter.
 
 ## What it does
 
@@ -79,10 +84,10 @@ SplitSys is a GEMM accelerator on a RealDigital Urbana board (AMD Spartan-7 XC7S
 ## Challenges we ran into
 
 - **A spec bug, caught before silicon.** The first spec had two formulas for the delay of the weights injected at row 4. One gave `4 + c` cycles, the other `12 + c`. It was caught in spec review, and the spec, RTL, and tests were fixed together (decision D-008). The skew unit test now fails on the old formula. With the wrong delay, the lower half of the array would have multiplied misaligned operands.
-- **UART pins named from the other chip's side.** The vendor constraints file names the UART pins from the USB bridge's point of view. Reading the schematic showed the FPGA's RX and TX had to be swapped. We couldn't confirm that before the board, so we also prebuilt a bitstream with them swapped back. The schematic reading was right: the UART echo test passed with 10,000 and then 100,000 bytes, 0 mismatched, and the fallback was never needed.
+- **UART pins named from the other chip's side.** The vendor constraints file names the UART pins from the USB bridge's point of view. Reading the schematic showed the FPGA's RX and TX had to be swapped. I couldn't confirm that before the board, so I also prebuilt a bitstream with them swapped back. The schematic reading was right: the UART echo test passed with 10,000 and then 100,000 bytes, 0 mismatched, and the fallback was never needed.
 - **Latency assumptions.** The drain-to-requant path measured 7 cycles, not the provisional 4 (D-016). The constant lives in one place, so the model, RTL, and tests all moved together.
-- **A test harness that lied.** Under `make -j`, cocotb could skip a simulation and still exit 0. We caught it, fixed it so every run must produce fresh results, and re-ran every suite.
-- **No datapath surprise on hardware.** The first bit-exact hardware run matched the model on every counter, so there was nothing to reproduce in simulation. The surprises were board I/O: LEDs glowing from a pull-up setting copied out of the vendor constraints file, and display digits in reverse order. We read off on the board which display digit is which and fixed the RTL default. Then we rebuilt the system simulation's display check from that board-confirmed rule: it fails 7 of 8 cases on the old RTL and passes on the fix. On the board, the fixed build reads in the right order and the LEDs are dark.
+- **A test harness that lied.** Under `make -j`, cocotb could skip a simulation and still exit 0. I caught it, fixed it so every run must produce fresh results, and re-ran every suite.
+- **No datapath surprise on hardware.** The first bit-exact hardware run matched the model on every counter, so there was nothing to reproduce in simulation. The surprises were board I/O: LEDs glowing from a pull-up setting copied out of the vendor constraints file, and display digits in reverse order. I read off on the board which display digit is which and fixed the RTL default. Then I rebuilt the system simulation's display check from that board-confirmed rule: it fails 7 of 8 cases on the old RTL and passes on the fix. On the board, the fixed build reads in the right order and the LEDs are dark.
 
 ## Accomplishments that we're proud of
 
@@ -92,6 +97,7 @@ SplitSys is a GEMM accelerator on a RealDigital Urbana board (AMD Spartan-7 XC7S
   - 70 co-simulation runs of the real host against the simulated chip (17.0 million MACs checked): 0 output mismatches, and every counter equal to the cycle model [SIM].
   - Matching the model in simulation is expected, since both use the same latencies. The real test was hardware, and the model passed it: 0 error on all 12 counters, across 473 board runs [HW].
 - **On the board:** 473 GEMMs and 233.7 million MACs bit-exact, a measured 2.02–2.07× decode utilization gain, and zero stall cycles [HW].
+- **It boots itself.** The live bitstream (KG2) is in the board's QSPI flash (Micron MT25QL128): erased, programmed and verified in 34 s. On power-on the board configures itself from flash in about 1 s (observed by eye), with no Vivado or JTAG needed. One script then brings up the dashboard in 1.9 s of laptop wall time. That is startup time, not accelerator speed.
 - **Cost measured, not guessed,** including the uncomfortable part: most of the area goes to the wider output path, not to the split itself [B].
 - **A live, offline dashboard** in which every number carries its source label (HW, SIM, or MODEL).
 
@@ -99,8 +105,8 @@ SplitSys is a GEMM accelerator on a RealDigital Urbana board (AMD Spartan-7 XC7S
 
 - **Utilization is set by mapping first, overhead second.** At M = 1, the mapping caps FULL at 12.5% and STRIP at 25% [S]. Fixed per-tile setup, flush, and drain cycles then bring the model down to 7.0% and 14.4% [M].
 - **Flexibility costs bandwidth.** A shorter, wider array needs more operand bytes per MAC: +25% here [S].
-- **The cost of a feature hides in its neighbours.** Most of our split's area was the output path that STRIP's 16-wide tiles need, not the muxes.
-- **A cycle model is only useful if it is written independently** and compared counter by counter. Agreeing with your own simulation proves the RTL matches the spec. Only the board can show the model predicts real hardware. Ours did, exactly, because the design is deterministic and has no DRAM. With DRAM-fed weights, stalls would make that much harder.
+- **The cost of a feature hides in its neighbours.** Most of the split's area was the output path that STRIP's 16-wide tiles need, not the muxes.
+- **A cycle model is only useful if it is written independently** and compared counter by counter. Agreeing with your own simulation proves the RTL matches the spec. Only the board can show the model predicts real hardware. This one did, exactly, because the design is deterministic and has no DRAM. With DRAM-fed weights, stalls would make that much harder.
 - **Shape beats mode.** STRIP wins on most shapes, but its 4×16 tile padding made it slower on 31 of 97 random shapes. A good mode selector has to count tiles.
 
 ## What's next for SplitSys
