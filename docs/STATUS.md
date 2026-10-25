@@ -177,6 +177,9 @@ States: `todo` · `running` · `done` (owner handoff, lead checked) · `PASS` (r
 
 | 19:32 | host-dashboard + lead | done | 21d7b04: `--version` = host git hash; mock-over-tcp → model/mock, never sim/verified; roofline counts all int8 HW records (439 of 473; old 379 = int8 among the 400-record display cap), Scene 2 says "latest 400 of 473". Lead rebuilt the Windows exe (21d7b04) and restarted the live dashboard on KG2 (roof_measured.n 439, runs_total 473). |
 
+| 19:46 | red-team-reviewer | **G4 PARTIAL** | Claims + numbers audit PASS (recomputed: 473 HW records, 0/5,676 counter diffs, invariants, plots byte-identical, dashboard offline, REPLAY works, no ⟦HW⟧ left). Open: SEV-2 AI-assistance disclosure (human decision); Scenes 2–3 on the physical monitor with KG2 not observed; Devpost draft not yet submitted. SEV-3s routed: dashboard (build attribution, 2.07× rounding, shape pairing, REPLAY ticker) → host; tagline/mutant/timing/README wording → storyteller; KG2 flash log + H-7 build_id → fpga. MatX quotes + Cal Hacks location for the human to confirm online. |
+| 19:46 | human | decision | AI disclosure: **brief mention only** — add 'Claude Code (AI coding agents)' to Built with; keep first-person text. |
+
 ## Pre-Phase-H human checklist
 - [x] Install Windows Rust + build splitsys-host natively (done by human ~11:30; release build 52 s; lead verified mock ping + selftest PASS from the Windows exe).
 - [ ] Confirm USB strategy (b).
