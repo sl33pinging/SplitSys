@@ -90,6 +90,8 @@ pub struct Board {
     pub stats: LinkStats,
     /// Base per-frame timeout before scaling.
     pub base_timeout: Duration,
+    /// build_id from the last successful PING (see [`Board::effective_source`]).
+    last_build_id: Option<u32>,
 }
 
 fn is_idempotent(op: u8) -> bool {
@@ -103,11 +105,26 @@ impl Board {
             dec: Decoder::responses(),
             stats: LinkStats::default(),
             base_timeout: Duration::from_millis(500),
+            last_build_id: None,
         }
     }
 
+    /// What the transport is (serial = hw, tcp = sim, in-process mock = model).
+    /// Use [`Board::effective_source`] to label data.
     pub fn source(&self) -> Source {
         self.t.source()
+    }
+
+    /// The label for data from this board: the transport's source, except that a
+    /// board which answered PING with the mock build id (e.g. `mock-bridge` over
+    /// tcp:) is MODEL data whatever the transport. Before any PING this is the
+    /// transport's source.
+    pub fn effective_source(&self) -> Source {
+        if self.last_build_id == Some(crate::mock::MOCK_BUILD_ID) {
+            Source::Model
+        } else {
+            self.t.source()
+        }
     }
     pub fn describe(&self) -> String {
         self.t.describe()
@@ -229,10 +246,12 @@ impl Board {
                 "PING: unexpected payload {p:02x?} (want \"SPLT\", version, build_id)"
             )));
         }
-        Ok(PingInfo {
+        let info = PingInfo {
             version: p[4],
             build_id: u32::from_le_bytes([p[5], p[6], p[7], p[8]]),
-        })
+        };
+        self.last_build_id = Some(info.build_id);
+        Ok(info)
     }
 
     pub fn write_mem(&mut self, region: u8, addr: usize, data: &[u8]) -> Result<()> {
@@ -545,7 +564,11 @@ mod tests {
         .unwrap();
         assert_eq!(t.source(), Source::Sim);
         let mut b = Board::new(t);
+        assert_eq!(b.effective_source(), Source::Sim, "before PING: the transport's label");
         assert_eq!(b.ping().unwrap().build_id, MOCK_BUILD_ID);
+        // The mock bridge serves MODEL data: never labelled SIM.
+        assert_eq!(b.source(), Source::Sim);
+        assert_eq!(b.effective_source(), Source::Model);
         let data: Vec<u8> = (0..3000).map(|i| i as u8).collect();
         b.write_mem(spec::REGION_WBUF, 16, &data).unwrap();
         assert_eq!(b.read_mem(spec::REGION_WBUF, 16, 3000).unwrap(), data);

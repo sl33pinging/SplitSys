@@ -71,6 +71,10 @@ struct App {
     link: Value,
     session: Session,
     runs: VecDeque<RunRecord>,
+    /// Roofline points over every record of `source` (not capped like `runs`).
+    roof: Vec<Value>,
+    /// Records of `source` on disk; `runs` keeps the latest `MAX_RUNS`.
+    runs_total: usize,
     running: Option<Value>,
     queue_len: usize,
     scene: u8,
@@ -81,6 +85,102 @@ struct App {
     replay_active: bool,
     last_selftest: Option<Value>,
     started_utc: String,
+}
+
+/// The label a transport implies before PING: serial = hw, tcp = sim, mock = model.
+fn transport_source(t: &TransportSpec) -> &'static str {
+    match t {
+        TransportSpec::Mock => "model",
+        TransportSpec::Tcp(_) => "sim",
+        TransportSpec::Serial(_) => "hw",
+    }
+}
+
+/// The rule behind the Scene 3 "measured int8" roofline dots, stated on screen.
+pub const ROOF_RULE: &str = "every run record of the source with gemm.requant and nonzero derived.arithmetic_intensity and derived.macs_per_cycle (uncapped)";
+
+/// Does a record go on the roofline as a measured int8 point (see `ROOF_RULE`)?
+fn roof_point(r: &RunRecord) -> Option<Value> {
+    let ai = r.derived.arithmetic_intensity.filter(|v| *v != 0.0)?;
+    let mpc = r.derived.macs_per_cycle.filter(|v| *v != 0.0)?;
+    r.gemm.requant.then(|| {
+        json!({"ai": ai, "mpc": mpc, "mode": r.gemm.mode, "build_id": r.build_id, "run_id": r.run_id})
+    })
+}
+
+fn roof_points<'a>(runs: impl IntoIterator<Item = &'a RunRecord>) -> Vec<Value> {
+    runs.into_iter().filter_map(roof_point).collect()
+}
+
+/// What the dashboard shows for a source, all derived from results/<source>/*.json:
+/// totals over every record, the most recent `MAX_RUNS` records (ticker, scenes
+/// 1-2), and the roofline points over every record.
+struct Live {
+    session: Session,
+    runs: VecDeque<RunRecord>,
+    roof: Vec<Value>,
+    /// Number of records on disk (`runs` holds at most `MAX_RUNS` of them).
+    total: usize,
+}
+
+fn load_live(results: &Path, source: &str) -> Live {
+    let all = load_runs(&runs_dir(results, source));
+    let roof = roof_points(&all);
+    let total = all.len();
+    let mut runs: VecDeque<RunRecord> = all.into();
+    while runs.len() > MAX_RUNS {
+        runs.pop_front();
+    }
+    Live { session: Session::rebuild(results, source), runs, roof, total }
+}
+
+impl App {
+    fn new(source: &str, transport: &TransportSpec, results: &Path, replay: Option<Replay>, attract: bool) -> Self {
+        let Live { session, runs, roof, total } = load_live(results, source);
+        Self {
+            roof,
+            runs_total: total,
+            source: source.into(),
+            transport: format!("{transport:?}"),
+            board_status: "connecting",
+            board_error: None,
+            build_id: None,
+            proto_version: None,
+            last_seen_utc: None,
+            link: Value::Null,
+            session,
+            runs,
+            running: None,
+            queue_len: 0,
+            scene: 1,
+            attract,
+            demo_running: false,
+            replay_active: replay.is_some(),
+            highlight: vec![],
+            replay,
+            last_selftest: None,
+            started_utc: iso_utc(now_unix()),
+        }
+    }
+
+    /// Adopt a board that just answered PING. The live label is the transport's
+    /// source unless the board reports the mock build id ("MOCK"), which is MODEL
+    /// data on any transport (`mock-bridge` over tcp:): source "model", records
+    /// in results/mock, DEMO DATA watermark, never counted as verified. When the
+    /// label changes, the shown runs/totals are swapped to that source's records
+    /// so SIM and MODEL are never mixed on screen.
+    fn adopt_board(&mut self, results: &Path, transport_src: transport::Source, build_id_hex: &str) {
+        let src = runner::effective_source(transport_src, Some(build_id_hex));
+        if self.source != src {
+            let Live { session, runs, roof, total } = load_live(results, src);
+            self.source = src.into();
+            self.session = session;
+            self.runs = runs;
+            self.roof = roof;
+            self.runs_total = total;
+        }
+        self.build_id = Some(build_id_hex.into());
+    }
 }
 
 type Subs = Arc<Mutex<Vec<Sender<String>>>>;
@@ -109,18 +209,22 @@ impl Shared {
         let a = self.app.lock().expect("app");
         let model_dir = self.results.join("model");
         let cost = read_json(&self.results.join("cost.json"));
-        let (runs, session, source, board_status) = match (&a.replay, a.replay_active) {
+        let (runs, session, source, board_status, roof, roof_from) = match (&a.replay, a.replay_active) {
             (Some(r), true) => (
                 serde_json::to_value(&r.runs).unwrap_or(Value::Null),
                 r.session.clone().unwrap_or(Value::Null),
                 "replay".to_string(),
                 "replay",
+                roof_points(&r.runs),
+                "replay".to_string(),
             ),
             _ => (
                 serde_json::to_value(&a.runs).unwrap_or(Value::Null),
                 serde_json::to_value(&a.session).unwrap_or(Value::Null),
                 a.source.clone(),
                 a.board_status,
+                a.roof.clone(),
+                format!("results/{}", runs_dir(Path::new(""), &a.source).display()),
             ),
         };
         json!({
@@ -129,6 +233,9 @@ impl Shared {
             "source": source,
             "live_source": a.source,
             "demo_data": source == "model",
+            "mock": a.source == "model",
+            "host_version": env!("CARGO_PKG_VERSION"),
+            "host_git_hash": runner::HOST_GIT_HASH,
             "transport": a.transport,
             "board": {
                 "status": board_status,
@@ -158,6 +265,9 @@ impl Shared {
             "cost_path": "results/cost.json",
             "sweep": read_json(&model_dir.join("sweep.json")),
             "roofline": read_json(&model_dir.join("roofline.json")),
+            "runs_total": if a.replay_active { a.replay.as_ref().map_or(0, |r| r.runs.len()) } else { a.runs_total },
+            "max_runs": MAX_RUNS,
+            "roof_measured": {"n": roof.len(), "points": roof, "from": roof_from, "rule": ROOF_RULE},
         })
     }
 }
@@ -212,16 +322,16 @@ fn worker(opts_t: TransportSpec, baud: u32, scale: Option<u32>, root: PathBuf, s
         if last_scan.elapsed() > Duration::from_secs(5) {
             last_scan = Instant::now();
             let src = sh.app.lock().expect("app").source.clone();
-            let mut disk: VecDeque<RunRecord> = load_runs(&runs_dir(&sh.results, &src)).into();
-            while disk.len() > MAX_RUNS {
-                disk.pop_front();
-            }
-            let sess = Session::rebuild(&sh.results, &src);
+            let live = load_live(&sh.results, &src);
             let mut a = sh.app.lock().expect("app");
-            if disk.len() >= a.runs.len() {
-                a.runs = disk;
+            if a.source == src {
+                if live.runs.len() >= a.runs.len() {
+                    a.runs = live.runs;
+                }
+                a.session = live.session;
+                a.roof = live.roof;
+                a.runs_total = live.total;
             }
-            a.session = sess;
         }
         // Gather commands.
         match rx.recv_timeout(Duration::from_millis(250)) {
@@ -245,10 +355,7 @@ fn worker(opts_t: TransportSpec, baud: u32, scale: Option<u32>, root: PathBuf, s
                             cache.clear();
                             {
                                 let mut a = sh.app.lock().expect("app");
-                                if id == runner::MOCK_BUILD_ID_HEX {
-                                    a.source = "model".into();
-                                }
-                                a.build_id = Some(id);
+                                a.adopt_board(&sh.results, b.source(), &id);
                                 a.proto_version = Some(p.version);
                                 a.transport = b.describe();
                             }
@@ -332,6 +439,8 @@ fn worker(opts_t: TransportSpec, baud: u32, scale: Option<u32>, root: PathBuf, s
                         if let Ok(sess) = Session::rebuild_and_write(&sh.results, &a.source) {
                             a.session = sess;
                         }
+                        a.roof.extend(roof_point(&rec));
+                        a.runs_total += 1;
                         a.runs.push_back(rec.clone());
                         while a.runs.len() > MAX_RUNS {
                             a.runs.pop_front();
@@ -604,16 +713,9 @@ fn handle(sh: Shared, mut s: TcpStream) {
 pub fn serve(o: ServeOpts) -> Result<(), String> {
     let addr = format!("127.0.0.1:{}", o.port);
     let listener = TcpListener::bind(&addr).map_err(|e| format!("cannot bind {addr}: {e}"))?;
-    let source = match o.transport {
-        TransportSpec::Mock => "model",
-        TransportSpec::Tcp(_) => "sim",
-        TransportSpec::Serial(_) => "hw",
-    };
-    let session = Session::rebuild(&o.results, source);
-    let mut runs: VecDeque<RunRecord> = load_runs(&runs_dir(&o.results, source)).into();
-    while runs.len() > MAX_RUNS {
-        runs.pop_front();
-    }
+    // Provisional until the first PING: a tcp: board that reports the mock
+    // build id is relabelled MODEL (see `adopt_board`).
+    let source = transport_source(&o.transport);
     let replay = o.replay.as_ref().map(|d| {
         let runs = load_runs(d);
         Replay {
@@ -627,29 +729,7 @@ pub fn serve(o: ServeOpts) -> Result<(), String> {
             runs,
         }
     });
-    let replay_active = replay.is_some();
-    let app = App {
-        source: source.into(),
-        transport: format!("{:?}", o.transport),
-        board_status: "connecting",
-        board_error: None,
-        build_id: None,
-        proto_version: None,
-        last_seen_utc: None,
-        link: Value::Null,
-        session,
-        runs,
-        running: None,
-        queue_len: 0,
-        scene: 1,
-        attract: o.attract,
-        demo_running: false,
-        highlight: vec![],
-        replay,
-        replay_active,
-        last_selftest: None,
-        started_utc: iso_utc(now_unix()),
-    };
+    let app = App::new(source, &o.transport, &o.results, replay, o.attract);
     let (tx, rx) = mpsc::channel();
     let sh = Shared {
         app: Arc::new(Mutex::new(app)),
@@ -676,4 +756,156 @@ pub fn serve(o: ServeOpts) -> Result<(), String> {
         thread::spawn(move || handle(sh2, s));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::record::{repo_root, run_file_name, write_json};
+    use crate::transport::fake::spawn_tcp_bridge;
+    use crate::transport::MockTransport;
+
+    fn tmp(tag: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("splitsys_srv_{tag}_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    /// A real SIM-labelled record in results/sim (made from a mock run, relabelled),
+    /// so a wrong label would show up as mixed data.
+    fn seed_sim_record(results: &Path) -> String {
+        let mut b = Board::new(Box::new(MockTransport::new(MockConfig::default())));
+        let mut ctx = Context::new(tmp("seed"), &repo_root());
+        let g = GemmSpec::named("ffn_up", 1, "FULL", 1).unwrap();
+        let (mut r, _) = runner::run_gemm(&mut b, &mut ctx, &mut LoadCache::default(), &g).unwrap();
+        r.source = "sim".into();
+        r.mock = false;
+        r.run_id = "2026-10-24T10:00:00Z-simseed".into();
+        write_json(&runs_dir(results, "sim").join(run_file_name(&r.run_id)), &r).unwrap();
+        r.run_id
+    }
+
+    /// The roofline count is over every record on disk, not the `MAX_RUNS` cap,
+    /// and only int8 (requant) records with nonzero intensity and MACs/cycle.
+    #[test]
+    fn roof_points_cover_all_records_not_the_cap() {
+        let results = tmp("roof");
+        let mut b = Board::new(Box::new(MockTransport::new(MockConfig::default())));
+        let mut ctx = Context::new(tmp("roofctx"), &repo_root());
+        let g = GemmSpec::named("ffn_up", 1, "FULL", 1).unwrap();
+        let (base, _) = runner::run_gemm(&mut b, &mut ctx, &mut LoadCache::default(), &g).unwrap();
+        assert!(base.gemm.requant);
+        let n_int8 = MAX_RUNS + 7;
+        for i in 0..n_int8 + 3 {
+            let mut r = base.clone();
+            r.source = "sim".into();
+            r.mock = false;
+            r.run_id = format!("2026-10-24T10:00:00Z-r{i:04}");
+            if i >= n_int8 {
+                r.gemm.requant = false; // int32 bypass: not on the int8 roofline
+            }
+            write_json(&runs_dir(&results, "sim").join(run_file_name(&r.run_id)), &r).unwrap();
+        }
+        let live = load_live(&results, "sim");
+        assert_eq!(live.total, n_int8 + 3);
+        assert_eq!(live.runs.len(), MAX_RUNS);
+        assert_eq!(live.roof.len(), n_int8);
+        let tcp = TransportSpec::Tcp("127.0.0.1:1".into());
+        let a = App::new("sim", &tcp, &results, None, false);
+        let sh = Shared {
+            app: Arc::new(Mutex::new(a)),
+            subs: Arc::new(Mutex::new(Vec::new())),
+            cmd: mpsc::channel().0,
+            results: results.clone(),
+            assets: None,
+        };
+        let s = sh.snapshot();
+        assert_eq!(s["roof_measured"]["n"], n_int8);
+        assert_eq!(s["roof_measured"]["points"].as_array().unwrap().len(), n_int8);
+        assert_eq!(s["roof_measured"]["from"], "results/sim");
+        assert_eq!(s["runs_total"], n_int8 + 3);
+        assert_eq!(s["runs"].as_array().unwrap().len(), MAX_RUNS);
+    }
+
+    #[test]
+    fn transport_labels_before_ping() {
+        assert_eq!(transport_source(&TransportSpec::Mock), "model");
+        assert_eq!(transport_source(&TransportSpec::Tcp("127.0.0.1:1".into())), "sim");
+        assert_eq!(transport_source(&TransportSpec::Serial("COM3".into())), "hw");
+    }
+
+    #[test]
+    fn mock_build_id_over_tcp_is_model_not_sim() {
+        let results = tmp("adopt");
+        let sim_id = seed_sim_record(&results);
+        let tcp = TransportSpec::Tcp("127.0.0.1:1".into());
+        let mut a = App::new(transport_source(&tcp), &tcp, &results, None, false);
+        assert_eq!(a.source, "sim");
+        assert!(a.runs.iter().any(|r| r.run_id == sim_id));
+
+        a.adopt_board(&results, transport::Source::Sim, runner::MOCK_BUILD_ID_HEX);
+        assert_eq!(a.source, "model");
+        assert_eq!(a.session.source, "model");
+        assert!(a.runs.iter().all(|r| r.source == "model"), "SIM records must not be shown as the mock session");
+
+        // A real co-sim build id on the same tcp: transport is SIM again.
+        a.adopt_board(&results, transport::Source::Sim, "38a3950a");
+        assert_eq!(a.source, "sim");
+        assert!(a.runs.iter().any(|r| r.run_id == sim_id));
+        // Serial with a real build id stays HW.
+        a.adopt_board(&results, transport::Source::Hw, "38a3950a");
+        assert_eq!(a.source, "hw");
+    }
+
+    /// End to end: the dashboard worker on tcp: against the mock bridge labels the
+    /// session and its records MODEL (mock, results/mock, demo_data, not verified).
+    #[test]
+    fn worker_over_tcp_mock_bridge_writes_model_records() {
+        let results = tmp("worker");
+        seed_sim_record(&results);
+        let addr = spawn_tcp_bridge(MockConfig::default(), 64);
+        let tcp = TransportSpec::Tcp(addr);
+        let app = App::new(transport_source(&tcp), &tcp, &results, None, false);
+        let (tx, rx) = mpsc::channel();
+        let sh = Shared {
+            app: Arc::new(Mutex::new(app)),
+            subs: Arc::new(Mutex::new(Vec::new())),
+            cmd: tx.clone(),
+            results: results.clone(),
+            assets: None,
+        };
+        {
+            let sh2 = sh.clone();
+            thread::spawn(move || worker(tcp, 115200, Some(1), repo_root(), sh2, rx));
+        }
+        tx.send(Cmd::Run(GemmSpec::named("ffn_up", 1, "STRIP", 1).unwrap())).unwrap();
+        let t0 = Instant::now();
+        loop {
+            {
+                let a = sh.app.lock().unwrap();
+                if a.runs.iter().any(|r| r.gemm.mode == "STRIP") {
+                    break;
+                }
+            }
+            assert!(t0.elapsed() < Duration::from_secs(60), "run did not finish");
+            thread::sleep(Duration::from_millis(50));
+        }
+        let snap = sh.snapshot();
+        assert_eq!(snap["source"], "model");
+        assert_eq!(snap["live_source"], "model");
+        assert_eq!(snap["demo_data"], true);
+        assert_eq!(snap["mock"], true);
+        assert_eq!(snap["board"]["build_id"], runner::MOCK_BUILD_ID_HEX);
+        assert_eq!(snap["host_git_hash"], runner::HOST_GIT_HASH);
+        let a = sh.app.lock().unwrap();
+        let r = a.runs.iter().find(|r| r.gemm.mode == "STRIP").unwrap();
+        assert_eq!(r.source, "model");
+        assert!(r.mock);
+        assert_eq!(a.session.gemms_verified, 0, "mock runs are never counted as verified");
+        let mock_files = load_runs(&runs_dir(&results, "model"));
+        assert!(mock_files.iter().any(|r| r.run_id == a.runs.back().unwrap().run_id && r.mock));
+        let sim_files = load_runs(&runs_dir(&results, "sim"));
+        assert!(sim_files.iter().all(|r| r.run_id.ends_with("-simseed")), "nothing new written under results/sim");
+    }
 }

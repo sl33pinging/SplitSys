@@ -52,6 +52,8 @@ window.addEventListener('resize', fit);
 function renderChrome() {
   const b = S.board || {};
   $('hdr-meta').textContent = `build ${b.build_id || '—'} · ${S.clock_mhz} MHz`;
+  // Host build (the dashboard assets are compiled in): hover, /api/state, `splitsys-host --version`.
+  $('hdr-meta').title = `splitsys-host ${S.host_version || '?'} (git ${S.host_git_hash || '?'})`;
   const pill = $('status-pill');
   let banner = '', bcls = '';
   if (S.source === 'replay') {
@@ -437,7 +439,9 @@ function renderErrTable() {
     const hot = Math.abs(e) > 0.05, hot2 = mx > 0.05;
     return `<tr><td>${k}</td><td>${int(meas)}</td><td>${int(mod)}</td><td class="${hot ? 'hot' : ''}">${signed(e, 2)}</td><td class="${hot2 ? 'hot' : ''}">${(mx * 100).toFixed(2)}%</td></tr>`;
   }).join('');
-  const n = `${all.length} ${badgeFor(srcLabel())[0]} runs`;
+  // S.runs holds the latest S.max_runs records; say so when the source has more.
+  const tot = S.runs_total || all.length, lab = badgeFor(srcLabel())[0];
+  const n = tot > all.length ? `latest ${all.length} of ${tot} ${lab} runs` : `${all.length} ${lab} runs`;
   $('err-title').textContent = worst === 0 ? 'Model exact on all 12 counters'
     : worst <= 0.05 ? `Model within ${(worst * 100).toFixed(2)}% on all 12 counters`
     : `Model off by up to ${(worst * 100).toFixed(1)}%: see footnote`;
@@ -521,14 +525,14 @@ function renderRoof() {
     if (p.M !== 1 && p.M !== 64) continue;
     svg.appendChild(el('circle', { cx: lx(p.arithmetic_intensity), cy: ly(p.macs_per_cycle), r: 7, fill: 'none', stroke: modeColor(p.mode), 'stroke-width': 2.5 }));
   }
-  let nm = 0;
-  for (const r of runs()) {
-    const d = r.derived;
-    if (!r.gemm.requant || !d.arithmetic_intensity || !d.macs_per_cycle) continue;
-    nm++;
-    svg.appendChild(el('circle', { cx: lx(d.arithmetic_intensity), cy: ly(d.macs_per_cycle), r: 5, fill: modeColor(r.gemm.mode) }));
+  // Measured int8 points: every record of the source (server rule S.roof_measured.rule),
+  // not the capped S.runs list, so the count matches results/<source>/*.json.
+  const RM = S.roof_measured || { n: 0, points: [], from: '' };
+  const nm = RM.n;
+  for (const p of RM.points) {
+    svg.appendChild(el('circle', { cx: lx(p.ai), cy: ly(p.mpc), r: 5, fill: modeColor(p.mode) }));
   }
-  const lg = [[`hollow: model (M=1, 64)`, 'ring'], [`filled: measured int8 (${nm})`, 'fill']];
+  const lg = [[`hollow: model (M=1, 64)`, 'ring'], [`filled: measured int8, all ${nm} runs in ${RM.from}`, 'fill']];
   lg.forEach(([t, k], i) => {
     const x = L + 16, y = T + 26 + i * 28;
     svg.appendChild(k === 'ring' ? el('circle', { cx: x, cy: y - 6, r: 7, fill: 'none', stroke: '#fff', 'stroke-width': 2.5 }) : el('circle', { cx: x, cy: y - 6, r: 6, fill: '#fff' }));

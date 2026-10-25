@@ -13,8 +13,12 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
+/// `--version`: crate version plus the embedded host git hash (the dashboard
+/// assets are compiled in, so this identifies the served dashboard too).
+const HOST_VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), " (git ", env!("SPLITSYS_HOST_GIT_HASH"), ")");
+
 #[derive(Parser)]
-#[command(name = "splitsys-host", version, about = "SplitSys host: drive the board, verify GEMMs bit-exactly, serve the dashboard")]
+#[command(name = "splitsys-host", version = HOST_VERSION, about = "SplitSys host: drive the board, verify GEMMs bit-exactly, serve the dashboard")]
 struct Cli {
     /// mock | serial:COM5 | serial:/dev/ttyUSB1 | serial:auto | tcp:127.0.0.1:PORT
     #[arg(long, global = true, default_value = "serial:auto")]
@@ -169,7 +173,7 @@ fn real_main(cli: &Cli) -> Result<ExitCode, String> {
                 p.build_id,
                 p.version,
                 b.describe(),
-                b.source().as_str()
+                b.effective_source().as_str()
             );
             Ok(ExitCode::SUCCESS)
         }
@@ -179,7 +183,8 @@ fn real_main(cli: &Cli) -> Result<ExitCode, String> {
             let pf = |p: bool| if p { "PASS" } else { "FAIL" };
             println!("SELFTEST FULL : {} (fletcher32 {:08x})", pf(s.pass_full), s.fletcher_full);
             println!("SELFTEST STRIP: {} (fletcher32 {:08x})", pf(s.pass_strip), s.fletcher_strip);
-            println!("source {} via {}", b.source().as_str(), b.describe());
+            b.ping().ok(); // learn the build id so a mock-over-tcp board is labelled model
+            println!("source {} via {}", b.effective_source().as_str(), b.describe());
             let mut ok = s.pass_full && s.pass_strip;
             if *dump {
                 if splitsys_host::diag::selftest_ranges_overlap() {
@@ -284,10 +289,11 @@ fn real_main(cli: &Cli) -> Result<ExitCode, String> {
             let frames = *frames;
             let seed = seed.unwrap_or_else(|| now_unix() as u64);
             let mut b = open_board(cli)?;
+            b.ping().ok(); // learn the build id (mock-over-tcp is labelled model)
             println!(
                 "memtest: {frames} frames, seed {seed}, via {} (source {})",
                 b.describe(),
-                b.source().as_str()
+                b.effective_source().as_str()
             );
             let step = (frames / 10).max(1);
             let r = splitsys_host::memtest::memtest(&mut b, frames, seed, |i, r| {
