@@ -14,6 +14,11 @@
 #        RTL_REV (HEAD | <rev> | worktree), RAND_RESET=1 (random X-initial state),
 #        ONLY=<substring> (only jobs whose name contains it, e.g. ONLY=gemm_full_s1_17),
 #        WAVES=1 (FST build; one dump per board in $(WORK)/waves/<board>.fst; use with ONLY=)
+#        UART_DIV (1): sim-only top.UART_DIV_OVERRIDE of the harness (16 clk/bit, for speed);
+#                  UART_DIV=0 = no override, the real package divisor (BAUD_DIV 4: 64 clk/bit).
+#                  At UART_DIV=0 selftest_busy cannot meet its own precondition (its 8 probe
+#                  frames need ~151k cycles of UART time, more than the 78,594-cycle max-shape
+#                  job) and reports "test window too long"; it is covered at UART_DIV=1.
 #        SIGNOFF=1 refuse (exit 2) unless tb/common/provenance.mk says "sign-off eligible: YES"
 #                  (tb/, sw/crates/{golden,vec,cycle,spec}, spec/ clean and RTL_REV != worktree)
 # Run conventions: tb/common/provenance.mk (see tb/README.md). Namespace SPLITSYS_CACHE_TAG
@@ -41,6 +46,7 @@ RAND_RESET    ?= 0
 WAVES         ?= 0
 ONLY          ?=
 SIGNOFF       ?= 0
+UART_DIV      ?= 1
 
 RTL_SHA  := $(if $(filter worktree,$(RTL_REV)),worktree,$(shell git -C $(REPO_ROOT) rev-parse --short $(RTL_REV)))
 .DEFAULT_GOAL := all
@@ -51,7 +57,7 @@ WORK   := $(RUN_LOG_DIR)/system
 VEC    := $(TB_NS)/sw-target/release/splitsys-vec
 CYC    := $(TB_NS)/sw-target/release/splitsys-cycle
 export SPLITSYS_ORACLE := $(TB_NS)/oracle-target/release/splitsys-tb-oracle
-COSIM_ARGS := RTL_REV=$(RTL_REV) WAVES=$(WAVES) TAG_SUFFIX=-sys
+COSIM_ARGS := RTL_REV=$(RTL_REV) WAVES=$(WAVES) TAG_SUFFIX=-sys UART_DIV=$(UART_DIV)
 HARNESS = $(shell $(MAKE) --no-print-directory -s -C $(TB_ROOT)/cosim print-bin $(COSIM_ARGS))
 META := {"provenance":"$(PROV_LINE)","signoff_eligible":"$(PROV_ELIGIBLE)","rtl_rev":"$(RTL_SHA)","rtl_last_commit":"$(RTL_TREE)","signoff":$(SIGNOFF),"run_id":"$(RUN_ID)"}
 

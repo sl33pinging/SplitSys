@@ -5,7 +5,8 @@
 //
 // Data port (--port, 0 = ephemeral):
 //   bytes received over TCP are serialized onto top.UART_RXD as 8N1 frames at
-//   BIT_CYC = UART_DIV_OVERRIDE * OVERSAMPLE clocks per bit (back-to-back, no
+//   BIT_CYC = UART_DIV * OVERSAMPLE clocks per bit, UART_DIV = top.UART_DIV_OVERRIDE, or the
+//   package BAUD_DIV when the override is 0 (tb/cosim/Makefile HARNESS_DIV) (back-to-back, no
 //   idle gap between bytes); top.UART_TXD is decoded (mid-bit sampling, stop bit
 //   checked) and every byte is sent back over TCP. Only the real pins are used.
 //   One client at a time; state persists across connections (like a board).

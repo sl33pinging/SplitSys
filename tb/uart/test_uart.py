@@ -29,6 +29,8 @@ async def setup(dut):
         getattr(dut, s).value = 0
     dut.f_loop.value = 1
     dut.f_rxd_ext.value = 1
+    dut.s_loop.value = 1
+    dut.s_rxd_ext.value = 1
     await start_clock(dut)
     await reset(dut)
     await ClockCycles(dut.clk, 5)
@@ -82,18 +84,55 @@ async def send_tx(dut, data, rng=None, gap_p=0.0, prefix="f"):
         tv.value = 0
 
 
-async def drive_rx_bits(dut, byte, bit_cyc, err=0.0, stop=1):
-    """Bit-bang one 8N1 frame on f_rxd_ext; err = relative baud error (+0.03 = 3% slow)."""
+async def drive_rx_bits(dut, byte, bit_cyc, err=0.0, stop=1, prefix="f"):
+    """Bit-bang one 8N1 frame on <prefix>_rxd_ext; err = relative bit-time error (+0.03 = bits
+    3% long = line 3% slow)."""
+    line = getattr(dut, f"{prefix}_rxd_ext")
     bits = [0] + [(byte >> i) & 1 for i in range(8)] + [stop]
     t = 0.0
     done = 0
     for b in bits:
-        dut.f_rxd_ext.value = b
+        line.value = b
         t += bit_cyc * (1.0 + err)
         n = int(round(t)) - done
         await ClockCycles(dut.clk, n, rising=False)
         done += n
-    dut.f_rxd_ext.value = 1
+    line.value = 1
+
+
+async def drive_rx_stream(dut, data, bit_cyc: float, prefix="s", idle_bits=None):
+    """Bit-bang 8N1 frames on <prefix>_rxd_ext on ONE continuous timeline with a fractional bit
+    period (clocks per bit of the transmitting device, e.g. the FT2232H). idle_bits[i] is the
+    idle time (in line bits, may be fractional) after frame i; None = zero idle = full line rate,
+    i.e. each start bit follows the previous stop bit immediately."""
+    line = getattr(dut, f"{prefix}_rxd_ext")
+    t = 0.0
+    done = 0
+
+    async def until(tt):
+        nonlocal done
+        n = int(round(tt)) - done
+        if n > 0:
+            await ClockCycles(dut.clk, n, rising=False)
+            done += n
+
+    for i, byte in enumerate(data):
+        for b in [0] + [(byte >> j) & 1 for j in range(8)] + [1]:
+            line.value = b
+            t += bit_cyc
+            await until(t)
+        if idle_bits is not None and idle_bits[i] > 0:
+            t += idle_bits[i] * bit_cyc
+            await until(t)
+    line.value = 1
+
+
+def spec_uart() -> dict:
+    """[uart] table of spec/spec.toml (the source the package is generated from)."""
+    import tomllib
+    from splitsys_tb import REPO_ROOT
+    with open(REPO_ROOT / "spec" / "spec.toml", "rb") as fh:
+        return tomllib.load(fh)["uart"]
 
 
 async def decode_tx(dut, n_frames, bit_cyc, txd_name="f_txd"):
@@ -214,21 +253,132 @@ async def test_loopback_random(dut):
 
 @cocotb.test()
 async def test_spec_divisor_baud(dut):
-    """DIV_OVERRIDE = 0 uses splitsys_pkg::BAUD_DIV: BAUD_DIV == round(CLK_HZ/(BAUD*OVERSAMPLE)),
-    bit period measured == BAUD_DIV*OVERSAMPLE clocks (baud error < 1%), loopback exact."""
+    """Real hardware divisor (DIV_OVERRIDE = 0 -> splitsys_pkg::BAUD_DIV). Package CLK_HZ / BAUD /
+    OVERSAMPLE equal spec.toml [uart]; BAUD_DIV == round(CLK_HZ/(BAUD*OVERSAMPLE)); baud error
+    < 1% (and within spec max_baud_error_permille). TX -> RX loopback at full rate: directed +
+    scaled(300) random bytes back-to-back, every bit of every frame exactly BAUD_DIV*OVERSAMPLE
+    clocks (first/mid/last-cycle check), start-to-start 10 bits .. 10 bits + 2 clocks, bytes
+    exact, zero frame errors."""
     await setup(dut)
+    rng = seed_rng(dut, "test_spec_divisor_baud")
+    u = spec_uart()
     clk_hz, baud, os_ = pkg_const("CLK_HZ"), pkg_const("BAUD"), pkg_const("OVERSAMPLE")
+    check((clk_hz, baud, os_) == (u["clk_hz"], u["baud"], u["oversample"]),
+          "package CLK_HZ/BAUD/OVERSAMPLE vs spec.toml [uart]",
+          pkg=(clk_hz, baud, os_), spec=(u["clk_hz"], u["baud"], u["oversample"]))
     div = pkg_const("BAUD_DIV")
     check(div == round(clk_hz / (baud * os_)), "BAUD_DIV", div=div, expected=round(clk_hz / (baud * os_)))
     actual = clk_hz / (div * os_)
-    check(abs(actual - baud) / baud < 0.01, "baud error", actual=actual, baud=baud)
+    err = (actual - baud) / baud
+    check(abs(err) < 0.01, "baud error", actual=actual, baud=baud)
+    check(abs(err) * 1000 <= u["max_baud_error_permille"], "baud error vs spec max_baud_error_permille",
+          err_permille=err * 1000, limit=u["max_baud_error_permille"])
     bit = div * os_
+    dut._log.info(f"BAUD_DIV={div}, {bit} clk/bit, actual baud {actual:.1f} vs {baud}, "
+                  f"error {err * 100:+.3f}%")
     mon = RxMon(dut, "s")
-    data = [0x00, 0xA5, 0x5A, 0xFF, 0x13, 0x37]
+    data = [0x00, 0xA5, 0x5A, 0xFF, 0x13, 0x37, 0x01, 0x80] + [rng.randint(0, 255) for _ in range(scaled(300))]
     dec = cocotb.start_soon(decode_tx(dut, len(data), bit, "s_txd"))
     await send_tx(dut, data, prefix="s")
     got, starts = await dec
     await ClockCycles(dut.clk, 2 * bit)
-    check(got == data, "spec-divisor tx decode", got=got)
-    check(mon.bytes == data and not mon.errs, "spec-divisor loopback", got=mon.bytes, errs=mon.errs)
-    dut._log.info(f"BAUD_DIV={div}, bit={bit} clk, actual baud {actual:.1f} vs {baud}")
+    check(got == data, "spec-divisor tx decode",
+          first_mismatch=next((i for i, (a, b) in enumerate(zip(got, data)) if a != b), None))
+    periods = sorted({b - a for a, b in zip(starts, starts[1:])})
+    check(periods[0] >= 10 * bit and periods[-1] <= 10 * bit + 2,
+          "spec-divisor back-to-back frame spacing", periods=periods, ten_bits=10 * bit)
+    check(mon.bytes == data and not mon.errs, "spec-divisor loopback", n_sent=len(data), n_got=len(mon.bytes),
+          first_mismatch=next((i for i, (a, b) in enumerate(zip(mon.bytes, data)) if a != b), None),
+          errs=mon.errs[:5])
+    dut._log.info(f"spec divisor: {len(data)} bytes back-to-back tx->rx, start-to-start periods "
+                  f"{periods} clk, 0 frame errors")
+
+
+# FT2232H (the board's USB-UART) baud generator: 12 MHz / (n + k/8). For 1,562,500 the nearest
+# settings are 7.625 -> 1,573,770.5 baud (+0.72 %) and 7.75 -> 1,548,387.1 baud (-0.90 %).
+FTDI_DIVS = (7.625, 7.75)
+
+
+def rx_line_cases(clk_hz, baud):
+    """(label, clocks per line bit). Baud error e: line bit = CLK_HZ / (BAUD * (1 + e))."""
+    cases = []
+    for d in FTDI_DIVS:
+        lb = 12_000_000 / d
+        cases.append((f"FT2232H 12MHz/{d} = {lb:,.1f} baud ({(lb - baud) / baud * 100:+.2f}%)",
+                      clk_hz * d / 12_000_000))
+    # the same magnitudes with the opposite sign, then the +-1.5 % / +-3 % bracket
+    for e in (-0.0072, +0.0090, +0.015, -0.015, +0.03, -0.03):
+        cases.append((f"baud {e * 100:+.2f}%", clk_hz / (baud * (1.0 + e))))
+    return cases
+
+
+@cocotb.test()
+async def test_spec_rx_line_error(dut):
+    """uart_rx at the REAL divisor fed by a bit-banged line at the FT2232H's actual rates
+    (+0.72 % and -0.90 % baud), the opposite signs, and the +-1.5 % / +-3 % bracket. Per case:
+    directed + random bytes, first half as one continuous stream at full line rate (zero idle,
+    start bit right after stop bit), second half with random fractional idle gaps. Bytes exact,
+    zero frame errors, rx_active low at the end of each case."""
+    await setup(dut)
+    dut.s_loop.value = 0
+    rng = seed_rng(dut, "test_spec_rx_line_error")
+    clk_hz, baud = pkg_const("CLK_HZ"), pkg_const("BAUD")
+    bit = pkg_const("BAUD_DIV") * pkg_const("OVERSAMPLE")
+    mon = RxMon(dut, "s")
+    total = 0
+    for label, lbit in rx_line_cases(clk_hz, baud):
+        n_rand = scaled(256) if label.startswith("FT2232H") else scaled(64)
+        data = [0x00, 0xFF, 0x55, 0xAA, 0x01, 0x80, 0xFE, 0x7F, 0xA5] + \
+               [rng.randint(0, 255) for _ in range(n_rand)]
+        half = len(data) // 2
+        n0, e0 = len(mon.bytes), len(mon.errs)
+        await drive_rx_stream(dut, data[:half], lbit)
+        await drive_rx_stream(dut, data[half:], lbit,
+                              idle_bits=[rng.choice((0.0, 0.0, rng.uniform(0.0, 2.0))) for _ in data[half:]])
+        await ClockCycles(dut.clk, 2 * bit)
+        got = mon.bytes[n0:]
+        check(got == data and len(mon.errs) == e0, f"[{label}] rx bytes at the real divisor",
+              line_clk_per_bit=round(lbit, 3), rx_clk_per_bit=bit, n_sent=len(data), n_got=len(got),
+              first_mismatch=next((i for i, (a, b) in enumerate(zip(got, data)) if a != b), None),
+              frame_errs=len(mon.errs) - e0)
+        check(uval(dut.s_rx_active) == 0, f"[{label}] rx_active after stream")
+        total += len(data)
+        dut._log.info(f"[{label}] line {lbit:.3f} clk/bit vs rx {bit}: {len(data)} bytes "
+                      f"({half} at full line rate), 0 errors")
+    dut._log.info(f"{total} bytes received at the real divisor over all line-error cases")
+
+
+@cocotb.test()
+async def test_spec_rx_frame_error_and_glitch(dut):
+    """Real divisor: low glitches shorter than half a bit (1 .. bit/2-1 clocks, at every phase of
+    the oversample divider) produce nothing and leave rx_active low; a frame with its stop bit low
+    gives exactly one rx_frame_err pulse and no byte; the receiver then recovers and receives a
+    back-to-back stream exactly."""
+    await setup(dut)
+    dut.s_loop.value = 0
+    mon = RxMon(dut, "s")
+    div = pkg_const("BAUD_DIV")
+    bit = div * pkg_const("OVERSAMPLE")
+    lengths = sorted({1, 2, 3, div, bit // 8, bit // 4, 3 * bit // 8, bit // 2 - 2, bit // 2 - 1})
+    n_glitch = 0
+    for ln in lengths:
+        for ph in range(div):
+            await ClockCycles(dut.clk, 1 + ph, rising=False)
+            dut.s_rxd_ext.value = 0
+            await ClockCycles(dut.clk, ln, rising=False)
+            dut.s_rxd_ext.value = 1
+            await ClockCycles(dut.clk, 2 * bit, rising=False)
+            check(uval(dut.s_rx_active) == 0, "rx_active after glitch", glitch_clk=ln, phase=ph)
+            check(mon.bytes == [] and mon.errs == [], "glitch produced output",
+                  glitch_clk=ln, phase=ph, bytes=mon.bytes, errs=mon.errs)
+            n_glitch += 1
+    await drive_rx_bits(dut, 0x3C, bit, stop=0, prefix="s")
+    await ClockCycles(dut.clk, 3 * bit)
+    check(len(mon.errs) == 1 and mon.bytes == [], "frame error at the real divisor",
+          frame_err_pulses=len(mon.errs), bytes=mon.bytes)
+    rec = [0xA5, 0x5A, 0x00, 0xFF, 0x3C]
+    await drive_rx_stream(dut, rec, float(bit))
+    await ClockCycles(dut.clk, 2 * bit)
+    check(mon.bytes == rec and len(mon.errs) == 1, "recovery bytes", got=mon.bytes, errs=len(mon.errs))
+    dut._log.info(f"{n_glitch} glitches ({lengths} clk x {div} phases) rejected; frame error "
+                  f"flagged; {len(rec)} recovery bytes exact at {bit} clk/bit")

@@ -1,6 +1,7 @@
 // Testbench wrapper (owner: verification-engineer) for rtl/uart_tx.sv + rtl/uart_rx.sv.
 //   f_* : fast sim divisor DIV_F (DIV_OVERRIDE, sim only). f_rx input = loop ? f_txd : f_rxd_ext
-//   s_* : spec divisor (DIV_OVERRIDE = 0 -> splitsys_pkg::BAUD_DIV), tx looped into rx
+//   s_* : spec divisor (DIV_OVERRIDE = 0 -> splitsys_pkg::BAUD_DIV, the real hardware divisor).
+//         s_rx input = s_loop ? s_txd : s_rxd_ext (bit-banged line for RX tolerance tests)
 module uart_tb #(
     parameter int unsigned DIV_F = 2
 ) (
@@ -18,17 +19,21 @@ module uart_tb #(
     output logic       f_rx_valid,
     output logic       f_rx_frame_err,
     output logic       f_rx_active,
-    // spec-divisor pair (looped)
+    // spec-divisor pair
     input  logic [7:0] s_tx_data,
     input  logic       s_tx_valid,
     output logic       s_tx_ready,
     output logic       s_txd,
+    input  logic       s_loop,
+    input  logic       s_rxd_ext,
     output logic [7:0] s_rx_data,
     output logic       s_rx_valid,
-    output logic       s_rx_frame_err
+    output logic       s_rx_frame_err,
+    output logic       s_rx_active
 );
-    logic f_rxd;
+    logic f_rxd, s_rxd;
     assign f_rxd = f_loop ? f_txd : f_rxd_ext;
+    assign s_rxd = s_loop ? s_txd : s_rxd_ext;
 
     uart_tx #(.DIV_OVERRIDE(DIV_F)) u_ftx (
         .clk, .rst, .tx_data(f_tx_data), .tx_valid(f_tx_valid), .tx_ready(f_tx_ready),
@@ -42,7 +47,7 @@ module uart_tb #(
         .clk, .rst, .tx_data(s_tx_data), .tx_valid(s_tx_valid), .tx_ready(s_tx_ready),
         .txd(s_txd), .tx_busy());
     uart_rx #(.DIV_OVERRIDE(0)) u_srx (
-        .clk, .rst, .rxd(s_txd), .rx_data(s_rx_data), .rx_valid(s_rx_valid),
-        .rx_frame_err(s_rx_frame_err), .rx_active());
+        .clk, .rst, .rxd(s_rxd), .rx_data(s_rx_data), .rx_valid(s_rx_valid),
+        .rx_frame_err(s_rx_frame_err), .rx_active(s_rx_active));
     /* verilator lint_on PINCONNECTEMPTY */
 endmodule

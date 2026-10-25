@@ -352,6 +352,11 @@ class Checker:
 
 
 async def setup(dut, name, **kw):
+    # The sim-only RX_TIMEOUT_CYC override must stay >= the codegen minimum of 2 character
+    # times at the spec divisor (SPEC §3.8: 1,280 cycles at 1,562,500 baud, D-020).
+    two_chars = 2 * 10 * pkg_const("BAUD_DIV") * pkg_const("OVERSAMPLE")
+    check(TIMEOUT >= two_chars, "PKT_RX_TIMEOUT override below 2 character times",
+          override=TIMEOUT, two_chars=two_chars)
     rng = seed_rng(dut, name)
     tb = TB(dut, rng)
     for k, v in kw.items():
