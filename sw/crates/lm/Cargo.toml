@@ -1,0 +1,21 @@
+[package]
+name = "splitsys-lm"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+description = "Tiny-LM (llama2.c stories260K) with every linear layer executed as a SplitSys int8 GEMM (int32 bypass)"
+
+[lints]
+workspace = true
+
+[lib]
+name = "splitsys_lm"
+path = "src/lib.rs"
+
+[[bin]]
+name = "lm-ref"
+path = "src/bin/lm-ref.rs"
+
+[dependencies]
+splitsys-spec = { path = "../spec" }
+splitsys-golden = { path = "../golden" }

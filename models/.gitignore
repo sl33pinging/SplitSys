@@ -1,0 +1,3 @@
+# Downloaded model data (untrusted, fetched by fetch_stories260k.sh). Never committed.
+*.bin
+stories260K/

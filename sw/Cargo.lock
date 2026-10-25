@@ -346,6 +346,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "splitsys-lm"
+version = "0.1.0"
+dependencies = [
+ "splitsys-golden",
+ "splitsys-spec",
+]
+
+[[package]]
 name = "splitsys-spec"
 version = "0.1.0"
 dependencies = [
