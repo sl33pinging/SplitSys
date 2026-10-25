@@ -43,7 +43,7 @@ pub const SPLIT_LAPTOP: &str =
 /// The hardware wall-time caveat, with the UART rate the record was made at.
 pub fn wall_note_hw(transport: &str) -> String {
     let rate = crate::transport::baud_of(transport).map_or_else(String::new, |b| format!(" at {b} baud"));
-    format!("laptop wall time including UART{rate}; NOT accelerator speed (on-chip cycles come from the counters)")
+    format!("laptop wall time including UART{rate}; depends on the FTDI latency timer (1 ms recommended); NOT accelerator speed (on-chip cycles come from the counters)")
 }
 pub const WALL_NOTE_MOCK: &str =
     "laptop wall time with the in-process mock board (no UART); NOT accelerator speed (on-chip cycles come from the model counters)";

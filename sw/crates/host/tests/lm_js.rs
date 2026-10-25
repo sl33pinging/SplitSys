@@ -81,6 +81,17 @@ assert.ok(L.lmEstimate({ s_per_step: 0.05, transport: 'mock (in-process model bo
 assert.ok(L.lmEstimate(null, 8, 'hw', 'serial:COM3@115200').includes('no measured s/token yet on serial:COM3@115200'));
 assert.strictEqual(L.lmEstimate(rate, 'abc', 'hw'), '');
 assert.strictEqual(L.lmDur(89.4), '89 s');
+// REPLAY identity line, model credit, hardware rate caveat.
+const sum = { gen_id: '2026-10-25T04-20-52Z-lm', source: 'hw', mock: false, build_id: '38a3950a',
+  transport: 'serial:COM3@115200', baud: 115200, tokens_generated: 30, gemms: 1258, prompt: 'Once upon a time' };
+assert.strictEqual(L.lmRecLine(sum, true), '2026-10-25T04-20-52Z · HW build 38a3950a · 115,200 baud · 30 tokens · 1,258 GEMMs · “Once upon a time”');
+assert.strictEqual(L.lmRecLine(sum), '2026-10-25T04-20-52Z · HW build 38a3950a · 115,200 baud · 30 tokens · 1,258 GEMMs');
+assert.strictEqual(L.lmBaud('serial:COM3@1562500'), 1562500);
+assert.strictEqual(L.lmBaud('mock'), null);
+assert.strictEqual(L.lmCredit('karpathy/tinyllamas stories260K (MIT), Hugging Face revision 0bd21da7, fetched'), 'karpathy/tinyllamas stories260K (MIT)');
+const wn = L.lmWallNote({ source: 'hw', mock: false, transport: 'serial:COM3@1562500', summary: {} });
+assert.ok(wn.includes('1,562,500 baud') && wn.includes('FTDI latency timer') && wn.includes('1 ms recommended') && wn.includes('NOT accelerator speed'), wn);
+assert.strictEqual(L.lmWallNote({ source: 'model', mock: true, summary: { wall_note: 'mock note' } }), 'mock note');
 console.log('lm.js helpers ok');
 "#;
 

@@ -73,6 +73,14 @@ assert.strictEqual(T({ tagName: 'BUTTON' }), false);
 assert.strictEqual(T({ tagName: 'BODY' }), false);
 assert.strictEqual(T(null), false);
 assert.strictEqual(T({}), false);
+// Auto panel scope: pooled across builds is said so; per-build scores listed.
+const pp = { n: 126, model_pick_is_measured_faster: 126, builds: [{ build_id: 'a', n: 2 }, { build_id: 'b', n: 1 }],
+  by_build: [{ build_id: 'a', n: 125, model_pick_is_measured_faster: 125 }, { build_id: 'b', n: 97, model_pick_is_measured_faster: 96 }] };
+assert.strictEqual(A.autoScope(pp), ' (all builds)');
+assert.ok(A.autoPerBuild(pp).includes('a <span class="mono">125/125</span> · b <span class="mono">96/97</span>'), A.autoPerBuild(pp));
+assert.ok(A.autoPerBuild(pp).includes('Per build (both modes on it)'), A.autoPerBuild(pp));
+assert.strictEqual(A.autoScope({ builds: [{ build_id: 'a', n: 2 }] }), ' (build a)');
+assert.strictEqual(A.autoPerBuild({ builds: [{ build_id: 'a', n: 2 }], by_build: [] }), '');
 console.log('app.js helpers ok');
 "#;
 

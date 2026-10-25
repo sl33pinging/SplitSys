@@ -116,6 +116,11 @@ enum Cmd {
         /// Directory of recorded hw run JSONs to offer as REPLAY (e.g. results/hw).
         #[arg(long)]
         replay: Option<PathBuf>,
+        /// Scene 4 REPLAY: which LM generation to play, as a gen id
+        /// (2026-10-25T04-20-52Z-lm) in <replay>/lm or a path to an LM record JSON.
+        /// Default: the newest record in <replay>/lm. Also selectable on Scene 4.
+        #[arg(long, requires = "replay")]
+        replay_lm: Option<String>,
         /// Serve demo/ assets from disk instead of the embedded copies (development).
         #[arg(long)]
         assets: Option<PathBuf>,
@@ -311,7 +316,7 @@ fn real_main(cli: &Cli) -> Result<ExitCode, String> {
             let ok = run_specs(cli, &results, &root, &specs, !no_poison, Some(suite))?;
             Ok(if ok { ExitCode::SUCCESS } else { ExitCode::FAILURE })
         }
-        Cmd::Serve { port, replay, assets, attract } => {
+        Cmd::Serve { port, replay, replay_lm, assets, attract } => {
             server::serve(ServeOpts {
                 port: *port,
                 transport: cli.transport.clone(),
@@ -321,6 +326,7 @@ fn real_main(cli: &Cli) -> Result<ExitCode, String> {
                 root,
                 assets: assets.clone(),
                 replay: replay.clone(),
+                replay_lm: replay_lm.clone(),
                 attract: *attract,
             })?;
             Ok(ExitCode::SUCCESS)

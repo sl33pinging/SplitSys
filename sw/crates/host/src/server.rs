@@ -45,6 +45,9 @@ pub struct ServeOpts {
     pub assets: Option<PathBuf>,
     /// Directory of recorded run JSONs to offer as REPLAY.
     pub replay: Option<PathBuf>,
+    /// Scene 4 REPLAY generation: a gen id in `<replay>/lm` or an LM record path
+    /// (default: the newest record there).
+    pub replay_lm: Option<String>,
     pub attract: bool,
 }
 
@@ -85,6 +88,8 @@ struct App {
     builds: Vec<(String, usize)>,
     /// Auto-mode runs and same-shape measured pairs over every record of `source`.
     auto: AutoView,
+    /// Scene 2/3 benchmark-shape points over every record of `source` (not capped).
+    bench: BenchView,
     running: Option<Value>,
     queue_len: usize,
     scene: u8,
@@ -98,6 +103,8 @@ struct App {
     /// Scene 4: a generation is running / the latest live record view.
     lm_busy: bool,
     lm_live: Option<Value>,
+    /// Scene 4 REPLAY pick: a gen id in `<replay>/lm` or an LM record path; None = newest.
+    replay_lm: Option<String>,
     lm_stop: Arc<std::sync::atomic::AtomicBool>,
 }
 
@@ -147,6 +154,42 @@ fn roof_points<'a>(runs: impl IntoIterator<Item = &'a RunRecord>) -> Vec<Value> 
     runs.into_iter().filter_map(roof_point).collect()
 }
 
+/// Scene 2 (benchmark bars, M sweep) and Scene 3 (tradeoff gain) points over
+/// every record of the source (not capped like `runs`): the newest record per
+/// (M, K, N, mode, requant) whose (K, N) is a benchmark shape, so a long session
+/// of other runs never pushes the benchmark sweep off the screen.
+#[derive(Default)]
+struct BenchView {
+    newest: std::collections::BTreeMap<(u64, u64, u64, String, bool), RunRecord>,
+}
+
+pub const BENCH_RULE: &str =
+    "newest record per (M, K, N, mode, requant) of a benchmark shape (K, N), over every record of the source (uncapped)";
+
+impl BenchView {
+    fn from_records<'a>(runs: impl IntoIterator<Item = &'a RunRecord>) -> Self {
+        let mut v = Self::default();
+        for r in runs {
+            v.add(r);
+        }
+        v
+    }
+
+    fn add(&mut self, r: &RunRecord) {
+        let g = &r.gemm;
+        if spec::BENCH_SHAPES.iter().any(|b| b.k as u64 == g.k && b.n as u64 == g.n) {
+            self.newest.insert((g.m, g.k, g.n, g.mode.clone(), g.requant), r.clone());
+        }
+    }
+
+    /// The selected records, oldest first (records are added in run_id order).
+    fn json(&self, from: &str) -> Value {
+        let mut v: Vec<&RunRecord> = self.newest.values().collect();
+        v.sort_by(|a, b| a.run_id.cmp(&b.run_id));
+        json!({"runs": v, "from": from, "rule": BENCH_RULE})
+    }
+}
+
 /// Shape key for pairing runs of the same GEMM shape across modes.
 type ShapeKey = (u64, u64, u64, bool);
 /// A clean measured run: (cycles_total, run_id, build_id).
@@ -163,6 +206,8 @@ struct AutoView {
     tally: crate::batch::AutoTally,
     /// shape -> [FULL, STRIP] latest (measured cycles_total, run_id, build_id).
     measured: std::collections::BTreeMap<ShapeKey, [Option<MeasuredRun>; 2]>,
+    /// Same, per build: (build_id, shape) -> [FULL, STRIP] latest measured cycles.
+    measured_by_build: std::collections::BTreeMap<(String, ShapeKey), [Option<u64>; 2]>,
 }
 
 /// Show at most this many auto rows in the snapshot (the tally covers all).
@@ -184,6 +229,7 @@ impl AutoView {
             let i = usize::from(r.gemm.mode == "STRIP");
             self.measured.entry(key).or_default()[i] =
                 Some((r.counters.cycles_total, r.run_id.clone(), r.build_id.clone()));
+            self.measured_by_build.entry((r.build_id.clone(), key)).or_default()[i] = Some(r.counters.cycles_total);
         }
         let Some(sel) = &r.mode_select else { return };
         self.tally.add(r);
@@ -226,12 +272,30 @@ impl AutoView {
                 agree += 1;
             }
         }
+        // The same score within each build (both modes measured on that build),
+        // so a pooled count can be stated next to a single-build one.
+        let mut per: Vec<(String, u64, u64)> = Vec::new();
+        for ((b, (m, k, nn, rq)), [f, s]) in &self.measured_by_build {
+            let (Some(f), Some(s)) = (f, s) else { continue };
+            let measured_pick = if s < f { "STRIP" } else { "FULL" };
+            let ok = runner::select_mode(*m as usize, *k as usize, *nn as usize, *rq).ok().is_some_and(|p| p.chosen == measured_pick);
+            match per.iter_mut().find(|x| &x.0 == b) {
+                Some(x) => {
+                    x.1 += 1;
+                    x.2 += u64::from(ok);
+                }
+                None => per.push((b.clone(), 1, u64::from(ok))),
+            }
+        }
+        per.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        let by_build: Vec<Value> =
+            per.iter().map(|(b, n, ok)| json!({"build_id": b, "n": n, "model_pick_is_measured_faster": ok})).collect();
         // Largest STRIP/FULL ratios first (the panel shows a few).
         slower.sort_by(|a, b| b.0.total_cmp(&a.0));
         let slower: Vec<Value> = slower.into_iter().take(6).map(|(_, v)| v).collect();
         json!({"n": n, "strip_slower": strip_slower, "model_pick_is_measured_faster": agree,
                "worst_strip_over_full": worst, "worst": worst_shape, "slowest": slower,
-               "builds": builds_json(&builds)})
+               "builds": builds_json(&builds), "by_build": by_build})
     }
 
     fn json(&self, from: &str) -> Value {
@@ -275,6 +339,7 @@ struct Live {
     total: usize,
     builds: Vec<(String, usize)>,
     auto: AutoView,
+    bench: BenchView,
 }
 
 fn load_live(results: &Path, source: &str) -> Live {
@@ -282,21 +347,23 @@ fn load_live(results: &Path, source: &str) -> Live {
     let roof = roof_points(&all);
     let builds = build_counts(&all);
     let auto = AutoView::from_records(&all);
+    let bench = BenchView::from_records(&all);
     let total = all.len();
     let mut runs: VecDeque<RunRecord> = all.into();
     while runs.len() > MAX_RUNS {
         runs.pop_front();
     }
-    Live { session: Session::rebuild(results, source), runs, roof, total, builds, auto }
+    Live { session: Session::rebuild(results, source), runs, roof, total, builds, auto, bench }
 }
 
 impl App {
     fn new(source: &str, transport: &TransportSpec, results: &Path, replay: Option<Replay>, attract: bool) -> Self {
-        let Live { session, runs, roof, total, builds, auto } = load_live(results, source);
+        let Live { session, runs, roof, total, builds, auto, bench } = load_live(results, source);
         Self {
             roof,
             builds,
             auto,
+            bench,
             runs_total: total,
             source: source.into(),
             transport: format!("{transport:?}"),
@@ -320,6 +387,7 @@ impl App {
             started_utc: iso_utc(now_unix()),
             lm_busy: false,
             lm_live: None,
+            replay_lm: None,
             lm_stop: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }
@@ -333,9 +401,10 @@ impl App {
     fn adopt_board(&mut self, results: &Path, transport_src: transport::Source, build_id_hex: &str) {
         let src = runner::effective_source(transport_src, Some(build_id_hex));
         if self.source != src {
-            let Live { session, runs, roof, total, builds, auto } = load_live(results, src);
+            let Live { session, runs, roof, total, builds, auto, bench } = load_live(results, src);
             self.source = src.into();
             self.auto = auto;
+            self.bench = bench;
             self.session = session;
             self.runs = runs;
             self.roof = roof;
@@ -355,7 +424,12 @@ struct Shared {
     cmd: Sender<Cmd>,
     results: PathBuf,
     assets: Option<PathBuf>,
+    /// LM record summaries by path, keyed on (len, mtime) so the replay list
+    /// does not re-parse ~1 MB records on every poll.
+    lm_index: Arc<Mutex<LmIndex>>,
 }
+
+type LmIndex = std::collections::HashMap<PathBuf, (u64, Option<std::time::SystemTime>, Option<Value>)>;
 
 fn broadcast(subs: &Subs, event: &str, data: &Value) {
     let msg = format!("event: {event}\ndata: {data}\n\n");
@@ -372,7 +446,7 @@ impl Shared {
         let a = self.app.lock().expect("app");
         let model_dir = self.results.join("model");
         let cost = read_json(&self.results.join("cost.json"));
-        let (runs, session, source, board_status, roof, roof_from, builds, auto) = match (&a.replay, a.replay_active) {
+        let (runs, session, source, board_status, roof, roof_from, builds, auto, bench) = match (&a.replay, a.replay_active) {
             (Some(r), true) => (
                 serde_json::to_value(&r.runs).unwrap_or(Value::Null),
                 r.session.clone().unwrap_or(Value::Null),
@@ -382,6 +456,7 @@ impl Shared {
                 "replay".to_string(),
                 builds_json(&build_counts(&r.runs)),
                 AutoView::from_records(&r.runs).json("replay"),
+                BenchView::from_records(&r.runs).json("replay"),
             ),
             _ => (
                 serde_json::to_value(&a.runs).unwrap_or(Value::Null),
@@ -392,6 +467,7 @@ impl Shared {
                 format!("results/{}", runs_dir(Path::new(""), &a.source).display()),
                 builds_json(&a.builds),
                 a.auto.json(&format!("results/{}", runs_dir(Path::new(""), &a.source).display())),
+                a.bench.json(&format!("results/{}", runs_dir(Path::new(""), &a.source).display())),
             ),
         };
         let mut v = json!({
@@ -441,6 +517,7 @@ impl Shared {
         });
         // (Outside json!: the macro's recursion limit.)
         v["auto"] = auto;
+        v["bench"] = bench;
         v["auto_presets"] = AUTO_PRESETS
             .iter()
             .map(|p| json!({"case": p.case, "name": p.name, "M": p.m, "K": p.k, "N": p.n, "why": p.why}))
@@ -675,6 +752,7 @@ fn worker(opts_t: TransportSpec, baud: transport::BaudSel, scale: Option<u32>, r
                         }
                         a.roof.extend(roof_point(&rec));
                         a.auto.add(&rec);
+                        a.bench.add(&rec);
                         a.runs_total += 1;
                         add_build(&mut a.builds, &rec.build_id);
                         a.runs.push_back(rec.clone());
@@ -974,6 +1052,24 @@ fn handle(sh: Shared, mut s: TcpStream) {
                 Err(e) => json_resp(&mut s, 400, &json!({"error": e})),
             }
         }
+        ("POST", "/api/lm_replay") => {
+            // Pick the Scene 4 REPLAY generation by gen id (listed in GET /api/lm replay_list).
+            let dir = sh.app.lock().expect("app").replay.as_ref().map(|r| PathBuf::from(&r.dir).join("lm"));
+            let id = body["gen_id"].as_str().unwrap_or("").to_string();
+            let r = match &dir {
+                None => Err("no replay session loaded (start serve with --replay <dir>)".to_string()),
+                Some(d) if lm_list(d, &sh.lm_index).iter().any(|x| x["gen_id"] == id.as_str()) => Ok(id),
+                Some(d) => Err(format!("no LM record {id:?} in {}", d.display())),
+            };
+            match r {
+                Ok(id) => {
+                    sh.app.lock().expect("app").replay_lm = Some(id.clone());
+                    broadcast(&sh.subs, "state", &json!({"replay_lm": id}));
+                    json_resp(&mut s, 200, &json!({"replay_lm": id}))
+                }
+                Err(e) => json_resp(&mut s, 400, &json!({"error": e})),
+            }
+        }
         _ => respond(&mut s, 404, "text/plain", b"not found"),
     }
 }
@@ -1076,10 +1172,83 @@ fn newest_lm(dir: &Path) -> (Option<Value>, usize) {
     (rec.as_ref().map(crate::lm::record_view), n)
 }
 
+/// One line per LM record in `dir` (oldest first) for the Scene 4 REPLAY picker:
+/// what the operator reads off the screen instead of reciting it.
+fn lm_list(dir: &Path, cache: &Mutex<LmIndex>) -> Vec<Value> {
+    let mut names: Vec<PathBuf> = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("json"))
+        .collect();
+    names.sort_by_key(|p| crate::lm::gen_order_key(&p.file_stem().map(|x| x.to_string_lossy().into_owned()).unwrap_or_default()));
+    let mut c = cache.lock().expect("lm index");
+    names
+        .iter()
+        .filter_map(|p| {
+            let md = std::fs::metadata(p).ok()?;
+            let (len, mt) = (md.len(), md.modified().ok());
+            if let Some((l, m, v)) = c.get(p) {
+                if *l == len && *m == mt {
+                    return v.clone();
+                }
+            }
+            let v = std::fs::read(p)
+                .ok()
+                .and_then(|b| serde_json::from_slice::<crate::lm::LmRecord>(&b).ok())
+                .filter(|r| r.kind == crate::lm::LM_KIND)
+                .map(|r| lm_summary(&r, p));
+            c.insert(p.clone(), (len, mt, v.clone()));
+            v
+        })
+        .collect()
+}
+
+fn lm_summary(r: &crate::lm::LmRecord, p: &Path) -> Value {
+    let tokens = r.steps.iter().filter(|s| s.phase == "generate").count();
+    json!({
+        "gen_id": r.gen_id, "file": p.file_name().map(|x| x.to_string_lossy().into_owned()),
+        "prompt": r.prompt, "build_id": r.build_id, "source": r.source, "mock": r.mock,
+        "transport": r.transport, "baud": crate::transport::baud_of(&r.transport),
+        "steps": r.steps.len(), "tokens_generated": tokens, "gemms": r.summary.gemms,
+        "bit_exact": r.summary.bit_exact, "counters_eq_model": r.summary.counters_eq_model,
+        "status": r.status, "verified": r.verified(), "started_utc": r.started_utc,
+    })
+}
+
+/// Load one LM record as the dashboard view.
+fn load_lm_view(p: &Path) -> Option<Value> {
+    std::fs::read(p)
+        .ok()
+        .and_then(|b| serde_json::from_slice::<crate::lm::LmRecord>(&b).ok())
+        .filter(|r| r.kind == crate::lm::LM_KIND)
+        .map(|r| crate::lm::record_view(&r))
+}
+
+/// The REPLAY generation: `pick` as a gen id in `dir` or a record path; None = newest.
+/// Returns (view, how it was chosen, error if the pick was not found).
+fn replay_lm_view(dir: &Path, pick: Option<&str>) -> (Option<Value>, &'static str, Option<String>) {
+    if let Some(id) = pick {
+        let as_path = PathBuf::from(id);
+        let p = if as_path.extension().and_then(|e| e.to_str()) == Some("json") && as_path.is_file() {
+            as_path
+        } else {
+            dir.join(format!("{id}.json"))
+        };
+        if let Some(v) = load_lm_view(&p) {
+            return (Some(v), "selected", None);
+        }
+        let (v, _) = newest_lm(dir);
+        return (v, "newest", Some(format!("LM record {id:?} not found in {}; showing the newest", dir.display())));
+    }
+    (newest_lm(dir).0, "newest", None)
+}
+
 fn lm_state(sh: &Shared) -> Value {
-    let (source, busy, live, replay_dir, replay_active, transport_now) = {
+    let (source, busy, live, replay_dir, replay_active, transport_now, replay_pick) = {
         let a = sh.app.lock().expect("app");
-        (a.source.clone(), a.lm_busy, a.lm_live.clone(), a.replay.as_ref().map(|r| PathBuf::from(&r.dir)), a.replay_active, a.transport.clone())
+        (a.source.clone(), a.lm_busy, a.lm_live.clone(), a.replay.as_ref().map(|r| PathBuf::from(&r.dir)), a.replay_active, a.transport.clone(), a.replay_lm.clone())
     };
     let dir = crate::lm::lm_dir(&sh.results, &source);
     // While this server holds a live record, skip parsing the newest file on disk
@@ -1095,9 +1264,11 @@ fn lm_state(sh: &Shared) -> Value {
     } else {
         newest_lm(&dir)
     };
-    let (replay, n_replay) = match &replay_dir {
-        Some(d) => newest_lm(&d.join("lm")),
-        None => (None, 0),
+    let replay_list = replay_dir.as_ref().map_or_else(Vec::new, |d| lm_list(&d.join("lm"), &sh.lm_index));
+    let n_replay = replay_list.len();
+    let (replay, replay_how, replay_err) = match &replay_dir {
+        Some(d) => replay_lm_view(&d.join("lm"), replay_pick.as_deref()),
+        None => (None, "newest", None),
     };
     json!({
         "live_source": source,
@@ -1110,6 +1281,10 @@ fn lm_state(sh: &Shared) -> Value {
         "replay": replay,
         "replay_dir": replay_dir.map(|d| d.join("lm").display().to_string().replace('\\', "/")),
         "replay_records": n_replay,
+        "replay_list": replay_list,
+        "replay_pick": replay_how,
+        "replay_pick_error": replay_err,
+        "model_origin": crate::lm::MODEL_ORIGIN,
         "replay_active": replay_active,
         "split": {"fpga": crate::lm::SPLIT_FPGA, "laptop": crate::lm::SPLIT_LAPTOP},
         "wall_note": crate::lm::wall_note(&source, source == "model", &transport_now),
@@ -1234,6 +1409,24 @@ mod lm_scene_tests {
         assert_eq!(v["source"], "model");
         // GEMM-run totals ignore the lm/ subdirectory.
         assert_eq!(Session::rebuild(&d, "model").gemms_run, 0);
+        // REPLAY picker: one summary per LM record, oldest first; pick by gen id or path.
+        let cache = Mutex::new(LmIndex::new());
+        let list = lm_list(&dir, &cache);
+        assert_eq!(list.len(), 2);
+        assert_eq!(list[0]["gen_id"], ids[0].as_str());
+        assert_eq!(list[0]["tokens_generated"], 1);
+        assert_eq!(list[0]["prompt"], "Hi");
+        assert!(list[0]["gemms"].as_u64().unwrap() > 0);
+        assert_eq!(lm_list(&dir, &cache), list, "cached");
+        let (v, how, err) = replay_lm_view(&dir, None);
+        assert_eq!((v.unwrap()["gen_id"].clone(), how, err), (json!(ids[1]), "newest", None));
+        let (v, how, err) = replay_lm_view(&dir, Some(&ids[0]));
+        assert_eq!((v.unwrap()["gen_id"].clone(), how, err), (json!(ids[0]), "selected", None));
+        let path = dir.join(format!("{}.json", ids[0])).display().to_string();
+        assert_eq!(replay_lm_view(&dir, Some(&path)).1, "selected");
+        let (v, how, err) = replay_lm_view(&dir, Some("nope"));
+        assert_eq!((v.unwrap()["gen_id"].clone(), how), (json!(ids[1]), "newest"));
+        assert!(err.unwrap().contains("not found"));
         let _ = std::fs::remove_dir_all(&d);
     }
 }
@@ -1258,7 +1451,20 @@ pub fn serve(o: ServeOpts) -> Result<(), String> {
             runs,
         }
     });
-    let app = App::new(source, &o.transport, &o.results, replay, o.attract);
+    let mut app = App::new(source, &o.transport, &o.results, replay, o.attract);
+    app.replay_lm = o.replay_lm.clone();
+    if let (Some(id), Some(d)) = (&o.replay_lm, &o.replay) {
+        match replay_lm_view(&d.join("lm"), Some(id)) {
+            (Some(v), "selected", _) => eprintln!(
+                "serve: Scene 4 REPLAY plays {} (build {}, {}, {} GEMMs)",
+                v["gen_id"].as_str().unwrap_or("?"),
+                v["build_id"].as_str().unwrap_or("?"),
+                v["transport"].as_str().unwrap_or("?"),
+                v["summary"]["gemms"]
+            ),
+            (_, _, e) => return Err(e.unwrap_or_else(|| format!("--replay-lm {id}: no LM record"))),
+        }
+    }
     let (tx, rx) = mpsc::channel();
     let sh = Shared {
         app: Arc::new(Mutex::new(app)),
@@ -1266,6 +1472,7 @@ pub fn serve(o: ServeOpts) -> Result<(), String> {
         cmd: tx,
         results: o.results.clone(),
         assets: o.assets.clone(),
+        lm_index: Arc::new(Mutex::new(LmIndex::new())),
     };
     {
         let sh2 = sh.clone();
@@ -1350,6 +1557,7 @@ mod tests {
             cmd: mpsc::channel().0,
             results: results.clone(),
             assets: None,
+            lm_index: Arc::new(Mutex::new(LmIndex::new())),
         };
         let s = sh.snapshot();
         assert_eq!(s["roof_measured"]["n"], n_int8);
@@ -1423,6 +1631,78 @@ mod tests {
         // A record with counter diffs never feeds the measured side.
         let v2 = AutoView::from_records([&full, &bad]);
         assert_eq!(v2.pairs()["n"], 0);
+        // Per build: a pair counts for a build only if both modes ran on it.
+        let mut full_b = full.clone();
+        full_b.build_id = "bbbbbbbb".into();
+        let mut strip_a = strip.clone();
+        strip_a.build_id = "aaaaaaaa".into();
+        let mut full_a = full.clone();
+        full_a.build_id = "aaaaaaaa".into();
+        let v3 = AutoView::from_records([&full_a, &strip_a, &full_b]);
+        let p3 = v3.pairs();
+        assert_eq!(p3["n"], 1, "pooled: newest FULL (build b) + STRIP (build a)");
+        assert_eq!(p3["builds"].as_array().unwrap().len(), 2);
+        assert_eq!(p3["by_build"], json!([{"build_id": "aaaaaaaa", "n": 1, "model_pick_is_measured_faster": 1}]));
+    }
+
+    /// Scene 2/3 benchmark points come from every record on disk: a long run of
+    /// other shapes never pushes the benchmark sweep out of the capped `runs`.
+    #[test]
+    fn bench_points_cover_all_records_not_the_cap() {
+        let results = tmp("bench");
+        let mut b = Board::new(Box::new(MockTransport::new(MockConfig::default())));
+        let mut ctx = Context::new(tmp("benchctx"), &repo_root());
+        ctx.write_files = false;
+        let mut cache = LoadCache::default();
+        let mut put = |g: GemmSpec, id: String, build: &str| {
+            let (mut r, _) = runner::run_gemm(&mut b, &mut ctx, &mut cache, &g).unwrap();
+            r.source = "sim".into();
+            r.mock = false;
+            r.run_id = id;
+            r.build_id = build.into();
+            write_json(&runs_dir(&results, "sim").join(run_file_name(&r.run_id)), &r).unwrap();
+            r
+        };
+        // Oldest: ffn_up M=1 in both modes (build A), then FULL again (build B, newer).
+        put(GemmSpec::named("ffn_up", 1, "FULL", 1).unwrap(), "2026-10-24T09:00:00Z-a".into(), "aaaaaaaa");
+        put(GemmSpec::named("ffn_up", 1, "STRIP", 1).unwrap(), "2026-10-24T09:00:01Z-b".into(), "aaaaaaaa");
+        let newer = put(GemmSpec::named("ffn_up", 1, "FULL", 1).unwrap(), "2026-10-24T09:00:02Z-c".into(), "bbbbbbbb");
+        // Then more than MAX_RUNS records of a non-benchmark shape.
+        let other = GemmSpec { name: "other".into(), m: 3, k: 24, n: 40, ..GemmSpec::named("ffn_up", 1, "FULL", 1).unwrap() };
+        let (base, _) = runner::run_gemm(&mut b, &mut ctx, &mut cache, &other).unwrap();
+        for i in 0..MAX_RUNS + 5 {
+            let mut r = base.clone();
+            r.source = "sim".into();
+            r.mock = false;
+            r.run_id = format!("2026-10-24T10:00:00Z-r{i:04}");
+            write_json(&runs_dir(&results, "sim").join(run_file_name(&r.run_id)), &r).unwrap();
+        }
+        let tcp = TransportSpec::Tcp("127.0.0.1:1".into());
+        let a = App::new("sim", &tcp, &results, None, false);
+        let sh = Shared {
+            app: Arc::new(Mutex::new(a)),
+            subs: Arc::new(Mutex::new(Vec::new())),
+            cmd: mpsc::channel().0,
+            results: results.clone(),
+            assets: None,
+            lm_index: Arc::new(Mutex::new(LmIndex::new())),
+        };
+        let s = sh.snapshot();
+        assert!(s["runs"].as_array().unwrap().iter().all(|r| r["gemm"]["name"] == "other"), "bench records fell out of the window");
+        let br = s["bench"]["runs"].as_array().unwrap();
+        assert_eq!(br.len(), 2, "newest per (M, K, N, mode, requant)");
+        assert_eq!(br[0]["gemm"]["mode"], "STRIP");
+        assert_eq!(br[0]["build_id"], "aaaaaaaa");
+        assert_eq!(br[1]["run_id"], newer.run_id.as_str());
+        assert_eq!(br[1]["build_id"], "bbbbbbbb");
+        assert_eq!(s["bench"]["from"], "results/sim");
+        // A new live record replaces the older one of its key.
+        let mut v = BenchView::from_records([&newer]);
+        let mut n2 = newer.clone();
+        n2.run_id = "2026-10-24T11:00:00Z-z".into();
+        v.add(&n2);
+        assert_eq!(v.json("x")["runs"][0]["run_id"], n2.run_id.as_str());
+        let _ = std::fs::remove_dir_all(&results);
     }
 
     #[test]
@@ -1471,6 +1751,7 @@ mod tests {
             cmd: tx.clone(),
             results: results.clone(),
             assets: None,
+            lm_index: Arc::new(Mutex::new(LmIndex::new())),
         };
         {
             let sh2 = sh.clone();

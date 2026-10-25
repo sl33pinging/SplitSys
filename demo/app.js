@@ -377,7 +377,19 @@ function modelPoints(name) {
   if (!S.sweep || !S.sweep.points) return [];
   return S.sweep.points.filter((p) => p.gemm.name === name);
 }
+// Benchmark-shape points come from S.bench (server: newest record per (M, K, N, mode,
+// requant) over EVERY record of the source, not just the S.runs window), matched by
+// the benchmark's (K, N); S.runs is the fallback for an older server.
+function benchShape(name) { return (S.bench_shapes || []).find((b) => b.name === name); }
 function measuredPoint(name, M, mode) {
+  const b = benchShape(name), list = S.bench && S.bench.runs;
+  if (b && list) {
+    for (let i = list.length - 1; i >= 0; i--) {
+      const g = list[i].gemm;
+      if (g.M === M && g.K === b.K && g.N === b.N && g.mode === mode && g.requant) return list[i];
+    }
+    return null;
+  }
   return latestOf((x) => x.gemm.name === name && x.gemm.M === M && x.gemm.mode === mode && x.gemm.requant);
 }
 function renderSweep() {
@@ -491,6 +503,19 @@ function autoRowsWhereStripLost(rows) {
   return rows.filter((r) => r.model_cycles_strip > r.model_cycles_full)
     .sort((a, b) => b.model_cycles_strip / b.model_cycles_full - a.model_cycles_strip / a.model_cycles_full);
 }
+// What the pooled pair count covers: ", all builds" when the pairs span builds
+// (the per-build scores, both modes on the same build, are a body line: autoPerBuild).
+function autoScope(p) {
+  const pooled = (p.builds || []).length;
+  if (pooled <= 1) return pooled === 1 ? ` (build ${p.builds[0].build_id})` : '';
+  return ' (all builds)';
+}
+function autoPerBuild(p) {
+  const bb = p.by_build || [];
+  if ((p.builds || []).length <= 1 || !bb.length) return '';
+  return '<span style="font-size:18px">Per build (both modes on it): ' + bb.map((b) => `${b.build_id} <span class="mono">${b.model_pick_is_measured_faster}/${b.n}</span>`)
+    .join(' · ') + '</span>';
+}
 function renderAuto() {
   const A = (S && S.auto) || { rows: [], tally: { runs: 0 }, pairs: { n: 0, slowest: [] } };
   const t = A.tally || { runs: 0 }, p = A.pairs || { n: 0, slowest: [] };
@@ -498,7 +523,7 @@ function renderAuto() {
   const lab = badgeFor(srcLabel())[0];
   const body = $('auto-body');
   let title = 'Auto mode picks the faster shape per GEMM (model-scored)';
-  if (p.n) title = `Auto mode picks the faster mode: ${p.model_pick_is_measured_faster}/${p.n} shapes`;
+  if (p.n) title = `Auto picks faster mode: ${p.model_pick_is_measured_faster}/${p.n} shapes${autoScope(p)}`;
   $('auto-title').textContent = title;
   setBadge('auto-badge', rows.length || p.n ? srcLabel() : 'model', rows.length && lab !== 'MODEL' ? `${lab} + MODEL` : (p.n || rows.length ? lab : 'MODEL'));
   const lines = [];
@@ -511,12 +536,13 @@ function renderAuto() {
   }
   if (p.n) {
     lines.push(`${lab} shapes run in both modes: <span class="mono">${p.n}</span> · STRIP slower on <span class="mono">${p.strip_slower}</span>${p.strip_slower ? ` (worst <span class="mono">${ratio(p.worst_strip_over_full)}</span>)` : ''}`);
+    if (autoPerBuild(p)) lines.push(autoPerBuild(p));
   }
   let table = '';
   const lost = autoRowsWhereStripLost(rows);
   if (lost.length) {
     // Auto runs where the model said STRIP loses: auto ran FULL.
-    const tr = lost.slice(0, 3).map((r) => {
+    const tr = lost.slice(0, autoPerBuild(p) ? 2 : 3).map((r) => {
       const om = r.other_measured;
       return `<tr><td>${shapeStr(r)}</td>${autoCell(r.measured_cycles, true, lab, true)}${autoCell(om ? om.cycles : r.model_cycles_strip, !!om, lab, false)}<td>${r.model_tiles_full} / ${r.model_tiles_strip}</td><td class="full">FULL</td></tr>`;
     }).join('');
@@ -524,11 +550,11 @@ function renderAuto() {
       <table class="err compact"><tr><th>M×K×N</th><th>FULL cycles</th><th>STRIP cycles</th><th>tiles F/S</th><th>auto ran</th></tr>${tr}</table>`;
   } else if ((p.slowest || []).length) {
     // No auto runs of those shapes yet: the measured pairs where STRIP lost, and the model's pick.
-    const tr = p.slowest.slice(0, 3).map((r) => `<tr><td>${shapeStr(r)}</td>${autoCell(r.full, true, lab, true)}${autoCell(r.strip, true, lab, false)}<td>${ratio(r.strip / r.full)}</td><td class="${r.model_pick === 'FULL' ? 'full' : 'strip'}">${r.model_pick || '—'}</td></tr>`).join('');
+    const tr = p.slowest.slice(0, autoPerBuild(p) ? 2 : 3).map((r) => `<tr><td>${shapeStr(r)}</td>${autoCell(r.full, true, lab, true)}${autoCell(r.strip, true, lab, false)}<td>${ratio(r.strip / r.full)}</td><td class="${r.model_pick === 'FULL' ? 'full' : 'strip'}">${r.model_pick || '—'}</td></tr>`).join('');
     table = `<div class="note" style="margin-top:4px">Where STRIP lost (both modes measured), the model picks:</div>
       <table class="err compact"><tr><th>M×K×N</th><th>FULL cycles</th><th>STRIP cycles</th><th>STRIP/FULL</th><th>auto picks</th></tr>${tr}</table>`;
   } else if (rows.length) {
-    const tr = rows.slice(-3).reverse().map((r) => {
+    const tr = rows.slice(autoPerBuild(p) ? -2 : -3).reverse().map((r) => {
       const om = r.other_measured, f = r.chosen === 'FULL';
       const fc = f ? r.measured_cycles : (om ? om.cycles : r.model_cycles_full), sc = f ? (om ? om.cycles : r.model_cycles_strip) : r.measured_cycles;
       return `<tr><td>${shapeStr(r)}</td>${autoCell(fc, f || !!om, lab, f)}${autoCell(sc, !f || !!om, lab, !f)}<td>${r.model_tiles_full} / ${r.model_tiles_strip}</td><td class="${f ? 'full' : 'strip'}">${r.chosen}</td></tr>`;
@@ -730,7 +756,7 @@ function typingTarget(t) {
 }
 if (typeof document === 'undefined') {
   // Loaded by node (sw/crates/host/tests/app_js.rs): export the pure helpers only.
-  module.exports = { typingTarget, linkLabel, sameGemm, otherModeRun, ratio, buildCounts, buildsLine, buildsLineCounts, recordLabel, autoRowsWhereStripLost, shapeStr };
+  module.exports = { autoScope, autoPerBuild, typingTarget, linkLabel, sameGemm, otherModeRun, ratio, buildCounts, buildsLine, buildsLineCounts, recordLabel, autoRowsWhereStripLost, shapeStr };
 } else {
 document.addEventListener('keydown', (e) => {
   if (typingTarget(e.target) || e.ctrlKey || e.altKey || e.metaKey) return;

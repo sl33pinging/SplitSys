@@ -1,5 +1,5 @@
 # SplitSys booth cold start (DEMO.md §1): host server + kiosk browser, after the board power cycle.
-#   powershell -ExecutionPolicy Bypass -File demo\start_demo.ps1 [-Transport serial:COM5] [-Baud auto|1562500|115200] [-Port 8080] [-Replay results\hw]
+#   powershell -ExecutionPolicy Bypass -File demo\start_demo.ps1 [-Transport serial:COM5] [-Baud auto|1562500|115200] [-Port 8080] [-Replay results\hw [-ReplayLm 2026-10-25T04-20-52Z-lm]]
 # -Baud auto (default): PING at 1562500 (KG3+, spec BAUD) and, if no answer, at 115200 (KG2); the rate that
 # answered is printed and pinned for the server. An explicit rate is used as is (no probe).
 # Owner: host-dashboard. Uses the native Windows build of splitsys-host (USB strategy b).
@@ -8,6 +8,8 @@ param(
     [string]$Baud = "auto",
     [int]$Port = 8080,
     [string]$Replay = "",
+    # Scene 4 REPLAY generation (gen id in <Replay>\lm or a record path); default newest, also pickable on screen.
+    [string]$ReplayLm = "",
     [switch]$Attract,
     [switch]$NoBrowser,
     # Top-left of the monitor the kiosk should open on (Windows virtual-desktop coordinates).
@@ -50,6 +52,7 @@ if ($pingOk) {
 # 3. Server (keeps running; reconnects to the board on its own).
 $srvArgs = @("--transport", $Transport, "--baud", $srvBaud, "--results", (Join-Path $root "results"), "serve", "--port", $Port)
 if ($Replay) { $srvArgs += @("--replay", $Replay) }
+if ($Replay -and $ReplayLm) { $srvArgs += @("--replay-lm", $ReplayLm) }
 if ($Attract) { $srvArgs += "--attract" }
 $srv = Start-Process -FilePath $exe -ArgumentList $srvArgs -WorkingDirectory $root -PassThru -WindowStyle Minimized
 Write-Host "server pid $($srv.Id) on http://127.0.0.1:$Port/"

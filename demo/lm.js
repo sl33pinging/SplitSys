@@ -85,6 +85,35 @@ function lmTotals(rec, upto) {
   return t;
 }
 
+// Baud of a record's transport ("serial:COM3@1562500" -> 1562500), or null.
+function lmBaud(transport) { const m = /@(\d+)/.exec(String(transport || '')); return m ? Number(m[1]) : null; }
+function lmNum(x) { return Number(x).toLocaleString('en-US'); }
+
+// The caveat under the per-token rate. Hardware: the record's baud, laptop wall
+// time, and the FTDI latency timer it depends on (not readable from here).
+function lmWallNote(rec) {
+  if (!rec) return '';
+  if (rec.source === 'hw' && !rec.mock) {
+    const b = lmBaud(rec.transport);
+    return `(${b ? lmNum(b) + ' baud, ' : ''}laptop wall time incl. UART; depends on the FTDI latency timer, 1 ms recommended) NOT accelerator speed`;
+  }
+  return (rec.summary && rec.summary.wall_note) || 'laptop wall time; NOT accelerator speed';
+}
+
+// One line naming a recorded generation: what the operator reads off the screen.
+// withPrompt: append the prompt (the picker; the replay header shows it elsewhere).
+function lmRecLine(x, withPrompt) {
+  if (!x) return '';
+  const b = x.baud || lmBaud(x.transport);
+  const toks = x.tokens_generated !== undefined ? x.tokens_generated : (x.steps || []).filter((s) => s.phase === 'generate').length;
+  const gemms = x.gemms !== undefined ? x.gemms : (x.summary ? x.summary.gemms : 0);
+  const src = x.mock ? 'MOCK' : String(x.source || '').toUpperCase();
+  return `${String(x.gen_id).replace(/-lm.*$/, '')} · ${src} build ${x.build_id} · ${b ? lmNum(b) + ' baud' : String(x.transport || '').split('@')[0]} · ${toks} tokens · ${lmNum(gemms)} GEMMs${withPrompt ? ` · “${x.prompt}”` : ''}`;
+}
+
+// Model credit: the record's model.origin up to the revision note.
+function lmCredit(origin) { return origin ? String(origin).split(', Hugging Face')[0] : ''; }
+
 // "3.2 s/token" or "4.1 tokens/s" (laptop wall time), never called accelerator speed.
 function lmRate(wallMsPerStep) {
   if (!(wallMsPerStep > 0)) return '—';
@@ -161,9 +190,10 @@ function renderLm() {
   $('lm-text-title').textContent = rec
     ? (mock ? 'Tiny LM on the mock board: the model, not hardware' : `Tiny LM on the ${pick.badge === 'sim' ? 'simulated chip' : 'board'}: every linear layer of stories260K runs on the ${pick.badge === 'sim' ? 'simulated RTL' : 'FPGA'}`)
     : 'Tiny LM on the board: stories260K';
-  const status = rec ? (pick.kind === 'replay' ? `playback ${Math.min(upto, rec.steps.length)}/${rec.steps.length} steps (accelerated)` : rec.status + (rec.stopped ? ' (stopped)' : '')) : '';
+  const status = rec ? (pick.kind === 'replay' ? `playback ${upto === undefined ? rec.steps.length : Math.min(upto, rec.steps.length)}/${rec.steps.length} steps (accelerated)` : rec.status + (rec.stopped ? ' (stopped)' : '')) : '';
   $('lm-text-body').innerHTML = rec ? `
     <div class="lm-story"><div>${lmStory(txt, 250)}${LM.st && LM.st.running && pick.kind === 'live' ? '<span class="lm-caret">▌</span>' : ''}</div></div>
+    ${pick.kind === 'replay' ? `<div class="lm-rhead mono">${lmEsc(lmRecLine({ ...rec, gemms: rec.summary.gemms }))}</div>` : ''}
     <div class="kv muted lm-foot">${lmEsc(pick.note)} · ${txt.tokens} tokens generated · ${lmEsc(status)} · greedy decoding · prompt “${lmEsc(rec.prompt)}”</div>`
     : `<div class="pending-box">${lmEsc(pick.note || 'loading…')}<br>Run <span class="mono">splitsys-host lm --prompt "Once upon a time" --tokens 8</span> or use <b>Generate</b> below.</div>`;
   renderLmCtl(replayActive);
@@ -183,7 +213,7 @@ function renderLm() {
     <div class="mid" style="font-size:40px;margin-top:14px">${int(Math.round(perTok))} <span style="font-size:22px" class="muted">on-chip cycles per token (counters)</span></div>
     <div class="kv muted">= ${(perTok / (S.clock_mhz || 100)).toFixed(0)} µs at ${S.clock_mhz || 100} MHz, all ${tot.steps ? Math.round(tot.gemms / tot.steps) : 0} linear layers</div>
     <div class="mid" style="font-size:36px;margin-top:14px">${lmRate(wallPer)}</div>
-    <div class="note">${lmEsc(rec.summary.wall_note || 'laptop wall time; NOT accelerator speed')} · ${int(Math.round(tot.steps ? tot.bytes_tx / tot.steps : 0))} B sent per token</div>
+    <div class="note">${lmEsc(lmWallNote(rec))} · ${int(Math.round(tot.steps ? tot.bytes_tx / tot.steps : 0))} B sent per token</div>
     ${mock ? '<div class="note fail" style="margin-top:6px">mock board output comes from the golden model: not evidence</div>' : ''}`
     : '<div class="pending-box">no generation yet</div>';
   // --- call grid
@@ -198,6 +228,7 @@ function renderLm() {
   $('lm-split-body').innerHTML = `
     <div class="kv"><b class="pass">FPGA</b> · ${lmEsc((LM.st && LM.st.split.fpga) || '')}</div>
     <div class="kv" style="margin-top:6px"><b>Laptop</b> · ${lmEsc((LM.st && LM.st.split.laptop) || '')}</div>
+    ${(rec && rec.model && rec.model.origin) || (LM.st && LM.st.model_origin) ? `<div class="kv" style="margin-top:10px">Model: <b>${lmEsc(lmCredit((rec && rec.model && rec.model.origin) || LM.st.model_origin))}</b></div>` : ''}
     ${p ? `<div class="kv muted" style="margin-top:10px">WBUF: ${p.pinned.length} matrices stay resident (${int(p.pinned_bytes)} B); ${int(p.streamed_bytes_per_step)} of ${int(p.total_bytes_per_step)} weight bytes re-sent per token</div>` : ''}`;
 }
 
@@ -207,6 +238,10 @@ function renderLmCtl(replayActive) {
   if (!go) return;
   const st = LM.st || {};
   const lim = st.limits || { prompt_max: 80, tokens_max: 200 };
+  const rctl = $('lm-rctl');
+  $('lm-ctl').style.display = replayActive ? 'none' : '';
+  if (rctl) rctl.style.display = replayActive ? '' : 'none';
+  if (replayActive) renderLmReplayPick(st);
   const busy = !!st.running || LM.posting || Date.now() < LM.pendingUntil;
   go.disabled = busy || !!replayActive;
   $('lm-stop').disabled = !st.running;
@@ -215,9 +250,44 @@ function renderLmCtl(replayActive) {
   $('lm-tok-lbl').textContent = 'new tokens (1–' + lim.tokens_max + ')';
   const info = $('lm-ctl-info');
   if (LM.ctlErr) info.innerHTML = `<span class="fail">${lmEsc(LM.ctlErr)}</span>`;
-  else if (replayActive) info.innerHTML = '<span class="muted">REPLAY view: press R to return to live before generating</span>';
+  else if (replayActive) {
+    const how = st.replay_pick === 'selected' ? 'selected' : 'newest (default)';
+    info.innerHTML = st.replay_pick_error ? `<span class="fail">${lmEsc(st.replay_pick_error)}</span>`
+      : `<span class="muted">REPLAY of a recorded generation (${how}; ${(st.replay_list || []).length} in ${lmEsc(st.replay_dir || '')}) · pick above or [ / ] · R returns to live</span>`;
+  }
   else if (st.running) info.textContent = 'generating… Stop (or X) ends it after the current token';
   else info.textContent = lmEstimate(st.rate, lmTokensValue($('lm-tokens').value), st.live_source, st.transport);
+}
+
+// REPLAY picker: one option per LM record, newest first; rebuilt only when the list
+// changes so an open dropdown is not clobbered by the 5 s refresh.
+function renderLmReplayPick(st) {
+  const sel = $('lm-rsel');
+  if (!sel) return;
+  const list = st.replay_list || [];
+  const key = list.map((x) => x.gen_id + ':' + x.steps).join(',');
+  if (sel.dataset.key !== key) {
+    sel.innerHTML = list.slice().reverse().map((x) => `<option value="${lmEsc(x.gen_id)}">${lmEsc(lmRecLine(x, true))}${x.verified ? '' : ' · NOT VERIFIED'}</option>`).join('');
+    sel.dataset.key = key;
+  }
+  if (st.replay && document.activeElement !== sel) sel.value = st.replay.gen_id;
+}
+
+async function lmPickReplay(genId) {
+  try {
+    const r = await fetch('/api/lm_replay', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gen_id: genId }) });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); LM.ctlErr = j.error || ('server answered ' + r.status); }
+  } catch (e) { LM.ctlErr = 'dashboard server unreachable'; }
+  lmRefresh(true);
+}
+
+// [ / ]: step to the older / newer recorded generation.
+function lmStepReplay(d) {
+  const list = (LM.st && LM.st.replay_list) || [];
+  if (!list.length || !LM.st.replay) return;
+  const i = list.findIndex((x) => x.gen_id === LM.st.replay.gen_id);
+  const j = Math.max(0, Math.min(list.length - 1, (i < 0 ? list.length - 1 : i) + d));
+  if (j !== i) lmPickReplay(list[j].gen_id);
 }
 
 async function lmGenerate() {
@@ -249,6 +319,8 @@ function lmWireCtl() {
   $('lm-plus').addEventListener('click', () => { tk.value = lmStepTokens(tk.value, +1, max()); touched(); });
   $('lm-go').addEventListener('click', () => lmGenerate());
   $('lm-stop').addEventListener('click', () => lmStop());
+  const rs = $('lm-rsel');
+  if (rs) rs.addEventListener('change', () => { lmPickReplay(rs.value); rs.blur(); });
   for (const box of [pr, tk]) {
     box.addEventListener('input', touched);
     box.addEventListener('keydown', (e) => {
@@ -305,7 +377,7 @@ function lmTick() {
 }
 
 if (typeof document === 'undefined') {
-  module.exports = { lmStory, lmPick, lmText, lmGrid, lmTotals, lmRate, lmModeLine, lmStepTokens, lmTokensValue, lmEstimate, lmDur };
+  module.exports = { lmWallNote, lmRecLine, lmCredit, lmBaud, lmStory, lmPick, lmText, lmGrid, lmTotals, lmRate, lmModeLine, lmStepTokens, lmTokensValue, lmEstimate, lmDur };
 } else {
   const qs4 = new URLSearchParams(location.search);
   lmWireCtl();
@@ -354,6 +426,8 @@ if (typeof document === 'undefined') {
       if (typingTarget(e.target) || e.ctrlKey || e.altKey || e.metaKey) return;
       if (e.key === 'g' || e.key === 'G') lmGenerate();
       else if (e.key === 'x' || e.key === 'X') lmStop();
+      else if (S.source === 'replay' && e.key === '[') lmStepReplay(-1);
+      else if (S.source === 'replay' && e.key === ']') lmStepReplay(+1);
     });
   }
 }
