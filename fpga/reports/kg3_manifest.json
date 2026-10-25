@@ -1,0 +1,41 @@
+[
+  {
+    "tag": "kg3_heartbeat_uart_echo",
+    "use": "KG3 qualification Q-1 (1,562,500-baud echo)",
+    "bitfile": "fpga/build/kg3_heartbeat_uart_echo/top.bit",
+    "build_id": "0x21DD6850",
+    "git_hash": "21dd6850",
+    "md5": "7429e8659d6994a1363e280336b1d502",
+    "wns_ns": 5.145,
+    "whs_ns": 0.024,
+    "uart_swap": 0,
+    "enable_strip": null,
+    "phys_opt": "AggressiveFanoutOpt"
+  },
+  {
+    "tag": "kg3_packet_mem",
+    "use": "KG3 optional (1,562,500-baud packet layer)",
+    "bitfile": "fpga/build/kg3_packet_mem/top.bit",
+    "build_id": "0x21DD6850",
+    "git_hash": "21dd6850",
+    "md5": "5ef34d4aa4421b54a1c4b41a3795cd04",
+    "wns_ns": 3.23,
+    "whs_ns": 0.089,
+    "uart_swap": 0,
+    "enable_strip": null,
+    "phys_opt": "AggressiveFanoutOpt"
+  },
+  {
+    "tag": "kg3_top",
+    "use": "KG3 qualification Q-2 .. Q-6 (KG3 source)",
+    "bitfile": "fpga/build/kg3_top/top.bit",
+    "build_id": "0x21DD6850",
+    "git_hash": "21dd6850",
+    "md5": "94bb7160ee61aff4b7f8cb9112cd7ed9",
+    "wns_ns": 0.473,
+    "whs_ns": 0.022,
+    "uart_swap": 0,
+    "enable_strip": "1",
+    "phys_opt": "AggressiveFanoutOpt"
+  }
+]

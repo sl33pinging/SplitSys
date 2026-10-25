@@ -5,11 +5,15 @@
 #
 #   bash fpga/tcl/archive_kg.sh <KGn> <tag> <log file> [<log file> ...] [--no-commit]
 #   e.g. bash fpga/tcl/archive_kg.sh KG1 top h3.log h4.log h5.log
+#   MANIFEST=fpga/reports/kg3_manifest.json bash fpga/tcl/archive_kg.sh KG3 kg3_top ...
+#   (MANIFEST: repo-relative manifest to check against; default
+#   fpga/reports/manifest.json. Used for a candidate build set such as KG3 that
+#   has its own manifest so the cited KG2 manifest is not rewritten.)
 #
 # Refuses (exit 1, nothing written) unless:
 #   - <KGn> matches KG<number> and fpga/known_good/<KGn> does not exist yet
 #     (an existing KG is never overwritten or deleted);
-#   - fpga/reports/manifest.json has a row for <tag>, and the md5 of
+#   - $MANIFEST (default fpga/reports/manifest.json) has a row for <tag>, and the md5 of
 #     fpga/build/<tag>/top.bit equals that row's md5 (i.e. the file on disk is
 #     the reviewed build that was tested on the board);
 #   - fpga/reports/<tag>/summary.json has pass true, git_dirty "false", and the
@@ -60,12 +64,13 @@ bit="fpga/build/$tag/top.bit"
 rep="fpga/reports/$tag"
 [ -f "$bit" ] || fail "$bit missing"
 [ -f "$rep/summary.json" ] || fail "$rep/summary.json missing"
-[ -f fpga/reports/manifest.json ] || fail "fpga/reports/manifest.json missing"
+manifest="${MANIFEST:-fpga/reports/manifest.json}"
+[ -f "$manifest" ] || fail "$manifest missing"
 
 PY="$(command -v python || command -v python3)" || fail "python not found"
 # Prints line 1: <manifest md5> <git_hash> <build_id> (or "ERR <reason>"),
 # then the manifest row as JSON. Writes nothing.
-check="$("$PY" -I - "$tag" fpga/reports/manifest.json "$rep/summary.json" <<'EOF'
+check="$("$PY" -I - "$tag" "$manifest" "$rep/summary.json" <<'EOF'
 import json, sys
 tag, man_path, sum_path = sys.argv[1:4]
 rows = [r for r in json.load(open(man_path, encoding="utf-8")) if r.get("tag") == tag]
@@ -109,6 +114,7 @@ for f in "${abs_logs[@]}"; do cp "$f" "$dest/logs/" || fail "copy log $f"; done
 {
   echo "kg: $kg"
   echo "tag: $tag"
+  echo "manifest: $manifest"
   echo "bit_md5: $have_md5"
   echo "build_git_hash: $git_hash"
   echo "build_id: $build_id"

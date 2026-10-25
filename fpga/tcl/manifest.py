@@ -2,7 +2,12 @@
 """Bitstream manifest for Phase H (owner: fpga-integrator).
 
     python fpga/tcl/manifest.py [tag ...]
+    python fpga/tcl/manifest.py --out fpga/reports/kg3_manifest.json kg3_top ...
     default tags: the four bitstreams fpga/tcl/s4_rebuild.sh builds (see TAGS)
+
+--out <repo-relative json>: write the manifest there instead of
+fpga/reports/manifest.json and leave docs/HW_CHECKLIST.md untouched (used for a
+candidate build set, e.g. KG3, while the committed KG2 manifest stays cited).
 
 For each tag, reads fpga/reports/<tag>/summary.json and hashes
 fpga/build/<tag>/top.bit (gitignored, so the hash is the link between the
@@ -34,11 +39,21 @@ USE = {
     "top": "H-4 .. H-7 (KG source)",
     "top_uartswap": "H-4 .. H-7 (KG1 source) if H-2 needed the swap",
     "top_nostrip": "cost build only (results/cost.json); never programmed for the demo",
+    "kg3_heartbeat_uart_echo": "KG3 qualification Q-1 (1,562,500-baud echo)",
+    "kg3_packet_mem": "KG3 optional (1,562,500-baud packet layer)",
+    "kg3_top": "KG3 qualification Q-2 .. Q-6 (KG3 source)",
 }
 
 
 def main():
-    tags = sys.argv[1:] or TAGS
+    args = sys.argv[1:]
+    out = None
+    if args[:1] == ["--out"]:
+        if len(args) < 2:
+            print("manifest: --out needs a path", file=sys.stderr)
+            return 2
+        out, args = ROOT / args[1], args[2:]
+    tags = args or TAGS
     rows, errs = [], []
     for t in tags:
         s = json.loads((ROOT / "fpga/reports" / t / "summary.json").read_text(encoding="utf-8"))
@@ -54,7 +69,8 @@ def main():
                      "build_id": s["build_id"], "git_hash": s["git_hash"], "md5": md5,
                      "wns_ns": s["wns_ns"], "whs_ns": s["whs_ns"], "uart_swap": s.get("uart_swap", 0),
                      "enable_strip": s.get("enable_strip"), "phys_opt": s.get("phys_opt", "Default")})
-    (ROOT / "fpga/reports/manifest.json").write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
+    (out or ROOT / "fpga/reports/manifest.json").write_text(json.dumps(rows, indent=2) + "\n",
+                                                           encoding="utf-8", newline="\n")
 
     lines = ["| Tag | Used at | build_id | git | WNS / WHS (ns) | UART pins | bit md5 |",
              "| --- | --- | --- | --- | --- | --- | --- |"]
@@ -63,6 +79,11 @@ def main():
         lines.append(f"| `{r['tag']}` | {r['use']} | `{r['build_id']}` | `{r['git_hash']}` | "
                      f"{r['wns_ns']:+.3f} / {r['whs_ns']:+.3f} | {pins} | `{r['md5']}` |")
     table = "\n".join(lines)
+    if out is not None:  # candidate manifest: never touch docs/HW_CHECKLIST.md
+        print(table)
+        for x in errs:
+            print("manifest: " + x, file=sys.stderr)
+        return 1 if errs else 0
     cl = ROOT / "docs/HW_CHECKLIST.md"
     text = cl.read_text(encoding="utf-8")
     b, e = "<!-- MANIFEST:BEGIN -->", "<!-- MANIFEST:END -->"

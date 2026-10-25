@@ -134,4 +134,7 @@ set_property -dict {PACKAGE_PIN J4 IOSTANDARD LVCMOS25} [get_ports {D1_SEG[7]}]
 
 # No set_input_delay/set_output_delay: BTN and UART_RXD are asynchronous and
 # 2-FF synchronized in RTL; LED/7-seg/UART_TXD are driven from flops and are
-# timing-insensitive at human/115200-baud rates. No timing exceptions here.
+# timing-insensitive: LEDs/7-seg at human rates, and the UART at any SPEC baud
+# (D-020: 1,562,500 = 64 clocks = 640 ns per bit, sampled at 16x; KG2 used
+# 115200), where a few ns of pad/route skew is far below one oversample tick.
+# No timing exceptions here. (Comment-only edit after build 21dd6850.)
