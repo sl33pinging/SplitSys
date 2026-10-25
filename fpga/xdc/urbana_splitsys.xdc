@@ -51,9 +51,15 @@ set_property BITSTREAM.Config.SPI_buswidth 4 [current_design]
 #    of reset. D00/D01 have no pull-up; they are don't-care while CS_B is high.
 #  - Other unused peripherals only see a weak pull to 0: USB_RESET_B V13 low
 #    holds the unused MAX3421E USB host in reset; DDR3 (bank 34) RESET_B/CKE low
-#    keep the unused DDR3 in reset/power-down; SPKL/SPKR low = silent. No pin
-#    in the master XDC is an active-low enable or a power-switch control
-#    (checked by name; the schematic was read from extracted text, not drawn).
+#    keep the unused DDR3 in reset/power-down; SPKL/SPKR low = silent.
+#    Some unused pins ARE active low and so become asserted: USB_SS_B T12 (the
+#    MAX3421E SPI chip select) and ddr3_ras_n/cas_n/we_n (DDR3 command strobes).
+#    Harmless: USB_RESET_B and ddr3_reset_n are pulled low too, so both devices
+#    are held in reset and ignore them. SEL_JOYSTICK F6 also goes low; the
+#    master XDC does not say what it selects and no SplitSys top uses it. No
+#    power-switch control was found (checked by pin name in the master XDC; the
+#    schematic was read from extracted text, not drawn). See docs/HW_CHECKLIST.md
+#    "Unused-pin pull-down safety". Comment-only edit: constraints unchanged.
 # Takes effect only in bitstreams built after this commit; every bitstream at
 # 52a66216 (incl. KG1) still has PULLUP and still lights the RGB LEDs.
 set_property BITSTREAM.CONFIG.UNUSEDPIN PULLDOWN [current_design]
