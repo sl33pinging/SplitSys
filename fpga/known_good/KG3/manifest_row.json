@@ -1,0 +1,13 @@
+{
+  "tag": "kg3_top",
+  "use": "KG3 qualification Q-2 .. Q-6 (KG3 source)",
+  "bitfile": "fpga/build/kg3_top/top.bit",
+  "build_id": "0x21DD6850",
+  "git_hash": "21dd6850",
+  "md5": "94bb7160ee61aff4b7f8cb9112cd7ed9",
+  "wns_ns": 0.473,
+  "whs_ns": 0.022,
+  "uart_swap": 0,
+  "enable_strip": "1",
+  "phys_opt": "AggressiveFanoutOpt"
+}

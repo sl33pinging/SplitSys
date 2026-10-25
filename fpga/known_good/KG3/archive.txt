@@ -1,0 +1,16 @@
+kg: KG3
+tag: kg3_top
+manifest: fpga/reports/kg3_manifest.json
+bit_md5: 94bb7160ee61aff4b7f8cb9112cd7ed9
+build_git_hash: 21dd6850
+build_id: 0x21DD6850
+archived_at: 2026-10-24 22:06:30 PDT
+archive_head: bdea3b0a99cf13a60a2c451ed66dd136d64abffb
+logs:
+  Q-1_echo.log  (from /c/Users/danie/FPGA_Projects/Calhack2026/results/hw/logs/KG3/Q-1_echo.log)
+  Q-7_echo_latency1ms.log  (from /c/Users/danie/FPGA_Projects/Calhack2026/results/hw/logs/KG3/Q-7_echo_latency1ms.log)
+  Q-2_program_ping.log  (from /c/Users/danie/FPGA_Projects/Calhack2026/results/hw/logs/KG3/Q-2_program_ping.log)
+  Q-3_selftest_dump.log  (from /c/Users/danie/FPGA_Projects/Calhack2026/results/hw/logs/KG3/Q-3_selftest_dump.log)
+  Q-4_memtest_seed1.log  (from /c/Users/danie/FPGA_Projects/Calhack2026/results/hw/logs/KG3/Q-4_memtest_seed1.log)
+  Q-5_random_both_seed1.log  (from /c/Users/danie/FPGA_Projects/Calhack2026/results/hw/logs/KG3/Q-5_random_both_seed1.log)
+  Q-6_lm_8tok.log  (from /c/Users/danie/FPGA_Projects/Calhack2026/results/hw/logs/KG3/Q-6_lm_8tok.log)

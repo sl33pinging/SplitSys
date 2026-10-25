@@ -1,0 +1,8 @@
+Sat Oct 24 21:48:05 PDT 2026
+7429e8659d6994a1363e280336b1d502 *fpga/build/kg3_heartbeat_uart_echo/top.bit
+PROGRAM: C:/Users/danie/FPGA_Projects/Calhack2026/fpga/build/kg3_heartbeat_uart_echo/top.bit
+PROGRAM: DONE pin = '1'
+PROGRAM_OK: C:/Users/danie/FPGA_Projects/Calhack2026/fpga/build/kg3_heartbeat_uart_echo/top.bit
+ECHO 100000 bytes, 0 mismatched, 25385.5 ms
+rc=0
+Sat Oct 24 21:49:16 PDT 2026
